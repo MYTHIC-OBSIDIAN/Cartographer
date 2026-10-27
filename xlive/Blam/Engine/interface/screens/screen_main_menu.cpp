@@ -40,8 +40,9 @@ enum e_main_menu_list_items : uint16
 	//_item_settings,
 	//_item_quit,
 
-	// LAN edition: original menu, Xbox Live and Guide removed, Split-screen added
+	// LAN edition: Guide removed, Split-screen added
 	_item_campaign = 0,
+	_item_xbox_live,
 	_item_splitscreen,
 	_item_system_link,
 	_item_settings,
@@ -164,11 +165,16 @@ void c_main_menu_list::update_list_items(c_list_item_widget* item, int32 skin_in
 		case _item_campaign:
 			item_text->set_text_from_string_id(_string_id_campaign);
 			break;
+		case _item_xbox_live:
+			// LAN edition: fixed label
+			item_text->set_text(L"XBOX LIVE");
+			break;
 		case _item_splitscreen:
 			item_text->set_text_from_string_id(_string_id_splitscreen);
 			break;
 		case _item_system_link:
-			item_text->set_text_from_string_id(_string_id_systemlink);
+			// LAN edition: fixed label (the map's string reads "Network")
+			item_text->set_text(L"SYSTEM LINK");
 			break;
 		case _item_settings:
 			item_text->set_text_from_string_id(_string_id_settings);
@@ -210,6 +216,9 @@ void c_main_menu_list::handle_item_pressed_event(s_event_record* const& event, d
 	{
 	case _item_campaign:
 		handle_item_campaign(event);
+		break;
+	case _item_xbox_live:
+		handle_item_xbox_live(event);
 		break;
 	case _item_splitscreen:
 		handle_item_splitscreen(event);
@@ -258,47 +267,18 @@ void c_main_menu_list::handle_item_campaign(
 void c_main_menu_list::handle_item_xbox_live(
 	s_event_record* const& event)
 {
-	//return INVOKE_TYPE(0xB257, 0x0, bool(__thiscall*)(c_main_menu_list*, s_event_record**), this, pevent);
-
-	//disabling activation check as we dont need it
-	/*
-	XLivePBufferGetByte(dword_879E78, 0, &game_activated);
-	if (!game_activated)
-		return true;
-	*/
-
 	c_networking_panorama_friends* friends = get_networking_panorama_friends();
 	if (!friends->has_active_task())
 	{
 		friends->initialize_startup();
 	}
 
-	//xbox checks if there are any live-controllers signed in
-	//h2v on the other hand checks for live-connection-status and the flag
-	if (online_connected_to_xbox_live() || shell_command_line_flag_is_set(_shell_command_line_flag_unlock_xbox_live_menus))
-	{
-		c_screen_parameters params;
+	// LAN edition: always open the Live menus (as with the unlock_xbox_live_menus flag).
+	// Nothing connects, since this build has no internet access or online accounts.
+	c_screen_parameters params;
 
-		params.initialize_default_user(FLAG(event->controller), _user_interface_channel_type_gameshell_screen, _window_4, c_screen_4way_signin::load_for_xbox_live);
-		params.execute_load_function();
-	}
-	else
-	{
-		if (transport_available())
-		{
-			user_interface_guide_state_manager_get()->add_user_signin_task(true, screen_show_screen_4way_signin_xbox_live_callback);
-		}
-		else
-		{
-			screen_error_ok_dialog_show(
-				_user_interface_channel_type_game_error,
-				_ui_error_xblive_cannot_access_service,
-				_window_4,
-				FLAG(event->controller),
-				nullptr,
-				nullptr);
-		}
-	}
+	params.initialize_default_user(FLAG(event->controller), _user_interface_channel_type_gameshell_screen, _window_4, c_screen_4way_signin::load_for_xbox_live);
+	params.execute_load_function();
 
 	return;
 }
