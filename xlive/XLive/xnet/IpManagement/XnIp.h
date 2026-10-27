@@ -92,6 +92,14 @@ struct XBroadcastPacket
 	} data;
 };
 
+// LAN edition: like XLiveLessNess, learn the address each System Link peer's
+// broadcasts actually arrive from, and use it instead of the single LAN address
+// the peer advertises (which may be on a different network adapter).
+// The sender's abEnet is carried in the unused sin_zero bytes of XBroadcastPacket::data.name.
+void xnip_system_link_tag_broadcast(XBroadcastPacket* packet);
+void xnip_system_link_learn_peer_address(const XBroadcastPacket* packet, IN_ADDR from_address);
+bool xnip_system_link_get_peer_address(const BYTE* abEnet, IN_ADDR* out_address);
+
 struct XNetRequestPacket
 {
 	XNetRequestPacket()

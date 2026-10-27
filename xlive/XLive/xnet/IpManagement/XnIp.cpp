@@ -199,6 +199,9 @@ int XnIpManager::HandleRecvdPacket(XVirtualSocket* xsocket, sockaddr_in* lpFrom,
 				&& strncmp(broadcastPck->pckHeader.signatureString, XNIP_BROADCAST_HEADER_STR, XNIP_MAX_PCK_STR_HDR_LEN) == 0
 				&& broadcastPck->data.name.sin_addr.s_addr == htonl(INADDR_BROADCAST))
 			{
+				// LAN edition: remember which address this peer's broadcasts really come from
+				xnip_system_link_learn_peer_address(broadcastPck, lpFrom->sin_addr);
+
 				*lpBytesRecvdCount = *lpBytesRecvdCount - sizeof(XBroadcastPacket);
 				memmove(lpBuffers[0].buf, lpBuffers[0].buf + sizeof(XBroadcastPacket), *lpBytesRecvdCount);
 				lpFrom->sin_addr = broadcastPck->data.name.sin_addr;
@@ -1142,3 +1145,117 @@ int WINAPI XNetUnregisterKey(const XNKID* pxnkid)
 // ------------------------
 #pragma endregion
 // ------------------------
+
+/* LAN edition: System Link peer address learning (all network adapters) */
+
+enum
+{
+	k_system_link_peer_table_size = 64,
+	k_system_link_tag_abenet_size = 6,
+};
+
+static const char k_system_link_tag_magic[2] = { 'L', 'N' };
+
+struct s_system_link_peer_address
+{
+	BYTE abEnet[k_system_link_tag_abenet_size];
+	IN_ADDR address;
+	ULONGLONG last_seen;
+	bool valid;
+};
+
+static std::mutex g_system_link_peer_mutex;
+static s_system_link_peer_address g_system_link_peers[k_system_link_peer_table_size] = {};
+
+static_assert(sizeof(sockaddr_in::sin_zero) >= k_system_link_tag_abenet_size + sizeof(k_system_link_tag_magic), "sin_zero too small");
+static_assert(sizeof(XNADDR::abEnet) == k_system_link_tag_abenet_size, "unexpected abEnet size");
+
+void xnip_system_link_tag_broadcast(XBroadcastPacket* packet)
+{
+	const XnIp* local = XnIpManager::GetLocalUserXn();
+	if (local == nullptr)
+	{
+		return;
+	}
+
+	char* tag = packet->data.name.sin_zero;
+	memcpy(tag, local->m_xnaddr.abEnet, k_system_link_tag_abenet_size);
+	memcpy(tag + k_system_link_tag_abenet_size, k_system_link_tag_magic, sizeof(k_system_link_tag_magic));
+	return;
+}
+
+void xnip_system_link_learn_peer_address(const XBroadcastPacket* packet, IN_ADDR from_address)
+{
+	const char* tag = packet->data.name.sin_zero;
+	if (memcmp(tag + k_system_link_tag_abenet_size, k_system_link_tag_magic, sizeof(k_system_link_tag_magic)) != 0
+		|| from_address.s_addr == htonl(INADDR_ANY)
+		|| from_address.s_addr == htonl(INADDR_BROADCAST))
+	{
+		return;
+	}
+
+	const XnIp* local = XnIpManager::GetLocalUserXn();
+	if (local != nullptr && memcmp(tag, local->m_xnaddr.abEnet, k_system_link_tag_abenet_size) == 0)
+	{
+		// our own broadcast
+		return;
+	}
+
+	std::lock_guard<std::mutex> lock(g_system_link_peer_mutex);
+
+	s_system_link_peer_address* slot = nullptr;
+	s_system_link_peer_address* oldest = &g_system_link_peers[0];
+	for (int i = 0; i < k_system_link_peer_table_size; i++)
+	{
+		s_system_link_peer_address* entry = &g_system_link_peers[i];
+		if (entry->valid && memcmp(entry->abEnet, tag, k_system_link_tag_abenet_size) == 0)
+		{
+			slot = entry;
+			break;
+		}
+		if (!entry->valid)
+		{
+			if (slot == nullptr)
+			{
+				slot = entry;
+			}
+		}
+		else if (oldest->valid && entry->last_seen < oldest->last_seen)
+		{
+			oldest = entry;
+		}
+	}
+
+	if (slot == nullptr)
+	{
+		slot = oldest;
+	}
+
+	if (!slot->valid || slot->address.s_addr != from_address.s_addr)
+	{
+		LOG_TRACE_NETWORK("{} - System Link peer seen at {}", __FUNCTION__, inet_ntoa(from_address));
+	}
+
+	memcpy(slot->abEnet, tag, k_system_link_tag_abenet_size);
+	slot->address = from_address;
+	slot->last_seen = GetTickCount64();
+	slot->valid = true;
+	return;
+}
+
+bool xnip_system_link_get_peer_address(const BYTE* abEnet, IN_ADDR* out_address)
+{
+	std::lock_guard<std::mutex> lock(g_system_link_peer_mutex);
+
+	for (int i = 0; i < k_system_link_peer_table_size; i++)
+	{
+		const s_system_link_peer_address* entry = &g_system_link_peers[i];
+		if (entry->valid && memcmp(entry->abEnet, abEnet, k_system_link_tag_abenet_size) == 0)
+		{
+			*out_address = entry->address;
+			return true;
+		}
+	}
+
+	return false;
+}

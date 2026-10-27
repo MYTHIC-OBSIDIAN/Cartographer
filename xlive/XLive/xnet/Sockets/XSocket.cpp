@@ -2,6 +2,7 @@
 #include "XSocket.h"
 
 #include "XLive/xnet/IpManagement/XnIp.h"
+#include "XLive/xnet/NIC.h"
 #include "H2MOD/Modules/Shell/Config.h"
 
 #include "XLive/xnet/net_utils.h"
@@ -474,6 +475,9 @@ int WINAPI XSocketWSASendTo(
 			XBroadcastPacket* packet = (XBroadcastPacket*)_alloca(sizeof(XBroadcastPacket) + lpBuffers->len);
 			new (packet) XBroadcastPacket();
 
+			// LAN edition: let receivers learn which address this PC is reachable at
+			xnip_system_link_tag_broadcast(packet);
+
 			memcpy((char*)packet + sizeof(XBroadcastPacket), lpBuffers->buf, lpBuffers->len);
 
 			sockaddr_in broadcastAddresses[k_system_link_socket_type_count];
@@ -490,10 +494,23 @@ int WINAPI XSocketWSASendTo(
 			broadcastAddresses[_system_link_socket_type_localhost].sin_addr.s_addr = htonl(XSOCK_MUTICAST_ADDR);
 			broadcastAddresses[_system_link_socket_type_localhost].sin_port = htons(XSOCK_MULTICAST_PORT);
 
+			// LAN edition: like XLiveLessNess, broadcast on every network adapter's own subnet.
+			// A limited broadcast (255.255.255.255) only leaves through one adapter on Windows,
+			// so it is only used when no adapters are found. Setting a broadcast override address
+			// in the config keeps the original single-address behaviour.
+			IN_ADDR adapter_broadcast_addresses[32];
+			const int adapter_count = use_override_broadcast_addr ? 0 : CNic::GetAllInterfaceBroadcastAddresses(adapter_broadcast_addresses, (int)NUMBEROF(adapter_broadcast_addresses));
+
 			WSASetLastError(WSAEINVAL);
 
 			for (size_t i = 0; i < NUMBEROF(broadcastAddresses); ++i)
 			{
+				if (i == (size_t)_system_link_socket_type_lan && adapter_count > 0)
+				{
+					// sent per adapter below instead
+					continue;
+				}
+
 				const SOCKET handle = g_XSockMgr.SystemLinkGetSystemSockHandle((e_system_link_socket_type)i);
 				if (handle != INVALID_SOCKET)
 				{
@@ -514,6 +531,39 @@ int WINAPI XSocketWSASendTo(
 					{
 						*lpNumberOfBytesSent = 0;
 						result = SOCKET_ERROR;
+					}
+				}
+			}
+
+			// LAN edition: per-adapter subnet broadcasts
+			if (adapter_count > 0)
+			{
+				const SOCKET lan_handle = g_XSockMgr.SystemLinkGetSystemSockHandle(_system_link_socket_type_lan);
+				if (lan_handle != INVALID_SOCKET)
+				{
+					for (int i = 0; i < adapter_count; ++i)
+					{
+						sockaddr_in adapter_broadcast;
+						memset(&adapter_broadcast, 0, sizeof(adapter_broadcast));
+						adapter_broadcast.sin_family = AF_INET;
+						adapter_broadcast.sin_addr = adapter_broadcast_addresses[i];
+						adapter_broadcast.sin_port = g_XSockMgr.SystemLinkGetPort();
+
+						const int send_result = sendto(
+							lan_handle,
+							(const char*)packet,
+							sizeof(XBroadcastPacket) + lpBuffers->len,
+							dwFlags,
+							(const sockaddr*)&adapter_broadcast,
+							sizeof(sockaddr_in)
+						);
+
+						if (send_result != SOCKET_ERROR && result == SOCKET_ERROR)
+						{
+							// at least one adapter got the packet out
+							*lpNumberOfBytesSent = send_result;
+							result = ERROR_SUCCESS;
+						}
 					}
 				}
 			}
@@ -544,7 +594,17 @@ int WINAPI XSocketWSASendTo(
 		// to allow packets to be sent even if an account is logged in locally or online (local Xbox profile or Online profile)
 
 		const bool fallback_to_lan = online_ip.s_addr == gXnIpMgr.GetLocalUserXn()->GetOnlineIpAddr().s_addr || online_ip.s_addr == 0;
-		sendToAddr.sin_addr = fallback_to_lan ? xnIp->GetLanIpAddr() : online_ip;
+		IN_ADDR lan_ip = xnIp->GetLanIpAddr();
+
+		// LAN edition: use the address this peer's System Link broadcasts actually came from,
+		// in case the LAN address it advertises belongs to a different network adapter
+		IN_ADDR learned_lan_ip;
+		if (fallback_to_lan && xnip_system_link_get_peer_address(xnIp->m_xnaddr.abEnet, &learned_lan_ip))
+		{
+			lan_ip = learned_lan_ip;
+		}
+
+		sendToAddr.sin_addr = fallback_to_lan ? lan_ip : online_ip;
 
 		//sendToAddr.sin_port = xnIp->m_xnaddr.wPortOnline;
 		sendToAddr.sin_port = htons(ntohs(xnIp->m_xnaddr.wPortOnline) + (ntohs(inTo->sin_port) % 1000));
