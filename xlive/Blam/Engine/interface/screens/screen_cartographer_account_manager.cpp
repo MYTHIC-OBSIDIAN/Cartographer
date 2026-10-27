@@ -748,17 +748,13 @@ c_cartographer_account_manager_menu* c_cartographer_account_manager_menu::load_f
 
 void cartographer_account_manager_open_list(void)
 {
-	const bool is_accounting_active_handle = c_cartographer_account_manager_menu::is_accounting_active_handle();
-	if (!is_accounting_active_handle && ReadH2Accounts())
+	// LAN edition: no online accounts - instead of showing the account list,
+	// sign in offline straight away (same as the list's "Play Offline" button)
+	if (ConfigureLocalUserDetails())
 	{
-		c_cartographer_account_manager_menu::load_for_account_list_context();
-	}
-	else
-	{
-		if (!is_accounting_active_handle)
-		{
-			c_cartographer_error_menu::load_by_error_id(_cartographer_error_id_login_account_already_in_use);
-		}
+		extern int notify_xlive_ui;
+		notify_xlive_ui = 0;
+		XUserSignInSetStatusChanged(0);
 	}
 	return;
 }
