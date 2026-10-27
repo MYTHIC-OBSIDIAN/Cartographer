@@ -166,14 +166,7 @@ static bool FlashlightIsEngineSPCheck(void);
 
 bool xbox_tickrate_is_enabled()
 {
-	uint16 default_teams_enabled_flags = p_get_enabled_teams_flags(session);
-
-	// skip if we're not host, let the host control
-	if (!session->is_host())
-		return default_teams_enabled_flags;
-
-	// LAN edition: name-triggered team overrides (Infection, RvB) removed
-	return (default_teams_enabled_flags & H2Config_team_bit_flags);
+	return g_xbox_tickrate_enabled;
 }
 
 #pragma region PlayerFunctions
@@ -519,43 +512,13 @@ static bool __cdecl OnMapLoad(s_game_options* options)
 static uint16 __cdecl get_enabled_team_flags(c_network_session* session)
 {
 	uint16 default_teams_enabled_flags = p_get_enabled_teams_flags(session);
-	uint16 new_teams_enabled_flags = (default_teams_enabled_flags & H2Config_team_bit_flags);
-	const uint16 red_versus_blue_teams = FLAG(_game_team_red) | FLAG(_game_team_blue);
-	const uint16 infection_teams = FLAG(_game_team_red) | FLAG(_game_team_green);
-
-	std::wstring selected_map_file_name;
 
 	// skip if we're not host, let the host control
 	if (!session->is_host())
 		return default_teams_enabled_flags;
 
-	if (CustomVariantHandler::ContainsGameVariant(session->get_game_variant_name(), _id_infection))
-	{
-		// infection overrides H2Config
-		// TODO get infection_teams through the interface
-		new_teams_enabled_flags = infection_teams;
-		if ((default_teams_enabled_flags & FLAG(_game_team_red)) == 0
-			|| (default_teams_enabled_flags & FLAG(_game_team_green)) == 0)
-		{
-			error(_error_log, " - infection teams disabled in default enabled team flags");
-			if (MapManager::GetMapFilename(selected_map_file_name))
-				error(_error_log, " - perhaps current selected map - %ws doesn't support these teams?? overriding anyway", selected_map_file_name.c_str());
-		}
-	}
-	else if (StrStrIW(session->get_game_variant_name(), L"rvb") != NULL)
-	{
-		// same with rvb, overrides H2Config
-		new_teams_enabled_flags = red_versus_blue_teams;
-		if ((default_teams_enabled_flags & FLAG(_game_team_red)) == 0
-			|| (default_teams_enabled_flags & FLAG(_game_team_blue)) == 0)
-		{
-			error(_error_log, " - RvB teams disabled in default enabled team flags");
-			if (MapManager::GetMapFilename(selected_map_file_name))
-				error(_error_log, " - perhaps current selected map - %ws doesn't support these teams??", selected_map_file_name.c_str());
-		}
-	}
-
-	return new_teams_enabled_flags;
+	// LAN edition: name-triggered team overrides (Infection, RvB) removed
+	return (default_teams_enabled_flags & H2Config_team_bit_flags);
 }
 
 __declspec(naked) static void object_function_value_adjust_primary_firing(void)
