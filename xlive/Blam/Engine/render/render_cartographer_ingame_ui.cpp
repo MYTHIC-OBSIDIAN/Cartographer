@@ -85,22 +85,12 @@ void render_cartographer_ingame_ui(void)
 #endif
 
 	rasterizer_dx9_perf_event_begin("render cartographer ingame ui", NULL);
-	render_cartographer_status_bar(k_cartographer_build_text);
-	render_cartographer_update_message(g_auto_update_text, sizeOfDownload, sizeOfDownloaded);
-	if (!AchievementMap.empty())
-	{
-		auto it = AchievementMap.begin();
-		it->second = true;
-		if (!render_cartographer_achievement_message(it->first.c_str()))
-		{
-			AchievementMap.erase(it);
-		}
-	}
-	render_cartographer_git_build_info();
+	// LAN edition: Cartographer build text / status bar, updater message,
+	// achievement pop-ups and test build info removed
 	render_netdebug_text();
 	render_main_game_time_debug();
 
-	cartographer_ingame_variant_ui_render();
+	// LAN edition: Cartographer variant settings overlay (F3) removed
 
 	rasterizer_dx9_perf_event_end("render cartographer ingame ui");
 	return;

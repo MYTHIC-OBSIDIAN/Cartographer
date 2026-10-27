@@ -43,8 +43,7 @@ enum e_settings_list_items : uint16
 	_item_network,
 	_item_about,
 
-	//custom addition
-	_item_guide,
+	// LAN edition: Cartographer settings entry removed
 	k_total_no_of_settings_list_items
 };
 
@@ -137,7 +136,8 @@ c_list_item_widget* c_settings_list::get_list_items()
 int32 c_settings_list::get_list_items_count()
 {
 	//return INVOKE_TYPE(0x21E9BF, 0x0, int(__thiscall*)(c_settings_list*), this);
-	return (field_464 != false) + k_no_of_visible_items_for_settings;
+	// LAN edition: original count (6, +1 when field_464 is set), as halo2.exe 0x21E9BF
+	return (field_464 != false) + 6;
 }
 
 void c_settings_list::update_list_items(c_list_item_widget* item, int32 skin_index)
@@ -169,9 +169,6 @@ void c_settings_list::update_list_items(c_list_item_widget* item, int32 skin_ind
 		case _item_about:
 			item_text->set_text_from_string_id(_string_id_settings_about);
 			break;
-		case _item_guide:
-			item_text->set_text(L"Cartographer");
-			break;
 		}
 	}
 }
@@ -201,9 +198,6 @@ void c_settings_list::handle_item_pressed_event(s_event_record* const& event, da
 		break;
 	case _item_about:
 		handle_item_about(event);
-		break;
-	case _item_guide:
-		handle_item_guide(event);
 		break;
 	}
 }
@@ -290,40 +284,7 @@ c_screen_settings::c_screen_settings(e_user_interface_channel_type channel_type,
 
 void c_screen_settings::post_initialize_button_keys()
 {
-	// this function is executed once upon every pane creation
-	// thus can be used as on_pane_switch hook
-
-	if (this->m_pane_index == _settings_pane_guide
-		|| DATUM_INDEX_TO_ABSOLUTE_INDEX(this->m_settings_list.get_old_data_index()) == _item_guide)
-	{
-		c_text_widget* description = this->try_find_screen_text(_pane_guide_text_description);
-		c_text_widget* flavor_text1 = this->try_find_screen_text(_pane_guide_text_custom_flavor_text1);
-		c_text_widget* flavor_text2 = this->try_find_screen_text(_pane_guide_text_custom_flavor_text2);
-		c_bitmap_widget* main_bitmap = this->try_find_bitmap_widget(_pane_guide_bitmap_settings_screen_bitmap);
-		if (description)
-		{
-			description->set_text(L"Go to Cartographer settings");
-		}
-
-		if (flavor_text1)
-		{
-			flavor_text1->set_text(L"Matchmaking is ready! and Coop works for real");
-		}
-
-		if (flavor_text2)
-		{
-			flavor_text2->set_text(L"Hop onto ONLINE and be ready to suffer from disappointment");
-		}
-
-		if (cartographer_bitmap_datum != NONE && main_bitmap)
-		{
-			bitmap_data* bitmap_block = bitmap_group_get_bitmap(cartographer_bitmap_datum, _settings_cartographer_bitmap_type_default);
-			main_bitmap->assign_new_bitmap_block(bitmap_block);
-		}
-
-	}
-
-	// call orignal function now
+	// LAN edition: Cartographer guide pane removed
 	c_screen_widget::post_initialize_button_keys();
 }
 
@@ -363,85 +324,6 @@ void* c_screen_settings::load(c_screen_parameters* parameters)
 
 void c_screen_settings::apply_patches_on_map_load()
 {
-	const char* k_main_widget_tag_path = "ui\\screens\\game_shell\\settings_screen\\settings";
-
-	datum main_widget_datum_index = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_main_widget_tag_path);
-
-	if (main_widget_datum_index == NONE)
-	{
-		error(_error_log, "bad datum found");
-		return;
-	}
-
-	s_user_interface_screen_widget_definition* main_widget_tag = user_interface_screen_widget_definition_get(main_widget_datum_index);
-
-	// add window_pane for guide option 
-	tag_injection_extend_block(&main_widget_tag->panes, sizeof(s_window_pane_reference), k_number_of_addition_panes_for_settings_screen);
-	
-	s_window_pane_reference* guide_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _settings_pane_guide);
-	s_window_pane_reference* about_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _settings_pane_about);
-
-	// copy data from about_pane
-	*guide_pane = *about_pane;
-	
-	// updating the new number of visible items in each pane
-	for (int32 i = 0; i < main_widget_tag->panes.count; ++i)
-	{
-		s_window_pane_reference const* pane_reference = TAG_BLOCK_GET_ELEMENT(
-			&main_widget_tag->panes,
-			i,
-			s_window_pane_reference
-		);
-		s_list_reference* list_reference = TAG_BLOCK_GET_ELEMENT(
-			&pane_reference->list_block,
-			0,
-			s_list_reference
-		);
-
-
-		list_reference->num_visible_items = k_no_of_visible_items_for_settings;
-	}
-
-	tag_injection_set_active_map(L"mainmenu_bitmaps");
-	if (tag_injection_active_map_verified())
-	{
-		datum cartographer_bitmap_org_datum = tag_injection_load(_tag_group_bitmap, "ui\\screens\\game_shell\\settings_screen\\cartographer", true);
-
-		if (cartographer_bitmap_org_datum != NONE)
-		{
-			tag_injection_inject();
-			cartographer_bitmap_datum = cartographer_bitmap_org_datum;
-			event(_event_verbose, "interface:screens: cartographer bitmap datum : 0x%08X", cartographer_bitmap_datum);
-		}
-		else
-		{
-			cartographer_bitmap_datum = NONE;
-		}
-	}
-	else
-	{
-		cartographer_bitmap_datum = NONE;
-	}
-
-	
-
-	//clone blocks into a seperate memory (so we dont end up affecting about_pane)
-	tag_injection_extend_block(&guide_pane->text_blocks, sizeof(s_text_block_reference), k_number_of_addition_texts_for_guide_pane);
-
-	//copy data from existing blocks
-
-	s_text_block_reference* flavor_text33 = TAG_BLOCK_GET_ELEMENT(&guide_pane->text_blocks, _pane_guide_text_flavor_text33, s_text_block_reference);
-	s_text_block_reference* flavor_text34 = TAG_BLOCK_GET_ELEMENT(&guide_pane->text_blocks, _pane_guide_text_flavor_text34, s_text_block_reference);
-	s_text_block_reference* flavor_text1 = TAG_BLOCK_GET_ELEMENT(&guide_pane->text_blocks, _pane_guide_text_custom_flavor_text1, s_text_block_reference);
-	s_text_block_reference* flavor_text2 = TAG_BLOCK_GET_ELEMENT(&guide_pane->text_blocks, _pane_guide_text_custom_flavor_text2, s_text_block_reference);
-
-	csmemcpy(flavor_text1, flavor_text33, sizeof(s_text_block_reference));
-	csmemcpy(flavor_text2, flavor_text33, sizeof(s_text_block_reference));
-
-	//update new text_block to reposition callout texts
-	flavor_text33->text_bounds = { -5 ,-5,-115 ,75 };
-	flavor_text34->text_bounds = { 180 ,460,140 ,860 };
-	flavor_text1->text_bounds = { 250 ,30,150 ,150 };
-	flavor_text2->text_bounds = { -120 ,450,-220 ,530 };
+	// LAN edition: no extra Cartographer pane is added to the settings screen tag
 	return;
 }

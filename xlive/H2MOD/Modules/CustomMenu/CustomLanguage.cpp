@@ -572,42 +572,9 @@ void __stdcall string_id_to_wide_string_hook(int thisx, int string_id, wchar_t *
 #pragma endregion
 
 static void overrideCoreH2Labels() {
-	/*custom_language* lang_english = get_custom_language(0, 0);
-	add_custom_label(lang_english, 0x000003fd, 0x0a000285, "MULTIPLAYER");
-
-	custom_language* lang_japanese = get_custom_language(1, 0);
-	add_custom_label(lang_japanese, 0x000003fd, 0x0a000285, "MULTIPLAYER");
-
-	custom_language* lang_german = get_custom_language(2, 0);
-	add_custom_label(lang_german, 0x000003fd, 0x0a000285, "MEHRSPIELER");
-
-	custom_language* lang_french = get_custom_language(3, 0);
-	add_custom_label(lang_french, 0x000003fd, 0x0a000285, "MULTIJOUEUR");
-
-	custom_language* lang_spanish = get_custom_language(4, 0);
-	add_custom_label(lang_spanish, 0x000003fd, 0x0a000285, "MULTIJUGADOR");
-
-	custom_language* lang_italian = get_custom_language(5, 0);
-	add_custom_label(lang_italian, 0x000003fd, 0x0a000285, "MULTIPLAYER");
-
-	custom_language* lang_korean = get_custom_language(6, 0);
-	add_custom_label(lang_korean, 0x000003fd, 0x0a000285, "MULTIPLAYER");
-
-	custom_language* lang_chinese = get_custom_language(7, 0);
-	add_custom_label(lang_chinese, 0x000003fd, 0x0a000285, "MULTIPLAYER");
-	*/
-
-	for (int i = 0; i <= 7; i++) {
-		custom_language* lang = get_custom_language(i, 0);
-		//add_custom_label(lang, 0x000003fd, 0x05000986, "CARTOGRAPHER");
-		//add_custom_label(lang, 0x00000718, _string_id_switch_to_coop, "Extra Game Settings...");
-		//add_custom_label(lang, 0x00000937, 0x0700064a, "Signing into Project Cartographer, please wait...");
-		add_custom_label(lang, 0x00000ae5, 0x0a001b30, "Join others in online multiplayer fun with Project Cartographer! Choose from a vast selection of Ranked, Social and Custom games!");
-		add_custom_label(lang, 0x00000ae5, 0x0b001b2e, "Join our amazing community online at halo2pc.com!");
-		add_custom_label(lang, 0x00000ae5, 0x06000234, "Cartographer");
-		add_custom_label(lang, 0x00000ae5, 0x0f001ae6, "Jump right into a game of Halo 2");
-		add_custom_label(lang, 0x00000ae5, 0x11001b2f, "Online Stats");
-	}
+	// LAN edition: Cartographer's main menu text overrides removed,
+	// so the text from mainmenu.map is shown unchanged.
+	return;
 } 
 
 void custom_language_initialize() {

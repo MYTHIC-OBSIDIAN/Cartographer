@@ -33,8 +33,15 @@ enum e_main_menu_list_items : uint16
 	//_item_quit,
 
 	//h2x
+	//_item_campaign = 0,
+	//_item_xbox_live,
+	//_item_splitscreen,
+	//_item_system_link,
+	//_item_settings,
+	//_item_quit,
+
+	// LAN edition: original menu, Xbox Live and Guide removed, Split-screen added
 	_item_campaign = 0,
-	_item_xbox_live,
 	_item_splitscreen,
 	_item_system_link,
 	_item_settings,
@@ -150,18 +157,12 @@ void c_main_menu_list::update_list_items(c_list_item_widget* item, int32 skin_in
 	c_text_widget* item_text = item->try_find_text_widget(_main_menu_list_skin_text_main);
 	item->set_item_transitioning(true);
 
-	const e_language language = get_current_language();
 	if (item_text)
 	{
 		switch (DATUM_INDEX_TO_ABSOLUTE_INDEX(item->get_last_data_index()))
 		{
 		case _item_campaign:
 			item_text->set_text_from_string_id(_string_id_campaign);
-			break;
-		case _item_xbox_live:
-			// TODO: if we ever do a map recompile grab the text from the stringid again
-			//item_text->set_text_from_string_id(_string_id_xbox_live);
-			item_text->set_text(k_online_button_text[language]);
 			break;
 		case _item_splitscreen:
 			item_text->set_text_from_string_id(_string_id_splitscreen);
@@ -210,9 +211,6 @@ void c_main_menu_list::handle_item_pressed_event(s_event_record* const& event, d
 	case _item_campaign:
 		handle_item_campaign(event);
 		break;
-	case _item_xbox_live:
-		handle_item_xbox_live(event);
-		break;
 	case _item_splitscreen:
 		handle_item_splitscreen(event);
 		break;
@@ -245,21 +243,13 @@ void c_main_menu_list::handle_item_campaign(
 			nullptr,
 			nullptr);
 	}
-	else if (online_connected_to_xbox_live())
+	else
 	{
+		// LAN edition: no achievements, so no "play without achievements?" prompt
 		c_screen_parameters params;
 
 		params.initialize_default_user(FLAG(event->controller), _user_interface_channel_type_gameshell_dialog, _window_4, c_screen_campaign_options::load);
 		params.execute_load_function();
-	}
-	else
-	{
-		user_interface_error_ok_cancel_dialog_show_confirmation(
-			_user_interface_channel_type_gameshell_dialog,
-			_window_4,
-			FLAG(event->controller),
-			screen_show_campaign_options_without_achievement,
-			_ui_error_confirm_campaign_without_achievements);
 	}
 
 	return;

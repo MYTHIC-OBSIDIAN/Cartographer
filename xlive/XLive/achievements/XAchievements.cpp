@@ -66,43 +66,12 @@ DWORD WINAPI XUserWriteAchievements(
 	PXUSER_ACHIEVEMENT pAchievement,
 	PXOVERLAPPED pOverlapped)
 {
+	// LAN edition: online achievements removed - accept the write, do nothing
 	LOG_TRACE_XLIVE(
-		"XUserWriteAchievements  (count = {0:#x}, buffer = {1:p}, pOverlapped = {2:p})",
+		"XUserWriteAchievements  (count = {0:#x}, buffer = {1:p}, pOverlapped = {2:p}) - ignored",
 		dwNumAchievements,
 		(void*)pAchievement,
 		(void*)pOverlapped);
-
-	XUSER_SIGNIN_INFO* signedInUser = XUserGetSignInInfo(pAchievement->dwUserIndex);
-
-	if (dwNumAchievements > 0)
-	{
-		for (DWORD i = 0u; i < dwNumAchievements; i++)
-		{
-			int achievementID = pAchievement[i].dwAchievementId;
-
-			LOG_TRACE_GAME("Achievement {0} unlock attempt by Player {1} - id2: {2}", pAchievement[i].dwAchievementId, pAchievement[i].dwUserIndex, achievementID);
-
-			if (g_achievement_list[achievementID] == false)
-			{
-				g_achievement_list[achievementID] = true;				
-
-				if (VALID_INDEX(achievementID-1, 41))
-				{
-					AchievementMap[k_achievement_strings[achievementID - 1]] = false;
-				}
-				else
-				{
-					AchievementMap["Unknown"] = false;
-				}
-
-				std::thread(AchievementUnlock, signedInUser->xuid, achievementID, pOverlapped).detach();
-			}
-			else
-			{
-				LOG_TRACE_GAME("Achievement {} was already unlocked", achievementID);
-			}
-		}
-	}
 
 	if (pOverlapped)
 	{

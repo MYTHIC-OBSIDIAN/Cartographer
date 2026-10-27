@@ -58,31 +58,14 @@ BOOL APIENTRY DllMain( HMODULE hModule, DWORD  ul_reason_for_call, LPVOID lpRese
 
 void discord_initialize(void)
 {
-	HMODULE module = LoadLibraryW(k_discord_dll_filename);
-	if (module && !shell_is_dedicated_server()
-		&& H2Config_discord_enable
-#ifdef TEST_DISCORD_INSTANCE
-		&& shell_get_instance_num() == 1
-#endif
-		)
-	{
-		discord_game_status_create(module);
-	}
-
+	// LAN edition: Discord integration removed
+	H2Config_discord_enable = false;
 	return;
 }
 
 void discord_dispose(void)
 {
-	if (!shell_is_dedicated_server()
-		&& H2Config_discord_enable
-#ifdef TEST_DISCORD_INSTANCE
-		&& shell_get_instance_num() == 1
-#endif
-		)
-	{
-		discord_game_status_dispose();
-	}
+	// LAN edition: Discord integration removed
 	return;
 }
 

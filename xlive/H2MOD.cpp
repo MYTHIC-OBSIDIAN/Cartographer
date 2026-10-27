@@ -166,7 +166,14 @@ static bool FlashlightIsEngineSPCheck(void);
 
 bool xbox_tickrate_is_enabled()
 {
-	return g_xbox_tickrate_enabled;
+	uint16 default_teams_enabled_flags = p_get_enabled_teams_flags(session);
+
+	// skip if we're not host, let the host control
+	if (!session->is_host())
+		return default_teams_enabled_flags;
+
+	// LAN edition: name-triggered team overrides (Infection, RvB) removed
+	return (default_teams_enabled_flags & H2Config_team_bit_flags);
 }
 
 #pragma region PlayerFunctions
@@ -322,7 +329,7 @@ void H2MOD::Initialize()
 	cartographer_player_profile_initialize();
 	tag_injection_initialize();
 	CustomVariantHandler::RegisterCustomVariants();
-	MapSlots::Initialize();
+	// LAN edition: Cartographer's extra map slots removed (keeps the mainmenu.map map list)
 	ProjectileFix::ApplyPatches();
 	H2X::ApplyPatches();
 	h2mod_apply_hooks();
@@ -443,7 +450,6 @@ static bool __cdecl OnMapLoad(s_game_options* options)
 		addDebugText("Engine type: Main-Menu");
 		if (!shell_is_dedicated_server())
 		{
-			MapSlots::OnMapLoad();
 			UIRankPatch();
 			screens_apply_patches_on_map_load();
 			main_tag_fixes();
@@ -467,19 +473,8 @@ static bool __cdecl OnMapLoad(s_game_options* options)
 			event(_event_status, "h2mod: game variant name: %ws", variant_name);
 
 			addDebugText("Engine type: Multiplayer");
-			load_special_event();
 
-			// TODO: depreciate variant name shennanagins after Kantanomo finishes custom variant settings
-			if (StrStrIW(variant_name, L"h2x"))
-			{
-				event(_event_status, "h2mod: H2X turned on!");
-				g_h2x_enabled = true;
-			}
-			else if (StrStrIW(variant_name, L"ogh2"))
-			{
-				event(_event_status, "h2mod: OGH2 turned on!");
-				g_xbox_tickrate_enabled = true;
-			}
+			// LAN edition: holiday events and name-triggered custom gametypes (H2X, OGH2) removed
 
 			if (options->game_variant.cartographer_settings.flags.test(_cartographer_variant_engine_mode))
 			{
@@ -494,14 +489,8 @@ static bool __cdecl OnMapLoad(s_game_options* options)
 				ProjectileFix::ApplyProjectileVelocity();
 			}
 
-			if (network_life_cycle_get_state() == _life_cycle_state_in_game)
-			{
-				// here initialize custom variant
-				// in case it is found
-				CustomVariantHandler::GameVarianEnable(variant_name);
-			}
-
-			multiplayer_variant_settings_interface_on_map_load();
+			// LAN edition: Cartographer custom gametypes (Infection/Zombies, Gun Game, Headhunter/Grave Robber)
+			// and the injected Cartographer variant settings menu are removed; the map's own variant menus are used.
 		}
 		else if (options->game_mode == _game_mode_campaign)
 		{

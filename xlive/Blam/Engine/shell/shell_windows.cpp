@@ -338,7 +338,7 @@ static int WINAPI H2WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR 
 
 	// window setup
 	ustrncpy(window_globals->class_name, L"halo", NUMBEROF(window_globals->class_name));
-	ustrncpy(window_globals->window_name, L"Halo 2 - Project Cartographer", NUMBEROF(window_globals->window_name));
+	ustrncpy(window_globals->window_name, L"Halo 2", NUMBEROF(window_globals->window_name));	// LAN edition: original window title
 	window_globals->wnd_proc = H2WndProc;
 
 	bool pcc_result = shell_windows_pcc_initialize();

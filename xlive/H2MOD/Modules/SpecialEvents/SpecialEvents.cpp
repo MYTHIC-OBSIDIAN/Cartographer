@@ -22,54 +22,8 @@ const char k_cartographer_shared_missing_message[] =
 // Enables event if the current date and time line up with an event time
 e_special_event_type get_current_special_event()
 {
-	e_special_event_type event = _special_event_none;
-
-	if (H2Config_no_events)
-		return event;
-
-	s_date_and_time date;
-	game_time_get_date_and_time(&date);
-
-#ifndef NDEBUG
-	if (H2Config_forced_event != _special_event_none)
-		return (e_special_event_type)H2Config_forced_event;
-#endif
-
-	switch (date.month)
-	{
-	// January
-	case 1:
-		event = (IN_RANGE(date.day, 1, 7) ? _special_event_christmas : event);
-		break;
-	// March
-	case 3:
-		event = (IN_RANGE(date.day, 17, 24) ? _special_event_st_paddys : event);
-		break;
-	// April
-	/* One time event
-	case 4:
-		event = (date.day == 12 ? _special_event_mook_maddness : event);
-		break;
-	*/
-	// May
-	case 5:
-		event = (IN_RANGE(date.day, 30, 31) ? _special_event_birthday : event);
-		break;
-	// October
-	case 10:
-		event = (IN_RANGE(date.day, 17, 31) ? _special_event_halloween : event);
-		break;
-	// November
-	case 11:
-		event = (IN_RANGE(date.day, 8, 10) ? _special_event_birthday : event);
-		break;
-	// December
-	case 12:
-		event = (IN_RANGE(date.day, 20, 31) ? _special_event_christmas : event);
-		break;
-	}
-
-	return event;
+	// LAN edition: holiday special events removed
+	return _special_event_none;
 }
 
 void load_special_event()

@@ -4,7 +4,10 @@
 
 CURL* curl_interface_init()
 {
-	return curl_easy_init();
+	// LAN edition: all internet access (accounts, master server/server list, updater,
+	// h2maps.net map downloads, achievements, stats, MOTD) is disabled here.
+	// Every caller handles a null handle as "network unavailable".
+	return nullptr;
 }
 
 CURL* curl_interface_init_no_verify()
