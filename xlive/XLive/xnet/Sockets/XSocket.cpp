@@ -498,8 +498,13 @@ int WINAPI XSocketWSASendTo(
 			// A limited broadcast (255.255.255.255) only leaves through one adapter on Windows,
 			// so it is only used when no adapters are found. Setting a broadcast override address
 			// in the config keeps the original single-address behaviour.
+			// broadcast_ip defaults to 255.255.255.255 in the config, so only treat it as an
+			// override when it is set to something else (e.g. a specific subnet broadcast address)
+			const bool broadcast_ip_configured = use_override_broadcast_addr
+				&& H2Config_ip_broadcast_override != htonl(INADDR_BROADCAST);
+
 			IN_ADDR adapter_broadcast_addresses[32];
-			const int adapter_count = use_override_broadcast_addr ? 0 : CNic::GetAllInterfaceBroadcastAddresses(adapter_broadcast_addresses, (int)NUMBEROF(adapter_broadcast_addresses));
+			const int adapter_count = broadcast_ip_configured ? 0 : CNic::GetAllInterfaceBroadcastAddresses(adapter_broadcast_addresses, (int)NUMBEROF(adapter_broadcast_addresses));
 
 			WSASetLastError(WSAEINVAL);
 
