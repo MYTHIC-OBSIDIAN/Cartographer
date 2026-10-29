@@ -25,6 +25,8 @@ static void __cdecl close_cache_header(HANDLE* map_handle);
 
 static bool __cdecl validate_and_read_custom_map_data(s_custom_map_entry* custom_map_entry);
 
+static void digsite_custom_maps_synchronize(c_map_manager* manager);
+
 
 void map_repository_apply_sapien_patches(void)
 {
@@ -92,6 +94,9 @@ CLASS_HOOK_DECLARE_LABEL(c_custom_map_manager__remove_marked_for_deletion, c_map
 bool __thiscall c_map_manager::remove_marked_for_deletion()
 {
 	c_critical_section_scope lock(m_lock);
+
+	// runs at the end of the custom maps folder scan: DIGSITE maps come from the game's maps folder instead
+	digsite_custom_maps_synchronize(this);
 
 	bool maps_removed = false;
 	uint16 map_count_before_remove = m_map_count;
@@ -925,6 +930,141 @@ static bool custom_map_file_is_digsite(const wchar_t* file_path)
 	return false;
 }
 
+// <game install folder>\maps\ (DIGSITE map files are read from here, not from the custom maps folder)
+static const wchar_t* digsite_get_game_maps_folder(void)
+{
+	static wchar_t s_game_maps_folder[MAX_PATH] = L"";
+	if (s_game_maps_folder[0] == L'\0')
+	{
+		wchar_t exe_path[MAX_PATH];
+		const DWORD length = GetModuleFileNameW(NULL, exe_path, NUMBEROF(exe_path));
+		if (length > 0 && length < NUMBEROF(exe_path))
+		{
+			wchar_t* last_separator = wcsrchr(exe_path, L'\\');
+			if (last_separator != nullptr)
+			{
+				last_separator[1] = L'\0';
+				swprintf_s(s_game_maps_folder, L"%smaps\\", exe_path);
+			}
+		}
+	}
+	return s_game_maps_folder;
+}
+
+static bool custom_map_file_is_in_game_maps_folder(const wchar_t* file_path)
+{
+	const wchar_t* game_maps_folder = digsite_get_game_maps_folder();
+	const size_t folder_length = wcslen(game_maps_folder);
+	if (folder_length == 0 || _wcsnicmp(file_path, game_maps_folder, folder_length) != 0)
+	{
+		return false;
+	}
+	// directly in the folder, not in a sub-folder
+	return wcschr(file_path + folder_length, L'\\') == nullptr && wcschr(file_path + folder_length, L'/') == nullptr;
+}
+
+static bool custom_map_entry_is_game_maps_folder_digsite(const s_custom_map_entry* entry)
+{
+	return custom_map_file_is_digsite(entry->file_path) && custom_map_file_is_in_game_maps_folder(entry->file_path);
+}
+
+// called with the map manager locked, at the end of the custom maps folder scan, before entries of missing files are removed
+static void digsite_custom_maps_synchronize(c_map_manager* manager)
+{
+	if (manager->m_new_custom_map_entry_list_buffer == nullptr)
+	{
+		return;
+	}
+
+	// DIGSITE map files in the custom maps folder are ignored
+	for (uint16 i = 0; i < manager->m_map_count; i++)
+	{
+		s_custom_map_entry* entry = &manager->m_new_custom_map_entry_list_buffer[i];
+		if (custom_map_file_is_digsite(entry->file_path) && !custom_map_file_is_in_game_maps_folder(entry->file_path))
+		{
+			entry->entry_marked_for_deletion = true;
+		}
+	}
+
+	s_custom_map_entry_linked_list** link = &manager->m_list_of_maps_to_insert_to_cache;
+	while (*link != nullptr)
+	{
+		s_custom_map_entry_linked_list* node = *link;
+		if (custom_map_file_is_digsite(node->custom_map_entry.file_path) && !custom_map_file_is_in_game_maps_folder(node->custom_map_entry.file_path))
+		{
+			*link = node->next;
+			INVOKE_TYPE(0x287C23, 0x0, void(__cdecl*)(void*), node);
+		}
+		else
+		{
+			link = &node->next;
+		}
+	}
+
+	// DIGSITE map files in the game's maps folder: keep the ones already loaded, queue new or changed ones
+	const wchar_t* game_maps_folder = digsite_get_game_maps_folder();
+	if (game_maps_folder[0] == L'\0')
+	{
+		return;
+	}
+
+	for (const wchar_t* digsite_name : k_digsite_custom_map_files)
+	{
+		wchar_t file_path[k_map_file_path_size];
+		if (swprintf_s(file_path, L"%s%s.map", game_maps_folder, digsite_name) < 0)
+		{
+			continue;
+		}
+
+		WIN32_FILE_ATTRIBUTE_DATA attributes;
+		if (!GetFileAttributesExW(file_path, GetFileExInfoStandard, &attributes)
+			|| (attributes.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+		{
+			continue;
+		}
+
+		// also clears the entry's deletion mark
+		s_custom_map_entry* existing_entry = nullptr;
+		if (manager->find_matching_entries_by_file_path(file_path, &existing_entry, 1) > 0
+			&& existing_entry != nullptr
+			&& CompareFileTime(&existing_entry->file_time, &attributes.ftLastWriteTime) == 0)
+		{
+			continue;
+		}
+
+		bool already_queued = false;
+		for (s_custom_map_entry_linked_list* node = manager->m_list_of_maps_to_insert_to_cache; node != nullptr; node = node->next)
+		{
+			if (_wcsicmp(node->custom_map_entry.file_path, file_path) == 0)
+			{
+				already_queued = true;
+				break;
+			}
+		}
+		if (already_queued)
+		{
+			continue;
+		}
+
+		// same as the game's folder scan: the node is read, validated and added to the cache by map_synchronize_process
+		s_custom_map_entry_linked_list* node = (s_custom_map_entry_linked_list*)INVOKE_TYPE(0x287C86, 0x0, void*(__cdecl*)(uint32), sizeof(s_custom_map_entry_linked_list));
+		if (node == nullptr)
+		{
+			break;
+		}
+		csmemset(node, 0, sizeof(s_custom_map_entry_linked_list));
+		wcsncpy_s(node->custom_map_entry.map_name, digsite_name, _TRUNCATE);
+		wcsncpy_s(node->custom_map_entry.file_path, file_path, _TRUNCATE);
+		node->custom_map_entry.file_time = attributes.ftLastWriteTime;
+		node->task_in_progress = false;
+		node->async_task_id = NONE;
+		node->map_valid = false;
+		node->task_finished = false;
+		node->next = manager->m_list_of_maps_to_insert_to_cache;
+		manager->m_list_of_maps_to_insert_to_cache = node;
+	}
+}
+
 // same as c_map_manager::get_custom_map_list_ids, but only the maps that belong to the CUSTOM tab (digsite == false) or the DIGSITE tab
 static uint32 custom_map_list_get_ids_for_tab(s_secure_map_id* out_ids, uint32 out_ids_count, bool digsite)
 {
@@ -935,7 +1075,11 @@ static uint32 custom_map_list_get_ids_for_tab(s_secure_map_id* out_ids, uint32 o
 	for (uint16 i = 0; i < manager->m_map_count; i++)
 	{
 		const s_custom_map_entry* entry = &manager->m_new_custom_map_entry_list_buffer[i];
-		if (custom_map_file_is_digsite(entry->file_path) != digsite)
+		// CUSTOM: everything except DIGSITE map files, DIGSITE: DIGSITE map files from the game's maps folder only
+		const bool include = (digsite
+			? custom_map_entry_is_game_maps_folder_digsite(entry)
+			: !custom_map_file_is_digsite(entry->file_path));
+		if (!include)
 		{
 			continue;
 		}
