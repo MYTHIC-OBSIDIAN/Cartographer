@@ -964,6 +964,27 @@ static void custom_map_file_get_name(const wchar_t* file_path, wchar_t* out_name
 	}
 }
 
+// compares map file names ignoring case, spaces, underscores and hyphens ("Earth Ark" matches "earth_ark")
+static bool digsite_map_file_names_match(const wchar_t* a, const wchar_t* b)
+{
+	auto is_separator = [](wchar_t c) { return c == L' ' || c == L'_' || c == L'-'; };
+	for (;;)
+	{
+		while (is_separator(*a)) a++;
+		while (is_separator(*b)) b++;
+		if (*a == L'\0' || *b == L'\0')
+		{
+			return *a == *b;
+		}
+		if (towlower(*a) != towlower(*b))
+		{
+			return false;
+		}
+		a++;
+		b++;
+	}
+}
+
 static bool custom_map_file_is_digsite(const wchar_t* file_path)
 {
 	wchar_t name[MAX_PATH];
@@ -971,7 +992,7 @@ static bool custom_map_file_is_digsite(const wchar_t* file_path)
 
 	for (const wchar_t* digsite_name : k_digsite_custom_map_files)
 	{
-		if (_wcsicmp(name, digsite_name) == 0)
+		if (digsite_map_file_names_match(name, digsite_name))
 		{
 			return true;
 		}
@@ -1025,7 +1046,7 @@ static datum digsite_custom_map_preview_bitmap_get(const wchar_t* file_path, int
 
 	for (const s_digsite_custom_map_preview& preview : k_digsite_custom_map_previews)
 	{
-		if (_wcsicmp(name, preview.map_file_name) == 0)
+		if (digsite_map_file_names_match(name, preview.map_file_name))
 		{
 			if (out_bitmap_index != nullptr)
 			{
@@ -1082,26 +1103,39 @@ static void digsite_custom_maps_synchronize(c_map_manager* manager)
 		return;
 	}
 
-	for (const wchar_t* digsite_name : k_digsite_custom_map_files)
+	wchar_t search_path[k_map_file_path_size];
+	if (swprintf_s(search_path, L"%s*.map", game_maps_folder) < 0)
 	{
-		wchar_t file_path[k_map_file_path_size];
-		if (swprintf_s(file_path, L"%s%s.map", game_maps_folder, digsite_name) < 0)
+		return;
+	}
+
+	WIN32_FIND_DATAW find_data;
+	HANDLE find_handle = FindFirstFileW(search_path, &find_data);
+	if (find_handle == INVALID_HANDLE_VALUE)
+	{
+		return;
+	}
+
+	do
+	{
+		if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0
+			|| !custom_map_file_is_digsite(find_data.cFileName))
 		{
 			continue;
 		}
 
-		WIN32_FILE_ATTRIBUTE_DATA attributes;
-		if (!GetFileAttributesExW(file_path, GetFileExInfoStandard, &attributes)
-			|| (attributes.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+		wchar_t file_path[k_map_file_path_size];
+		if (swprintf_s(file_path, L"%s%s", game_maps_folder, find_data.cFileName) < 0)
 		{
 			continue;
 		}
+
 
 		// also clears the entry's deletion mark
 		s_custom_map_entry* existing_entry = nullptr;
 		if (manager->find_matching_entries_by_file_path(file_path, &existing_entry, 1) > 0
 			&& existing_entry != nullptr
-			&& CompareFileTime(&existing_entry->file_time, &attributes.ftLastWriteTime) == 0)
+			&& CompareFileTime(&existing_entry->file_time, &find_data.ftLastWriteTime) == 0)
 		{
 			continue;
 		}
@@ -1127,16 +1161,18 @@ static void digsite_custom_maps_synchronize(c_map_manager* manager)
 			break;
 		}
 		csmemset(node, 0, sizeof(s_custom_map_entry_linked_list));
-		wcsncpy_s(node->custom_map_entry.map_name, digsite_name, _TRUNCATE);
+		custom_map_file_get_name(find_data.cFileName, node->custom_map_entry.map_name, NUMBEROF(node->custom_map_entry.map_name));
 		wcsncpy_s(node->custom_map_entry.file_path, file_path, _TRUNCATE);
-		node->custom_map_entry.file_time = attributes.ftLastWriteTime;
+		node->custom_map_entry.file_time = find_data.ftLastWriteTime;
 		node->task_in_progress = false;
 		node->async_task_id = NONE;
 		node->map_valid = false;
 		node->task_finished = false;
 		node->next = manager->m_list_of_maps_to_insert_to_cache;
 		manager->m_list_of_maps_to_insert_to_cache = node;
-	}
+	} while (FindNextFileW(find_handle, &find_data));
+
+	FindClose(find_handle);
 }
 
 // same as c_map_manager::get_custom_map_list_ids, but only the maps that belong to the CUSTOM tab (digsite == false) or the DIGSITE tab
