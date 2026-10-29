@@ -858,6 +858,7 @@ static const s_digsite_custom_map_preview k_digsite_custom_map_previews[] =
 	{ L"03_waterworks",    "ui\\code_global_bitmaps\\multiplayer41" },
 	{ L"artery",           "ui\\code_global_bitmaps\\multiplayer42" },
 	{ L"cloud_city",       "ui\\code_global_bitmaps\\multiplayer43" },
+	{ L"earth_ark",        "ui\\code_global_bitmaps\\campaign19" },
 	{ L"evergreen",        "ui\\code_global_bitmaps\\multiplayer44" },
 	{ L"fourth_station",   "ui\\code_global_bitmaps\\multiplayer45" },
 	{ L"gauntlet",         "ui\\code_global_bitmaps\\multiplayer46" },
