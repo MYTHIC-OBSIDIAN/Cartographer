@@ -1437,6 +1437,7 @@ static bool __cdecl map_select_get_custom_map_ui_level_definition(const s_secure
 		if (preview_bitmap != NONE
 			&& bitmap_index < bitmap_group_get(preview_bitmap)->bitmaps.count)
 		{
+			ui_bitmap_precache(preview_bitmap);
 			*(void**)out_level_definition = bitmap_group_get_bitmap(preview_bitmap, bitmap_index);
 		}
 	}
@@ -1495,8 +1496,16 @@ static void map_select_digsite_tab_apply_patches(void)
 	// c_custom_game_custom_map_list vtable: item pressed
 	WritePointer(Memory::GetAddressRelative(0x7DB06C) + 26 * sizeof(void*), (void*)c_custom_game_custom_map_list__handle_item_pressed);
 
-	// preview and description of built-in DIGSITE levels
-	PatchCall(Memory::GetAddressRelative(0x65A84D), map_select_get_custom_map_ui_level_definition);
+	// preview and description of built-in DIGSITE levels on the map select screen, and the preview of DIGSITE map files
+	// everywhere the game shows a custom map's details (map select screen, pregame lobby, game setup screens)
+	const uintptr_t custom_map_ui_level_definition_calls[] =
+	{
+		0x5B0955, 0x61668A, 0x6196D5, 0x643208, 0x643BA7, 0x647674, 0x64A9BF, 0x64F214, 0x65A84D
+	};
+	for (uintptr_t call : custom_map_ui_level_definition_calls)
+	{
+		PatchCall(Memory::GetAddressRelative(call), map_select_get_custom_map_ui_level_definition);
+	}
 }
 
 // custom map selection list code
