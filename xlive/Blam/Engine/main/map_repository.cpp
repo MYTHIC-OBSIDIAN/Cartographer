@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "map_repository.h"
 
+#include "bitmaps/bitmap_group.h"
 #include "cache/cache_files.h"
 #include "interface/signal_slot.h"
 #include "interface/user_interface_memory.h"
@@ -832,12 +833,16 @@ static const wchar_t* const k_digsite_custom_map_files[] =
 	L"gauntlet",
 	L"grotto",
 	L"missile_beach",
-	L"moonbase",
 	L"overboard",
 	L"shaft",
 	L"soccer",
 	L"solitude",
 	L"sunken_chamber",
+	L"arcology",
+	L"bloodgulch_test",
+	L"m1_assault",
+	L"m1_defense",
+	L"m1_exploration",
 };
 
 // preview pictures of the DIGSITE map files, stored in preview bitmap tags that the LAN edition mainmenu.map doesn't otherwise use
@@ -845,31 +850,37 @@ struct s_digsite_custom_map_preview
 {
 	const wchar_t* map_file_name;
 	const char* bitmap_tag_name;
+	int16 bitmap_index;
 };
 
 static const s_digsite_custom_map_preview k_digsite_custom_map_previews[] =
 {
-	{ L"03_ascension",     "ui\\code_global_bitmaps\\multiplayer35" },
-	{ L"03_burial_mounds", "ui\\code_global_bitmaps\\multiplayer36" },
-	{ L"03_colossus",      "ui\\code_global_bitmaps\\multiplayer37" },
-	{ L"03_headlong",      "ui\\code_global_bitmaps\\multiplayer38" },
-	{ L"03_lockout",       "ui\\code_global_bitmaps\\multiplayer39" },
-	{ L"03_midship",       "ui\\code_global_bitmaps\\multiplayer40" },
-	{ L"03_waterworks",    "ui\\code_global_bitmaps\\multiplayer41" },
-	{ L"artery",           "ui\\code_global_bitmaps\\multiplayer42" },
-	{ L"cloud_city",       "ui\\code_global_bitmaps\\multiplayer43" },
-	{ L"earth_ark",        "ui\\code_global_bitmaps\\campaign19" },
-	{ L"evergreen",        "ui\\code_global_bitmaps\\multiplayer44" },
-	{ L"fourth_station",   "ui\\code_global_bitmaps\\multiplayer45" },
-	{ L"gauntlet",         "ui\\code_global_bitmaps\\multiplayer46" },
-	{ L"grotto",           "ui\\code_global_bitmaps\\multiplayer47" },
-	{ L"missile_beach",    "ui\\code_global_bitmaps\\multiplayer48" },
-	{ L"moonbase",         "ui\\code_global_bitmaps\\multiplayer49" },
-	{ L"overboard",        "ui\\code_global_bitmaps\\multiplayer32" },
-	{ L"shaft",            "ui\\code_global_bitmaps\\campaign15" },
-	{ L"soccer",           "ui\\code_global_bitmaps\\campaign16" },
-	{ L"solitude",         "ui\\code_global_bitmaps\\campaign17" },
-	{ L"sunken_chamber",   "ui\\code_global_bitmaps\\campaign18" },
+	{ L"03_ascension",     "ui\\code_global_bitmaps\\multiplayer35", 0 },
+	{ L"03_burial_mounds", "ui\\code_global_bitmaps\\multiplayer36", 0 },
+	{ L"03_colossus",      "ui\\code_global_bitmaps\\multiplayer37", 0 },
+	{ L"03_headlong",      "ui\\code_global_bitmaps\\multiplayer38", 0 },
+	{ L"03_lockout",       "ui\\code_global_bitmaps\\multiplayer39", 0 },
+	{ L"03_midship",       "ui\\code_global_bitmaps\\multiplayer40", 0 },
+	{ L"03_waterworks",    "ui\\code_global_bitmaps\\multiplayer41", 0 },
+	{ L"artery",           "ui\\code_global_bitmaps\\multiplayer42", 0 },
+	{ L"cloud_city",       "ui\\code_global_bitmaps\\multiplayer43", 0 },
+	{ L"earth_ark",        "ui\\code_global_bitmaps\\campaign19", 0 },
+	{ L"evergreen",        "ui\\code_global_bitmaps\\multiplayer44", 0 },
+	{ L"fourth_station",   "ui\\code_global_bitmaps\\multiplayer45", 0 },
+	{ L"gauntlet",         "ui\\code_global_bitmaps\\multiplayer46", 0 },
+	{ L"grotto",           "ui\\code_global_bitmaps\\multiplayer47", 0 },
+	{ L"missile_beach",    "ui\\code_global_bitmaps\\multiplayer48", 0 },
+	{ L"overboard",        "ui\\code_global_bitmaps\\multiplayer32", 0 },
+	{ L"shaft",            "ui\\code_global_bitmaps\\campaign15", 0 },
+	{ L"soccer",           "ui\\code_global_bitmaps\\campaign16", 0 },
+	{ L"solitude",         "ui\\code_global_bitmaps\\campaign17", 0 },
+	{ L"sunken_chamber",   "ui\\code_global_bitmaps\\campaign18", 0 },
+	// these five share one tag that holds five bitmaps
+	{ L"arcology",         "ui\\code_global_bitmaps\\multiplayer49", 0 },
+	{ L"bloodgulch_test",  "ui\\code_global_bitmaps\\multiplayer49", 1 },
+	{ L"m1_assault",       "ui\\code_global_bitmaps\\multiplayer49", 2 },
+	{ L"m1_defense",       "ui\\code_global_bitmaps\\multiplayer49", 3 },
+	{ L"m1_exploration",   "ui\\code_global_bitmaps\\multiplayer49", 4 },
 };
 
 // the DEFAULT list ends at this level (Tombstone), everything sorted after it is listed under DIGSITE
@@ -1007,7 +1018,7 @@ static bool custom_map_entry_is_game_maps_folder_digsite(const s_custom_map_entr
 }
 
 // preview bitmap tag of a DIGSITE map file, NONE if it has none
-static datum digsite_custom_map_preview_bitmap_get(const wchar_t* file_path)
+static datum digsite_custom_map_preview_bitmap_get(const wchar_t* file_path, int16* out_bitmap_index)
 {
 	wchar_t name[MAX_PATH];
 	custom_map_file_get_name(file_path, name, NUMBEROF(name));
@@ -1016,6 +1027,10 @@ static datum digsite_custom_map_preview_bitmap_get(const wchar_t* file_path)
 	{
 		if (_wcsicmp(name, preview.map_file_name) == 0)
 		{
+			if (out_bitmap_index != nullptr)
+			{
+				*out_bitmap_index = preview.bitmap_index;
+			}
 			return tag_loaded('bitm', preview.bitmap_tag_name);
 		}
 	}
@@ -1150,7 +1165,7 @@ static uint32 custom_map_list_get_ids_for_tab(s_secure_map_id* out_ids, uint32 o
 
 			if (digsite)
 			{
-				const datum preview_bitmap = digsite_custom_map_preview_bitmap_get(entry->file_path);
+				const datum preview_bitmap = digsite_custom_map_preview_bitmap_get(entry->file_path, nullptr);
 				if (preview_bitmap != NONE)
 				{
 					ui_bitmap_precache(preview_bitmap);
@@ -1381,10 +1396,12 @@ static bool __cdecl map_select_get_custom_map_ui_level_definition(const s_secure
 		&& entry != nullptr
 		&& custom_map_entry_is_game_maps_folder_digsite(entry))
 	{
-		const datum preview_bitmap = digsite_custom_map_preview_bitmap_get(entry->file_path);
-		if (preview_bitmap != NONE)
+		int16 bitmap_index = 0;
+		const datum preview_bitmap = digsite_custom_map_preview_bitmap_get(entry->file_path, &bitmap_index);
+		if (preview_bitmap != NONE
+			&& bitmap_index < bitmap_group_get(preview_bitmap)->bitmaps.count)
 		{
-			*(void**)out_level_definition = INVOKE_TYPE(0x37D482, 0x0, void*(__cdecl*)(datum, int32), preview_bitmap, 0);
+			*(void**)out_level_definition = bitmap_group_get_bitmap(preview_bitmap, bitmap_index);
 		}
 	}
 	return result;
