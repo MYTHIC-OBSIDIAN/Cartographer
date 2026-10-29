@@ -840,6 +840,37 @@ static const wchar_t* const k_digsite_custom_map_files[] =
 	L"sunken_chamber",
 };
 
+// preview pictures of the DIGSITE map files, stored in preview bitmap tags that the LAN edition mainmenu.map doesn't otherwise use
+struct s_digsite_custom_map_preview
+{
+	const wchar_t* map_file_name;
+	const char* bitmap_tag_name;
+};
+
+static const s_digsite_custom_map_preview k_digsite_custom_map_previews[] =
+{
+	{ L"03_ascension",     "ui\\code_global_bitmaps\\multiplayer35" },
+	{ L"03_burial_mounds", "ui\\code_global_bitmaps\\multiplayer36" },
+	{ L"03_colossus",      "ui\\code_global_bitmaps\\multiplayer37" },
+	{ L"03_headlong",      "ui\\code_global_bitmaps\\multiplayer38" },
+	{ L"03_lockout",       "ui\\code_global_bitmaps\\multiplayer39" },
+	{ L"03_midship",       "ui\\code_global_bitmaps\\multiplayer40" },
+	{ L"03_waterworks",    "ui\\code_global_bitmaps\\multiplayer41" },
+	{ L"artery",           "ui\\code_global_bitmaps\\multiplayer42" },
+	{ L"cloud_city",       "ui\\code_global_bitmaps\\multiplayer43" },
+	{ L"evergreen",        "ui\\code_global_bitmaps\\multiplayer44" },
+	{ L"fourth_station",   "ui\\code_global_bitmaps\\multiplayer45" },
+	{ L"gauntlet",         "ui\\code_global_bitmaps\\multiplayer46" },
+	{ L"grotto",           "ui\\code_global_bitmaps\\multiplayer47" },
+	{ L"missile_beach",    "ui\\code_global_bitmaps\\multiplayer48" },
+	{ L"moonbase",         "ui\\code_global_bitmaps\\multiplayer49" },
+	{ L"overboard",        "ui\\code_global_bitmaps\\multiplayer32" },
+	{ L"shaft",            "ui\\code_global_bitmaps\\campaign15" },
+	{ L"soccer",           "ui\\code_global_bitmaps\\campaign16" },
+	{ L"solitude",         "ui\\code_global_bitmaps\\campaign17" },
+	{ L"sunken_chamber",   "ui\\code_global_bitmaps\\campaign18" },
+};
+
 // the DEFAULT list ends at this level (Tombstone), everything sorted after it is listed under DIGSITE
 #define k_digsite_last_default_level_path "\\highplains"
 #define k_digsite_last_default_level_sort_order_fallback 1500
@@ -901,7 +932,8 @@ static bool digsite_level_is_builtin_digsite(const s_multiplayer_ui_level_defini
 	return level != nullptr && level->sort_order > last_default_sort_order;
 }
 
-static bool custom_map_file_is_digsite(const wchar_t* file_path)
+// file name of a map file without its folder and .map extension
+static void custom_map_file_get_name(const wchar_t* file_path, wchar_t* out_name, size_t out_name_count)
 {
 	const wchar_t* file_name = file_path;
 	for (const wchar_t* c = file_path; *c != L'\0'; c++)
@@ -912,13 +944,18 @@ static bool custom_map_file_is_digsite(const wchar_t* file_path)
 		}
 	}
 
-	wchar_t name[MAX_PATH];
-	wcsncpy_s(name, file_name, _TRUNCATE);
-	wchar_t* extension = wcsrchr(name, L'.');
+	wcsncpy_s(out_name, out_name_count, file_name, _TRUNCATE);
+	wchar_t* extension = wcsrchr(out_name, L'.');
 	if (extension != nullptr && _wcsicmp(extension, L".map") == 0)
 	{
 		*extension = L'\0';
 	}
+}
+
+static bool custom_map_file_is_digsite(const wchar_t* file_path)
+{
+	wchar_t name[MAX_PATH];
+	custom_map_file_get_name(file_path, name, NUMBEROF(name));
 
 	for (const wchar_t* digsite_name : k_digsite_custom_map_files)
 	{
@@ -966,6 +1003,27 @@ static bool custom_map_file_is_in_game_maps_folder(const wchar_t* file_path)
 static bool custom_map_entry_is_game_maps_folder_digsite(const s_custom_map_entry* entry)
 {
 	return custom_map_file_is_digsite(entry->file_path) && custom_map_file_is_in_game_maps_folder(entry->file_path);
+}
+
+// preview bitmap tag of a DIGSITE map file, NONE if it has none
+static datum digsite_custom_map_preview_bitmap_get(const wchar_t* file_path)
+{
+	wchar_t name[MAX_PATH];
+	custom_map_file_get_name(file_path, name, NUMBEROF(name));
+
+	for (const s_digsite_custom_map_preview& preview : k_digsite_custom_map_previews)
+	{
+		if (_wcsicmp(name, preview.map_file_name) == 0)
+		{
+			return tag_loaded('bitm', preview.bitmap_tag_name);
+		}
+	}
+	return NONE;
+}
+
+static void ui_bitmap_precache(datum bitmap_tag_index)
+{
+	INVOKE_TYPE(0x21D228, 0x0, void(__cdecl*)(datum), bitmap_tag_index);
 }
 
 // called with the map manager locked, at the end of the custom maps folder scan, before entries of missing files are removed
@@ -1088,6 +1146,15 @@ static uint32 custom_map_list_get_ids_for_tab(s_secure_map_id* out_ids, uint32 o
 		{
 			csmemcpy(out_ids[count].hash, entry->hash, k_sha256_hash_size_bytes);
 			ustrncpy(out_ids[count].map_name, entry->map_name, k_custom_map_name_length);
+
+			if (digsite)
+			{
+				const datum preview_bitmap = digsite_custom_map_preview_bitmap_get(entry->file_path);
+				if (preview_bitmap != NONE)
+				{
+					ui_bitmap_precache(preview_bitmap);
+				}
+			}
 		}
 		count++;
 	}
@@ -1303,7 +1370,23 @@ static bool __cdecl map_select_get_custom_map_ui_level_definition(const s_secure
 		return true;
 	}
 
-	return INVOKE_TYPE(0x59369, 0x0, bool(__cdecl*)(const s_secure_map_id*, uint8*), id, out_level_definition);
+	const bool result = INVOKE_TYPE(0x59369, 0x0, bool(__cdecl*)(const s_secure_map_id*, uint8*), id, out_level_definition);
+
+	// custom maps have no preview picture, except the DIGSITE ones
+	s_custom_map_entry* entry = nullptr;
+	if (result
+		&& id != nullptr
+		&& map_manager_get()->get_entry_by_id(id, &entry)
+		&& entry != nullptr
+		&& custom_map_entry_is_game_maps_folder_digsite(entry))
+	{
+		const datum preview_bitmap = digsite_custom_map_preview_bitmap_get(entry->file_path);
+		if (preview_bitmap != NONE)
+		{
+			*(void**)out_level_definition = INVOKE_TYPE(0x37D482, 0x0, void*(__cdecl*)(datum, int32), preview_bitmap, 0);
+		}
+	}
+	return result;
 }
 
 // c_custom_game_custom_map_list item pressed: built-in DIGSITE levels are selected like on the DEFAULT tab
