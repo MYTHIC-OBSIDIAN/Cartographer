@@ -10,6 +10,10 @@
 #include "shell/shell.h"
 #include "tag_files/files.h"
 #include "text/unicode.h"
+#include "main/levels.h"
+#include "main/level_definitions.h"
+
+#include <algorithm>
 
 /* prototypes */
 
@@ -796,6 +800,424 @@ static __declspec(naked) void jmp_get_custom_map_list_ids_by_map_name()
 	CLASS_HOOK_JMP(c_custom_map_manager__get_custom_map_list_ids_by_map_name, c_map_manager::get_custom_map_list_ids_by_map_name);
 }
 
+/* DIGSITE map selection tab (LAN edition) */
+
+// The custom game map select screen has a DEFAULT tab (built-in levels from mainmenu.map) and a CUSTOM tab (map files
+// from the custom maps folder). A third tab, DIGSITE, is added after CUSTOM:
+//  - built-in levels sorted after Tombstone move from DEFAULT to DIGSITE
+//  - the custom map files listed below move from CUSTOM to DIGSITE
+// DIGSITE reuses the CUSTOM list widget. Built-in levels in it are stored as an s_secure_map_id with a marker in place
+// of the SHA-256 hash, and are selected the same way the DEFAULT tab selects them.
+
+// custom map files (name without .map) listed under DIGSITE instead of CUSTOM
+static const wchar_t* const k_digsite_custom_map_files[] =
+{
+	L"03_ascension",
+	L"03_burial_mounds",
+	L"03_colossus",
+	L"03_headlong",
+	L"03_lockout",
+	L"03_midship",
+	L"03_waterworks",
+	L"artery",
+	L"cloud_city",
+	L"earth_ark",
+	L"evergreen",
+	L"fourth_station",
+	L"gauntlet",
+	L"grotto",
+	L"missile_beach",
+	L"moonbase",
+	L"overboard",
+	L"shaft",
+	L"soccer",
+	L"solitude",
+	L"sunken_chamber",
+};
+
+// the DEFAULT list ends at this level (Tombstone), everything sorted after it is listed under DIGSITE
+#define k_digsite_last_default_level_path "\\highplains"
+#define k_digsite_last_default_level_sort_order_fallback 1500
+
+// first bytes of the hash of a DIGSITE list entry that refers to a built-in level, followed by the level's map id
+static const uint8 k_digsite_builtin_level_marker[8] = { 'D', 'I', 'G', 'S', 'I', 'T', 'E', 0xB1 };
+
+// most built-in levels the DIGSITE tab lists (same as the game's multiplayer level limit)
+#define k_maximum_number_of_digsite_builtin_levels 50u
+// extra room in the CUSTOM/DIGSITE list for custom maps found after the screen opened
+#define k_digsite_custom_map_list_spare_slots 32u
+
+#define k_map_select_tab_index_offset 0x1A74
+#define k_map_select_tab_changed_offset 0x1A78
+#define k_map_select_custom_list_offset 0xA60
+#define k_map_select_header_text_widget_index 3
+#define k_map_list_data_offset 0x70
+#define k_map_list_ignore_selection_offset 0x7E8
+#define k_map_list_save_to_profile_offset 0x804
+#define k_custom_map_ui_level_definition_size 0xC58
+
+static bool g_map_select_digsite_tab_active = false;
+
+static data_array* __cdecl levels_get_multiplayer_level_data(void)
+{
+	return INVOKE(0x5945E, 0x0, levels_get_multiplayer_level_data);
+}
+
+static const wchar_t* __cdecl multiplayer_ui_level_get_display_name(const s_multiplayer_ui_level_definition* level)
+{
+	return INVOKE(0x381CA5, 0x0, multiplayer_ui_level_get_display_name, level);
+}
+
+static void* list_data_entry_get(data_array* data, datum index)
+{
+	return (uint8*)data->data + data->size * DATUM_INDEX_TO_ABSOLUTE_INDEX(index);
+}
+
+static int32 digsite_get_last_default_level_sort_order(void)
+{
+	data_array* levels = levels_get_multiplayer_level_data();
+	if (levels != nullptr)
+	{
+		for (datum level_index = data_next_index(levels, NONE); level_index != NONE; level_index = data_next_index(levels, level_index))
+		{
+			const int32 map_id = *(int32*)((uint8*)list_data_entry_get(levels, level_index) + 4);
+			const s_multiplayer_ui_level_definition* level = levels_get_multiplayer_ui_level(map_id);
+			if (level != nullptr && strstr(level->path, k_digsite_last_default_level_path) != nullptr)
+			{
+				return level->sort_order;
+			}
+		}
+	}
+	return k_digsite_last_default_level_sort_order_fallback;
+}
+
+static bool digsite_level_is_builtin_digsite(const s_multiplayer_ui_level_definition* level, int32 last_default_sort_order)
+{
+	return level != nullptr && level->sort_order > last_default_sort_order;
+}
+
+static bool custom_map_file_is_digsite(const wchar_t* file_path)
+{
+	const wchar_t* file_name = file_path;
+	for (const wchar_t* c = file_path; *c != L'\0'; c++)
+	{
+		if (*c == L'\\' || *c == L'/')
+		{
+			file_name = c + 1;
+		}
+	}
+
+	wchar_t name[MAX_PATH];
+	wcsncpy_s(name, file_name, _TRUNCATE);
+	wchar_t* extension = wcsrchr(name, L'.');
+	if (extension != nullptr && _wcsicmp(extension, L".map") == 0)
+	{
+		*extension = L'\0';
+	}
+
+	for (const wchar_t* digsite_name : k_digsite_custom_map_files)
+	{
+		if (_wcsicmp(name, digsite_name) == 0)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+// same as c_map_manager::get_custom_map_list_ids, but only the maps that belong to the CUSTOM tab (digsite == false) or the DIGSITE tab
+static uint32 custom_map_list_get_ids_for_tab(s_secure_map_id* out_ids, uint32 out_ids_count, bool digsite)
+{
+	c_map_manager* manager = map_manager_get();
+	c_critical_section_scope lock(manager->m_lock);
+
+	uint32 count = 0;
+	for (uint16 i = 0; i < manager->m_map_count; i++)
+	{
+		const s_custom_map_entry* entry = &manager->m_new_custom_map_entry_list_buffer[i];
+		if (custom_map_file_is_digsite(entry->file_path) != digsite)
+		{
+			continue;
+		}
+
+		if (out_ids != nullptr && count < out_ids_count)
+		{
+			csmemcpy(out_ids[count].hash, entry->hash, k_sha256_hash_size_bytes);
+			ustrncpy(out_ids[count].map_name, entry->map_name, k_custom_map_name_length);
+		}
+		count++;
+	}
+	return count;
+}
+
+static void digsite_builtin_level_make_id(s_secure_map_id* id, int32 map_id, const wchar_t* name)
+{
+	csmemset(id, 0, sizeof(*id));
+	if (name != nullptr)
+	{
+		wcsncpy_s(id->map_name, name, _TRUNCATE);
+	}
+	csmemcpy(id->hash, k_digsite_builtin_level_marker, sizeof(k_digsite_builtin_level_marker));
+	csmemcpy(&id->hash[sizeof(k_digsite_builtin_level_marker)], &map_id, sizeof(map_id));
+}
+
+static bool digsite_builtin_level_get_map_id(const s_secure_map_id* id, int32* out_map_id)
+{
+	if (memcmp(id->hash, k_digsite_builtin_level_marker, sizeof(k_digsite_builtin_level_marker)) != 0)
+	{
+		return false;
+	}
+	csmemcpy(out_map_id, &id->hash[sizeof(k_digsite_builtin_level_marker)], sizeof(*out_map_id));
+	return true;
+}
+
+// fills the CUSTOM list widget's data with the entries of the CUSTOM tab or the DIGSITE tab
+static void custom_game_custom_map_list_populate(data_array* data, bool digsite)
+{
+	if (data == nullptr)
+	{
+		return;
+	}
+
+	std::vector<s_secure_map_id> ids;
+
+	if (digsite)
+	{
+		// built-in levels after Tombstone, in the same order as the DEFAULT list
+		const int32 last_default_sort_order = digsite_get_last_default_level_sort_order();
+		data_array* levels = levels_get_multiplayer_level_data();
+		if (levels != nullptr)
+		{
+			for (datum level_index = data_next_index(levels, NONE); level_index != NONE; level_index = data_next_index(levels, level_index))
+			{
+				const int32 map_id = *(int32*)((uint8*)list_data_entry_get(levels, level_index) + 4);
+				const s_multiplayer_ui_level_definition* level = levels_get_multiplayer_ui_level(map_id);
+				if (digsite_level_is_builtin_digsite(level, last_default_sort_order)
+					&& ids.size() < k_maximum_number_of_digsite_builtin_levels)
+				{
+					s_secure_map_id id;
+					digsite_builtin_level_make_id(&id, map_id, multiplayer_ui_level_get_display_name(level));
+					ids.push_back(id);
+				}
+			}
+		}
+	}
+
+	const size_t first_custom_map = ids.size();
+	const uint32 custom_map_count = custom_map_list_get_ids_for_tab(nullptr, 0, digsite);
+	if (custom_map_count > 0)
+	{
+		ids.resize(first_custom_map + custom_map_count);
+		const uint32 filled = custom_map_list_get_ids_for_tab(&ids[first_custom_map], custom_map_count, digsite);
+		ids.resize(first_custom_map + (filled < custom_map_count ? filled : custom_map_count));
+
+		if (digsite)
+		{
+			// DIGSITE custom maps in alphabetical order
+			std::sort(ids.begin() + first_custom_map, ids.end(),
+				[](const s_secure_map_id& a, const s_secure_map_id& b) { return _wcsicmp(a.map_name, b.map_name) < 0; });
+		}
+		else
+		{
+			// CUSTOM keeps the order Cartographer used (last map first)
+			std::reverse(ids.begin() + first_custom_map, ids.end());
+		}
+	}
+
+	data_delete_all(data);
+	for (const s_secure_map_id& id : ids)
+	{
+		if (data->actual_count >= data->maximum_count)
+		{
+			break;
+		}
+
+		const datum index = datum_new(data);
+		if (index == NONE)
+		{
+			break;
+		}
+		csmemcpy(list_data_entry_get(data, index), &id, sizeof(id));
+	}
+}
+
+// c_custom_game_map_list (DEFAULT tab): drop the levels that are listed under DIGSITE
+static void* __fastcall c_custom_game_map_list__constructor_hook(void* list, void* edx, int32 a2)
+{
+	void* result = INVOKE_TYPE(0x25A95E, 0x0, void*(__thiscall*)(void*, int32), list, a2);
+
+	data_array* data = *(data_array**)((uint8*)list + k_map_list_data_offset);
+	if (data != nullptr && data->size == 8)
+	{
+		const int32 last_default_sort_order = digsite_get_last_default_level_sort_order();
+
+		std::vector<uint64> kept_entries;
+		bool removed = false;
+		for (datum index = data_next_index(data, NONE); index != NONE; index = data_next_index(data, index))
+		{
+			uint64 entry;
+			csmemcpy(&entry, list_data_entry_get(data, index), sizeof(entry));
+			const int32 map_id = (int32)(entry >> 32);
+			if (digsite_level_is_builtin_digsite(levels_get_multiplayer_ui_level(map_id), last_default_sort_order))
+			{
+				removed = true;
+			}
+			else
+			{
+				kept_entries.push_back(entry);
+			}
+		}
+
+		if (removed)
+		{
+			data_delete_all(data);
+			for (uint64 entry : kept_entries)
+			{
+				const datum index = datum_new(data);
+				if (index == NONE)
+				{
+					break;
+				}
+				// keep the new datum header (first 2 bytes), restore the rest of the entry
+				csmemcpy((uint8*)list_data_entry_get(data, index) + 2, (uint8*)&entry + 2, sizeof(entry) - 2);
+			}
+		}
+	}
+
+	return result;
+}
+
+// c_screen_custom_game_map_select::handle_event: tabs go DEFAULT -> CUSTOM -> DIGSITE and wrap around both ways
+// the game's own tab index stays 0 (DEFAULT list) or 1 (CUSTOM list widget, also used for DIGSITE)
+static bool __fastcall c_screen_custom_game_map_select__handle_event(void* screen, void* edx, int32* event_record)
+{
+	const int32 event_type = *event_record;
+	if (event_type == 2 || event_type == 4)
+	{
+		uint8* screen_data = (uint8*)screen;
+		int32* game_tab = (int32*)(screen_data + k_map_select_tab_index_offset);
+
+		int32 tab = (*game_tab == 0 ? 0 : (g_map_select_digsite_tab_active ? 2 : 1));
+		tab = (event_type == 2 ? (tab + 1) % 3 : (tab + 2) % 3);
+
+		const bool digsite = (tab == 2);
+		if (digsite != g_map_select_digsite_tab_active)
+		{
+			g_map_select_digsite_tab_active = digsite;
+			data_array* custom_list_data = *(data_array**)(screen_data + k_map_select_custom_list_offset + k_map_list_data_offset);
+			custom_game_custom_map_list_populate(custom_list_data, digsite);
+		}
+
+		*game_tab = (tab == 0 ? 0 : 1);
+		*(bool*)(screen_data + k_map_select_tab_changed_offset) = true;
+		return true;
+	}
+
+	return INVOKE_TYPE(0x25A4C0, 0x0, bool(__thiscall*)(void*, int32*), screen, event_record);
+}
+
+// c_screen_custom_game_map_select::update: header reads DIGSITE on the third tab
+static void __fastcall c_screen_custom_game_map_select__update(void* screen, void* edx)
+{
+	INVOKE_TYPE(0x25A65D, 0x0, void(__thiscall*)(void*), screen);
+
+	if (g_map_select_digsite_tab_active
+		&& *(int32*)((uint8*)screen + k_map_select_tab_index_offset) == 1)
+	{
+		void* header_text = INVOKE_TYPE(0x211973, 0x0, void*(__thiscall*)(void*, int32), screen, k_map_select_header_text_widget_index);
+		if (header_text != nullptr)
+		{
+			INVOKE_TYPE(0x21BAA9, 0x0, void(__thiscall*)(void*, const wchar_t*), header_text, L"DIGSITE");
+		}
+	}
+}
+
+// map preview and description of the selected CUSTOM/DIGSITE entry
+static bool __cdecl map_select_get_custom_map_ui_level_definition(const s_secure_map_id* id, uint8* out_level_definition)
+{
+	int32 map_id;
+	if (id != nullptr && digsite_builtin_level_get_map_id(id, &map_id))
+	{
+		csmemset(out_level_definition, 0, k_custom_map_ui_level_definition_size);
+
+		const s_multiplayer_ui_level_definition* level = levels_get_multiplayer_ui_level(map_id);
+		if (level == nullptr)
+		{
+			return false;
+		}
+
+		if (level->bitmap.index != NONE)
+		{
+			*(void**)out_level_definition = INVOKE_TYPE(0x37D482, 0x0, void*(__cdecl*)(datum, int32), level->bitmap.index, 0);
+		}
+		const wchar_t* name = multiplayer_ui_level_get_display_name(level);
+		if (name != nullptr)
+		{
+			wcsncpy_s((wchar_t*)(out_level_definition + 4), k_custom_map_name_length, name, _TRUNCATE);
+		}
+		csmemcpy(out_level_definition + 0x244, level->level_descriptions.description, sizeof(level->level_descriptions.description));
+		return true;
+	}
+
+	return INVOKE_TYPE(0x59369, 0x0, bool(__cdecl*)(const s_secure_map_id*, uint8*), id, out_level_definition);
+}
+
+// c_custom_game_custom_map_list item pressed: built-in DIGSITE levels are selected like on the DEFAULT tab
+static void __fastcall c_custom_game_custom_map_list__handle_item_pressed(void* list, void* edx, void* item, datum* item_index)
+{
+	uint8* list_data = (uint8*)list;
+	data_array* data = *(data_array**)(list_data + k_map_list_data_offset);
+
+	int32 map_id;
+	if (item_index != nullptr
+		&& *item_index != NONE
+		&& data != nullptr
+		&& *(bool*)(list_data + k_map_list_ignore_selection_offset) == false
+		&& digsite_builtin_level_get_map_id((const s_secure_map_id*)list_data_entry_get(data, *item_index), &map_id))
+	{
+		if (*(bool*)(list_data + k_map_list_save_to_profile_offset))
+		{
+			uint8* profile = (uint8*)INVOKE_TYPE(0x209B9D, 0x0, void*(__cdecl*)(void));
+			*(uint8*)(profile + 0xEE) = 3;
+			*(int32*)(profile + 0xF4) = map_id;
+			csmemset(profile + 0xF8, 0, sizeof(s_secure_map_id));
+			const s_multiplayer_ui_level_definition* level = levels_get_multiplayer_ui_level(map_id);
+			const wchar_t* name = (level != nullptr ? multiplayer_ui_level_get_display_name(level) : nullptr);
+			wcsncpy_s((wchar_t*)(profile + 0x258), 32, (name != nullptr ? name : L""), _TRUNCATE);
+			INVOKE_TYPE(0x209C3E, 0x0, void(__cdecl*)(void));
+		}
+		else
+		{
+			INVOKE_TYPE(0x21557F, 0x0, void(__cdecl*)(int32, int32), NONE, map_id);
+		}
+
+		void* screen = INVOKE_TYPE(0x211BA1, 0x0, void*(__thiscall*)(void*), list);
+		void** screen_vtable = *(void***)screen;
+		const int32 channel = ((int32(__thiscall*)(void*))screen_vtable[0x80 / 4])(screen);
+		const int32 window = ((int32(__thiscall*)(void*))screen_vtable[0x84 / 4])(screen);
+		INVOKE_TYPE(0x2096DA, 0x0, void(__cdecl*)(int32, int32), channel, window);
+		return;
+	}
+
+	INVOKE_TYPE(0x25ACD8, 0x0, void(__thiscall*)(void*, void*, datum*), list, item, item_index);
+}
+
+static void map_select_digsite_tab_apply_patches(void)
+{
+	// DEFAULT list without the DIGSITE levels
+	PatchCall(Memory::GetAddressRelative(0x64F715), c_custom_game_map_list__constructor_hook);
+
+	// c_screen_custom_game_map_select vtable: handle_event and update
+	WritePointer(Memory::GetAddressRelative(0x7D9194) + 12 * sizeof(void*), (void*)c_screen_custom_game_map_select__handle_event);
+	WritePointer(Memory::GetAddressRelative(0x7D9194) + 3 * sizeof(void*), (void*)c_screen_custom_game_map_select__update);
+
+	// c_custom_game_custom_map_list vtable: item pressed
+	WritePointer(Memory::GetAddressRelative(0x7DB06C) + 26 * sizeof(void*), (void*)c_custom_game_custom_map_list__handle_item_pressed);
+
+	// preview and description of built-in DIGSITE levels
+	PatchCall(Memory::GetAddressRelative(0x65A84D), map_select_get_custom_map_ui_level_definition);
+}
+
 // custom map selection list code
 class c_custom_game_custom_map_list // : public c_list_widget
 {
@@ -816,29 +1238,15 @@ public:
 
 		data_array** custom_map_menu_list = (data_array**)(thisptr + 112);
 
-		// first we get the map count
-		*custom_map_menu_list = nullptr;
-		s_secure_map_id* map_ids_buffer = nullptr;
+		// the list is shared by the CUSTOM and DIGSITE tabs, so leave room for the built-in DIGSITE levels as well
 		uint32 custom_map_available_count = map_manager_get()->get_custom_map_list_ids(nullptr, 0);
+		*custom_map_menu_list = ui_list_data_new("custom game custom maps",
+			custom_map_available_count + k_maximum_number_of_digsite_builtin_levels + k_digsite_custom_map_list_spare_slots,
+			sizeof(s_secure_map_id));
+		data_make_valid(*custom_map_menu_list);
 
-		if (custom_map_available_count > 0)
-		{
-			*custom_map_menu_list = ui_list_data_new("custom game custom maps", custom_map_available_count, sizeof(s_secure_map_id));
-			data_make_valid(*custom_map_menu_list);
-			map_ids_buffer = new s_secure_map_id[custom_map_available_count];
-			map_manager_get()->get_custom_map_list_ids(map_ids_buffer, custom_map_available_count);
-
-			// ### FIXME ugly...
-			for (uint32 i = custom_map_available_count; i-- > 0; )
-			{
-				s_secure_map_id* list_entry
-					= &((s_secure_map_id*)(*custom_map_menu_list)->data)[DATUM_INDEX_TO_ABSOLUTE_INDEX(datum_new(*custom_map_menu_list))];
-				csmemcpy(list_entry, &map_ids_buffer[i], sizeof(s_secure_map_id));
-			}
-		}
-
-		if (map_ids_buffer != nullptr)
-			delete[] map_ids_buffer;
+		g_map_select_digsite_tab_active = false;
+		custom_game_custom_map_list_populate(*custom_map_menu_list, false);
 
 		_slot_linker* linker = (_slot_linker*)(thisptr + 172);
 		_slot* slot = (_slot*)(thisptr + 2032);
@@ -874,6 +1282,9 @@ void c_map_manager::ApplyCustomMapExtensionLimitPatches()
 	if (!shell_is_dedicated_server())
 	{
 		PatchCall(Memory::GetAddressRelative(0x64F708), jmp_c_custom_game_custom_map_list_constructor_hook);
+
+		// DIGSITE tab on the custom game map select screen
+		map_select_digsite_tab_apply_patches();
 
 		// jump to function end just before updating custom map list
 		// jmp near 0xB7
