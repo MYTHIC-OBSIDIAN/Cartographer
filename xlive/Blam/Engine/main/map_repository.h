@@ -147,3 +147,6 @@ void map_repository_apply_sapien_patches(void);
 
 c_map_manager* map_manager_get();
 const wchar_t* get_custom_map_folder_path();
+
+// preview picture of a custom map (only DIGSITE map files have one), nullptr if it has none
+struct bitmap_data* custom_map_get_preview_bitmap(const s_secure_map_id* custom_map_id);

@@ -1444,6 +1444,24 @@ static bool __cdecl map_select_get_custom_map_ui_level_definition(const s_secure
 	return result;
 }
 
+struct bitmap_data* custom_map_get_preview_bitmap(const s_secure_map_id* custom_map_id)
+{
+	if (custom_map_id == nullptr)
+	{
+		return nullptr;
+	}
+
+	uint8* level_definition = new uint8[k_custom_map_ui_level_definition_size];
+	csmemset(level_definition, 0, k_custom_map_ui_level_definition_size);
+	bitmap_data* preview = nullptr;
+	if (map_select_get_custom_map_ui_level_definition(custom_map_id, level_definition))
+	{
+		preview = *(bitmap_data**)level_definition;
+	}
+	delete[] level_definition;
+	return preview;
+}
+
 // c_custom_game_custom_map_list item pressed: built-in DIGSITE levels are selected like on the DEFAULT tab
 static void __fastcall c_custom_game_custom_map_list__handle_item_pressed(void* list, void* edx, void* item, datum* item_index)
 {

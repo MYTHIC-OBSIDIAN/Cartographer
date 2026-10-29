@@ -13,6 +13,7 @@
 #include "interface/user_interface_networking.h"
 #include "interface/user_interface_screen_widget_definition.h"
 #include "main/levels.h"
+#include "main/map_repository.h"
 #include "main/level_definitions.h"
 #include "networking/network_event.h"
 #include "networking/logic/network_session_interface.h"
@@ -572,9 +573,12 @@ void c_screen_squad_settings::update()
 		{
 			if (custom_map_id)
 			{
-				// TODO : fix custom map images once we get them working
-				//	if (levels_get_custom_map_ui_level_definition(custom_map_id, (int)&block))
-				//		option_bitmap->assign_new_bitmap_block(block);
+				// LAN edition: DIGSITE map files have a preview picture
+				bitmap_data* bitmap_block = custom_map_get_preview_bitmap((const s_secure_map_id*)(uintptr_t)custom_map_id);
+				if (bitmap_block)
+				{
+					option_bitmap->assign_new_bitmap_block(bitmap_block);
+				}
 			}
 			else
 			{
