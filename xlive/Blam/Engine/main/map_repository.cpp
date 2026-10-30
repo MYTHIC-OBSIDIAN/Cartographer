@@ -902,12 +902,12 @@ static const s_digsite_list_entry k_digsite_list_order[] =
 	{ false, L"evergreen" },          // Evergreen
 	{ false, L"fourth_station" },     // Fourth Station
 	{ false, L"gauntlet" },           // Gauntlet
+	{ false, L"grotto" },             // Grotto
 	{ false, L"missile_beach" },      // Missile Beach
 	{ false, L"overboard" },          // Overboard
 	{ true,  L"rodentia" },           // Rodentia
 	{ false, L"shaft" },              // Shaft
 	{ false, L"solitude" },           // Solitude
-	{ false, L"grotto" },             // Grotto
 	{ false, L"sunken_chamber" },     // Sunken Chamber
 	{ true,  L"forerunner_sample" },  // Beach Battle
 	{ true,  L"covenant_sample" },    // Covenant
