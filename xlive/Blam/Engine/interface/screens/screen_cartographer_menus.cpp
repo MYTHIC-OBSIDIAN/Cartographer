@@ -3,6 +3,7 @@
 
 #include "cartographer/config/endpoints.h"
 #include "cseries/language.h"
+#include "game/cheats.h"
 #include "interface/user_interface_memory.h"
 #include "memory/data.h"
 
@@ -740,6 +741,158 @@ void* c_cartographer_update_notice_menu::load(c_screen_parameters* parameters)
 
 	user_interface_register_screen_to_channel(update_notice_menu, parameters);
 	return update_notice_menu;
+}
+
+// skulls (LAN edition)
+
+#define k_skulls_list_name "skulls list"
+
+struct s_skulls_list_entry
+{
+	e_skull_type skull;
+	const wchar_t* name;
+};
+
+// listed A-Z; Cow Bell is left out as it was never finished and does nothing
+static const s_skulls_list_entry k_skulls_list_entries[] =
+{
+	{ _skull_type_anger, L"Anger" },
+	{ _skull_type_assassians, L"Assassins" },
+	{ _skull_type_black_eye, L"Black Eye" },
+	{ _skull_type_blind, L"Blind" },
+	{ _skull_type_catch, L"Catch" },
+	{ _skull_type_envy, L"Envy" },
+	{ _skull_type_famine, L"Famine" },
+	{ _skull_type_ghost, L"Ghost" },
+	{ _skull_type_grunt_birthday_party, L"Grunt Birthday Party" },
+	{ _skull_type_iwhbyd, L"IWHBYD" },
+	{ _skull_type_iron, L"Iron" },
+	{ _skull_type_mythic, L"Mythic" },
+	{ _skull_type_sputnik, L"Sputnik" },
+	{ _skull_type_thunderstorm, L"Thunderstorm" },
+	{ _skull_type_whuppopotamus, L"Whuppopotamus" },
+};
+
+c_skulls_edit_list::c_skulls_edit_list(uint16 _flags) :
+	c_list_widget(_flags),
+	m_slot_2(this, &c_skulls_edit_list::handle_item_pressed_event)
+{
+	data_array* skulls_list_data = ui_list_data_new(k_skulls_list_name, NUMBEROF(k_skulls_list_entries), sizeof(datum));
+	this->m_list_data = skulls_list_data;
+
+	data_make_valid(skulls_list_data);
+
+	for (int32 i = 0; i < this->m_list_data->maximum_count; i++) {
+		datum_new(this->m_list_data);
+	}
+
+	linker_type2.link(&this->m_slot_2);
+}
+
+c_list_item_widget* c_skulls_edit_list::get_list_items()
+{
+	return m_list_item_widgets;
+}
+
+int32 c_skulls_edit_list::get_list_items_count()
+{
+	return NUMBEROF(m_list_item_widgets);
+}
+
+void c_skulls_edit_list::set_item_text(c_list_item_widget* item)
+{
+	const datum data_index = item->get_last_data_index();
+	if (data_index == NONE)
+	{
+		return;
+	}
+
+	const int16 list_item_index = DATUM_INDEX_TO_ABSOLUTE_INDEX(data_index);
+	if (list_item_index < 0 || list_item_index >= (int16)NUMBEROF(k_skulls_list_entries))
+	{
+		return;
+	}
+
+	c_text_widget* text_widget = item->try_find_text_widget(_default_list_skin_text_main);
+	if (text_widget)
+	{
+		const s_skulls_list_entry* entry = &k_skulls_list_entries[list_item_index];
+		wchar_t label[64];
+		swprintf(label, NUMBEROF(label), L"%s: %s", entry->name, g_cheats_skull_enabled[entry->skull] ? L"On" : L"Off");
+		text_widget->set_text(label);
+	}
+}
+
+void c_skulls_edit_list::update_list_items(c_list_item_widget* item, int32 skin_index)
+{
+	set_item_text(item);
+}
+
+void c_skulls_edit_list::handle_item_pressed_event(s_event_record* const& event, int32* pitem_index)
+{
+	const int16 list_item_index = DATUM_INDEX_TO_ABSOLUTE_INDEX(*pitem_index);
+	if (list_item_index < 0 || list_item_index >= (int16)NUMBEROF(k_skulls_list_entries))
+	{
+		return;
+	}
+
+	const e_skull_type skull = k_skulls_list_entries[list_item_index].skull;
+	g_cheats_skull_enabled[skull] = !g_cheats_skull_enabled[skull];
+
+	// refresh the label of the pressed item straight away
+	for (int32 i = 0; i < (int32)NUMBEROF(m_list_item_widgets); i++)
+	{
+		if (m_list_item_widgets[i].get_last_data_index() == *pitem_index)
+		{
+			set_item_text(&m_list_item_widgets[i]);
+		}
+	}
+}
+
+c_skulls_menu::c_skulls_menu(e_user_interface_channel_type _ui_channel, e_user_interface_render_window _window_index, uint16 _flags) :
+	c_screen_with_menu(_screen_brightness_level, _ui_channel, _window_index, _flags, &m_skulls_edit_list),
+	m_skulls_edit_list(_flags)
+{
+}
+
+void* c_skulls_menu::load(c_screen_parameters* parameters)
+{
+	c_skulls_menu* skulls_menu = nullptr;
+	uint8* ui_buffer = (uint8*)ui_pool_allocate_space(sizeof(c_skulls_menu), 0);
+
+	if (ui_buffer) {
+		skulls_menu = new (ui_buffer) c_skulls_menu(
+			parameters->get_channel_type(),
+			parameters->get_window_index(),
+			parameters->get_user_flags()
+		);
+		skulls_menu->m_allocated = true;
+	}
+
+	user_interface_register_screen_to_channel(skulls_menu, parameters);
+	return skulls_menu;
+}
+
+void c_skulls_menu::initialize(c_screen_parameters* screen_parameters)
+{
+	c_screen_with_menu::initialize(screen_parameters);
+
+	m_header_text.set_text(L"Skulls");
+	c_text_widget* subheader_text_widget = get_screen_subheader_text();
+	if (subheader_text_widget)
+	{
+		subheader_text_widget->set_text(L"Press A to turn a skull on or off. Skulls only change campaign games, and stay set until you quit the game.");
+	}
+}
+
+const void* c_skulls_menu::load_proc(void) const
+{
+	return c_skulls_menu::load;
+}
+
+void* ui_load_skulls_menu()
+{
+	return ui_custom_cartographer_load_menu(c_skulls_menu::load);
 }
 
 void* ui_load_cartographer_guide_menu()

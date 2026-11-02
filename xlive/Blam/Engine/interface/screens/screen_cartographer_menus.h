@@ -12,6 +12,7 @@
 #define k_no_of_visible_items_for_cartographer_credits_list 4
 #define k_no_of_visible_items_for_cartographer_update_list 2
 #define k_no_of_visible_items_for_cartographer_update_notice_list 2
+#define k_no_of_visible_items_for_skulls_list 4
 
 /* enums */
 
@@ -183,7 +184,44 @@ public:
 
 //public code
 
+// LAN edition: Settings > Skulls, an on/off toggle for each skull
+
+class c_skulls_edit_list : public c_list_widget
+{
+protected:
+	c_list_item_widget m_list_item_widgets[k_no_of_visible_items_for_skulls_list];
+	c_slot2<c_skulls_edit_list, struct s_event_record*, int32> m_slot_2;
+
+	void handle_item_pressed_event(struct s_event_record* const& event, int32* pitem_index);
+	void set_item_text(c_list_item_widget* item);
+public:
+	c_skulls_edit_list(uint16 _flags);
+
+	// c_skulls_edit_list virtual functions
+
+	virtual ~c_skulls_edit_list() = default;
+	virtual c_list_item_widget* get_list_items() override;
+	virtual int32 get_list_items_count() override;
+	virtual void update_list_items(c_list_item_widget* item, int32 skin_index) override;
+};
+
+class c_skulls_menu : public c_screen_with_menu
+{
+protected:
+	c_skulls_edit_list m_skulls_edit_list;
+public:
+	c_skulls_menu(e_user_interface_channel_type _ui_channel, e_user_interface_render_window _window_index, uint16 _flags);
+	static void* load(c_screen_parameters* parameters);
+
+	// c_skulls_menu virtual functions
+
+	virtual ~c_skulls_menu() = default;
+	virtual void initialize(c_screen_parameters* screen_parameters) override;
+	virtual const void* load_proc(void) const override;
+};
+
 void* ui_load_cartographer_guide_menu();
+void* ui_load_skulls_menu();
 void* ui_load_cartographer_update_notice_menu();
 void* ui_load_cartographer_credits_menu();
 void* ui_load_cartographer_update_menu();
