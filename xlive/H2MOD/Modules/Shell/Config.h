@@ -34,6 +34,8 @@ extern bool g_force_cartographer_update;
 extern bool g_h2_portable;
 
 extern unsigned short H2Config_base_port;
+// LAN edition: lobby nameplate (0 = default, 1-6 = the nameplates in mainmenu.map)
+extern int H2Config_nameplate;
 extern unsigned long H2Config_ip_lan;
 extern unsigned long H2Config_ip_broadcast_override;
 

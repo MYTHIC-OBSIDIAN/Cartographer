@@ -4,6 +4,10 @@
 #include "cartographer/config/endpoints.h"
 #include "cseries/language.h"
 #include "game/cheats.h"
+#include "game/players.h"
+#include "input/controllers.h"
+#include "interface/user_interface.h"
+#include "H2MOD/Modules/Shell/Config.h"
 #include "interface/user_interface_memory.h"
 #include "memory/data.h"
 
@@ -888,6 +892,208 @@ void c_skulls_menu::initialize(c_screen_parameters* screen_parameters)
 const void* c_skulls_menu::load_proc(void) const
 {
 	return c_skulls_menu::load;
+}
+
+// nameplates (LAN edition)
+
+#define k_nameplates_list_name "nameplates list"
+#define k_appearance_list_nameplate_item 7
+
+// lobby name row backgrounds in mainmenu.map (ui\screens\game_shell\pregame_lobby\item_background_lobby), by index
+static const wchar_t* const k_nameplate_names[] =
+{
+	L"Default",
+	L"bungie.net",
+	L"bungie.net Staff",
+	L"Bungie Logos",
+	L"Stars",
+	L"Bungie",
+	L"Bungie Stars",
+};
+
+static int32 nameplate_get_selected(void)
+{
+	return (H2Config_nameplate >= 0 && H2Config_nameplate < (int32)NUMBEROF(k_nameplate_names)) ? H2Config_nameplate : 0;
+}
+
+c_nameplates_edit_list::c_nameplates_edit_list(uint16 _flags) :
+	c_list_widget(_flags),
+	m_slot_2(this, &c_nameplates_edit_list::handle_item_pressed_event)
+{
+	data_array* nameplates_list_data = ui_list_data_new(k_nameplates_list_name, NUMBEROF(k_nameplate_names), sizeof(datum));
+	this->m_list_data = nameplates_list_data;
+
+	data_make_valid(nameplates_list_data);
+
+	for (int32 i = 0; i < this->m_list_data->maximum_count; i++) {
+		datum_new(this->m_list_data);
+	}
+
+	linker_type2.link(&this->m_slot_2);
+}
+
+c_list_item_widget* c_nameplates_edit_list::get_list_items()
+{
+	return m_list_item_widgets;
+}
+
+int32 c_nameplates_edit_list::get_list_items_count()
+{
+	return NUMBEROF(m_list_item_widgets);
+}
+
+void c_nameplates_edit_list::set_item_text(c_list_item_widget* item)
+{
+	const datum data_index = item->get_last_data_index();
+	if (data_index == NONE)
+	{
+		return;
+	}
+
+	const int16 list_item_index = DATUM_INDEX_TO_ABSOLUTE_INDEX(data_index);
+	if (list_item_index < 0 || list_item_index >= (int16)NUMBEROF(k_nameplate_names))
+	{
+		return;
+	}
+
+	c_text_widget* text_widget = item->try_find_text_widget(_default_list_skin_text_main);
+	if (text_widget)
+	{
+		wchar_t label[64];
+		swprintf(label, NUMBEROF(label), L"%s%s", k_nameplate_names[list_item_index], list_item_index == nameplate_get_selected() ? L" (Selected)" : L"");
+		text_widget->set_text(label);
+	}
+}
+
+void c_nameplates_edit_list::update_list_items(c_list_item_widget* item, int32 skin_index)
+{
+	set_item_text(item);
+}
+
+void c_nameplates_edit_list::handle_item_pressed_event(s_event_record* const& event, int32* pitem_index)
+{
+	const int16 list_item_index = DATUM_INDEX_TO_ABSOLUTE_INDEX(*pitem_index);
+	if (list_item_index < 0 || list_item_index >= (int16)NUMBEROF(k_nameplate_names))
+	{
+		return;
+	}
+
+	H2Config_nameplate = list_item_index;
+	SaveH2Config();
+
+	// send the new details so the lobby shows the nameplate straight away
+	INVOKE_TYPE(0x206A97, 0x0, void(__cdecl*)(e_controller_index), event->controller);
+
+	for (int32 i = 0; i < (int32)NUMBEROF(m_list_item_widgets); i++)
+	{
+		set_item_text(&m_list_item_widgets[i]);
+	}
+}
+
+c_nameplates_menu::c_nameplates_menu(e_user_interface_channel_type _ui_channel, e_user_interface_render_window _window_index, uint16 _flags) :
+	c_screen_with_menu(_screen_brightness_level, _ui_channel, _window_index, _flags, &m_nameplates_edit_list),
+	m_nameplates_edit_list(_flags)
+{
+}
+
+void* c_nameplates_menu::load(c_screen_parameters* parameters)
+{
+	c_nameplates_menu* nameplates_menu = nullptr;
+	uint8* ui_buffer = (uint8*)ui_pool_allocate_space(sizeof(c_nameplates_menu), 0);
+
+	if (ui_buffer) {
+		nameplates_menu = new (ui_buffer) c_nameplates_menu(
+			parameters->get_channel_type(),
+			parameters->get_window_index(),
+			parameters->get_user_flags()
+		);
+		nameplates_menu->m_allocated = true;
+	}
+
+	user_interface_register_screen_to_channel(nameplates_menu, parameters);
+	return nameplates_menu;
+}
+
+void c_nameplates_menu::initialize(c_screen_parameters* screen_parameters)
+{
+	c_screen_with_menu::initialize(screen_parameters);
+
+	m_header_text.set_text(L"Nameplate");
+	c_text_widget* subheader_text_widget = get_screen_subheader_text();
+	if (subheader_text_widget)
+	{
+		subheader_text_widget->set_text(L"Choose the background shown behind your name in the lobby.");
+	}
+}
+
+const void* c_nameplates_menu::load_proc(void) const
+{
+	return c_nameplates_menu::load;
+}
+
+// appearance settings list (halo2.exe c_screen_multiplayer_setting_menu, screen 47): an 8th item, Nameplate
+
+static void* user_interface_widget_find_child(void* widget, int32 type, uint32 index)
+{
+	return INVOKE_TYPE(0x211909, 0x0, void*(__thiscall*)(void*, int32, uint32, bool), widget, type, index, false);
+}
+
+static void __fastcall appearance_list_update_list_items(void* list, void* edx, void* item, int32 skin_index)
+{
+	const int16 item_index = *(int16*)((uint8*)item + 0x70);
+	if (item_index == k_appearance_list_nameplate_item)
+	{
+		void* label_text = user_interface_widget_find_child(item, 6, 0);
+		void* value_text = user_interface_widget_find_child(item, 6, 1);
+		if (label_text != nullptr)
+		{
+			INVOKE_TYPE(0x21BAA9, 0x0, void(__thiscall*)(void*, const wchar_t*), label_text, L"Nameplate");
+		}
+		if (value_text != nullptr)
+		{
+			INVOKE_TYPE(0x21BAA9, 0x0, void(__thiscall*)(void*, const wchar_t*), value_text, k_nameplate_names[nameplate_get_selected()]);
+		}
+		return;
+	}
+
+	INVOKE_TYPE(0x257070, 0x0, void(__thiscall*)(void*, void*, int32), list, item, skin_index);
+}
+
+static void __fastcall appearance_list_handle_item_pressed(void* list, void* edx, s_event_record** event, datum* item_index)
+{
+	if (event != nullptr && *event != nullptr && item_index != nullptr
+		&& DATUM_INDEX_TO_ABSOLUTE_INDEX(*item_index) == k_appearance_list_nameplate_item)
+	{
+		// same call the game uses to open the colour and emblem pickers
+		INVOKE_TYPE(0x20C809, 0x0, void(__cdecl*)(uint32, void*), FLAG((*event)->controller), (void*)c_nameplates_menu::load);
+		return;
+	}
+
+	INVOKE_TYPE(0x257835, 0x0, void(__thiscall*)(void*, s_event_record**, datum*), list, event, item_index);
+}
+
+// local player details: the bungie user role (nameplate) used to come from the Live account
+static void __cdecl user_interface_controller_get_user_properties_nameplate(e_controller_index controller_index, s_player_identifier* controller_user_identifier, s_player_configuration* properties)
+{
+	INVOKE_TYPE(0x20696F, 0x0, void(__cdecl*)(e_controller_index, s_player_identifier*, s_player_configuration*), controller_index, controller_user_identifier, properties);
+	if (properties != nullptr)
+	{
+		properties->bungie_user_role = (int8)nameplate_get_selected();
+	}
+}
+
+void nameplates_apply_patches(void)
+{
+	// appearance list: 8 items instead of 7 (push 7 -> push 8 for the list data count)
+	WriteValue<uint8>(Memory::GetAddressRelative(0x657971), 8);
+	WritePointer(Memory::GetAddressRelative(0x7DAA34) + 24 * sizeof(void*), (void*)appearance_list_update_list_items);
+	WritePointer(Memory::GetAddressRelative(0x65796A), (void*)appearance_list_handle_item_pressed);
+
+	PatchCall(Memory::GetAddressRelative(0x606AD3), user_interface_controller_get_user_properties_nameplate);
+	PatchCall(Memory::GetAddressRelative(0x61D3FB), user_interface_controller_get_user_properties_nameplate);
+
+	// pregame lobby: role 4 was shown as role 1, show every nameplate as itself
+	WriteValue<uint8>(Memory::GetAddressRelative(0x644483), 0xEB);
 }
 
 void* ui_load_skulls_menu()

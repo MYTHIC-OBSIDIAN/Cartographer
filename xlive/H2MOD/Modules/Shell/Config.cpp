@@ -51,6 +51,7 @@ bool H2Config_skip_intro = false;
 bool H2Config_discord_enable = true;
 //bool H2Config_controller_aim_assist = true;
 int H2Config_fps_limit = 60;
+int H2Config_nameplate = 0;
 int8 H2Config_static_lod_state = _render_lod_disabled;
 bool H2Config_disable_ingame_keyboard = false;
 bool H2Config_hide_ingame_chat = false;
@@ -468,6 +469,8 @@ void SaveH2Config()
 
 			CONFIG_SET(&ini, "fps_limit", &H2Config_fps_limit);
 
+			CONFIG_SET(&ini, "nameplate", &H2Config_nameplate);
+
 			CONFIG_SET(&ini, "static_lod_state", &H2Config_static_lod_state);
 
 			CONFIG_SET(&ini, "shader_lod_max", &H2Config_shader_lod_max);
@@ -657,6 +660,7 @@ void ReadH2Config()
 				CONFIG_GET(&ini, "skip_intro", "false", &H2Config_skip_intro);
 				CONFIG_GET(&ini, "discord_enable", "true", &H2Config_discord_enable);
 				CONFIG_GET(&ini, "fps_limit", "120", &H2Config_fps_limit);
+				CONFIG_GET(&ini, "nameplate", "0", &H2Config_nameplate);
 
 				CONFIG_GET(&ini, "static_lod_state", "0", &H2Config_static_lod_state);
 				
