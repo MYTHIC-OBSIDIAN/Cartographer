@@ -24,6 +24,9 @@ struct s_game_auto_join_globals
 /* public methods */
 
 bool session_protocol_has_coop(e_session_protocol protocol);
+
+// LAN edition: most players in a co-op campaign game (split-screen or System Link)
+#define k_maximum_coop_players 2
 bool __cdecl user_interface_create_new_squad(bool a1, bool online);
 bool __cdecl user_interface_squad_local_peer_is_leader();
 bool __cdecl user_interface_session_get_map(uint32* campaign_id, uint32* map_id, uint32* custom_map_id);

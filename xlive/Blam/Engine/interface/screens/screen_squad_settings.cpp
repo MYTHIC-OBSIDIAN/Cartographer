@@ -467,6 +467,14 @@ void c_squad_settings_list::handle_item_switch_to_coop(
 			_ui_error_generic, _window_4,
 			FLAG(event->controller), NULL, NULL, L"Access Denied", L"Coming Soon....");
 	}
+	else if (user_interface_squad_get_player_count() > k_maximum_coop_players)
+	{
+		// LAN edition: co-op campaign is limited to 2 players
+		screen_error_ok_dialog_with_custom_text(
+			_user_interface_channel_type_gameshell_dialog,
+			_ui_error_generic, _window_4,
+			FLAG(event->controller), NULL, NULL, L"Too Many Players", L"Co-op campaign is for 2 players. Remove players from the lobby to switch to co-op.");
+	}
 	else
 	{
 		user_interface_squad_clear_game_settings();
@@ -818,10 +826,34 @@ const void* c_screen_squad_settings::load_proc(void) const
 	return &c_screen_squad_settings::load;
 }
 
+// LAN edition: co-op campaign is limited to 2 players (split-screen and System Link)
+// c_network_session::is_full(peer_count_to_add, player_count_to_add), halo2.exe 0x5C21FD
+static bool __fastcall network_session_is_full_coop_limit(void* session, void* edx, int32 peers_to_add, int32 players_to_add)
+{
+	if (INVOKE_TYPE(0x1C21FD, 0x0, bool(__thiscall*)(void*, int32, int32), session, peers_to_add, players_to_add))
+	{
+		return true;
+	}
+
+	if (session_protocol_has_coop(user_interface_squad_get_active_protocol()))
+	{
+		const int32 player_count = *(int32*)((uint8*)session + 0x1254);
+		if (player_count + players_to_add > k_maximum_coop_players)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void c_screen_squad_settings::apply_instance_patches()
 {
 	//Replace orignal call with custom one inside pregame_lobby
 	WriteValue(Memory::GetAddress(0x246356) + 1, c_screen_squad_settings::load);
+
+	// LAN edition: co-op player limit, for local players signing in (split-screen) and for peers joining (System Link)
+	PatchCall(Memory::GetAddressRelative(0x5B2E63), network_session_is_full_coop_limit);
+	PatchCall(Memory::GetAddressRelative(0x5CAEF0), network_session_is_full_coop_limit);
 }
 
 void c_screen_squad_settings::apply_patches_on_map_load()

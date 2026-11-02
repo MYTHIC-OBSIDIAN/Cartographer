@@ -613,7 +613,14 @@ bool c_screen_4way_signin::handle_controller_button_pressed_event(
 bool c_screen_4way_signin::handle_invalid_controller_event(
 	s_event_record* event) const
 {
-	if (event->component == _controller_component_button_a
+	if ((event->component == _controller_component_button_a
+		|| event->component == _controller_component_button_start)
+		&& this->m_call_context == _4_way_signin_type_campaign
+		&& user_interface_controller_get_signed_in_controller_count() >= k_maximum_coop_players)
+	{
+		// LAN edition: co-op campaign is limited to 2 players, a third controller can't sign in
+	}
+	else if (event->component == _controller_component_button_a
 		|| event->component == _controller_component_button_start)
 	{
 		bool online = false;
