@@ -16,6 +16,7 @@
 #include "interface/user_interface_widget_text.h"
 #include "interface//user_interface_bitmap_block.h"
 #include "interface/user_interface_screen_widget_definition.h"
+#include "interface/user_interface_shared_globals.h"
 #include "interface/screens/screen_cartographer_menus.h"
 #include "networking/network_event.h"
 #include "networking/panorama/panorama_presence.h"
@@ -388,6 +389,21 @@ void c_screen_settings::apply_patches_on_map_load()
 
 	// copy data from about_pane
 	*guide_pane = *about_pane;
+
+	// LAN edition: the Skulls pane shows the Oddball picture from the game variants screen
+	// (ui\screens\game_shell\mp_game_select\mp_games, bitmap 3, 512x256) in place of the About picture (512x512)
+	const datum mp_games_bitmap = tag_loaded(_tag_group_bitmap, "ui\\screens\\game_shell\\mp_game_select\\mp_games");
+	if (mp_games_bitmap != NONE)
+	{
+		// own copy of the bitmap blocks, so the About pane keeps its picture
+		tag_injection_extend_block(&guide_pane->bitmap_blocks, sizeof(s_bitmap_block_reference), 0);
+		s_bitmap_block_reference* picture = TAG_BLOCK_GET_ELEMENT(&guide_pane->bitmap_blocks, _pane_guide_bitmap_settings_screen_bitmap, s_bitmap_block_reference);
+		picture->bitmap_tag.group = _tag_group_bitmap;
+		picture->bitmap_tag.index = mp_games_bitmap;
+		picture->initial_sprite_frame = 3;
+		// centred in the space of the 512x512 settings pictures
+		picture->topleft.y -= 128;
+	}
 	
 	// updating the new number of visible items in each pane
 	for (int32 i = 0; i < main_widget_tag->panes.count; ++i)

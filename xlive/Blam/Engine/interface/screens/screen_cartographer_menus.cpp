@@ -1097,6 +1097,49 @@ static void __fastcall profile_edit_list_handle_item_pressed(void* list, void* e
 	INVOKE_TYPE(0x24CD82, 0x0, void(__thiscall*)(void*, s_event_record**, datum*), list, event, item_index);
 }
 
+// the list has room for 3 item widgets (screen + 0xA60 + 0xB0), all 4 items are shown with 4 item widgets placed after the
+// screen object (which is allocated 0x210 bytes bigger for them)
+#define k_profile_edit_screen_size 0xCB8
+#define k_profile_edit_list_offset 0xA60
+#define k_profile_edit_list_item_count 4
+#define k_list_item_widget_size 0x84
+
+static void* profile_edit_list_get_extra_item_widgets(void* list)
+{
+	return (uint8*)list + (k_profile_edit_screen_size - k_profile_edit_list_offset);
+}
+
+static void* __fastcall profile_edit_list_get_list_items(void* list, void* edx)
+{
+	return profile_edit_list_get_extra_item_widgets(list);
+}
+
+static int32 __fastcall profile_edit_list_get_list_items_count(void* list, void* edx)
+{
+	return k_profile_edit_list_item_count;
+}
+
+// c_player_profile_edit_list constructor, called by the screen constructor
+static void* __fastcall profile_edit_list_constructor(void* list, void* edx, int32 user_flags)
+{
+	void* result = INVOKE_TYPE(0x24CDF7, 0x0, void*(__thiscall*)(void*, int32), list, user_flags);
+	// eh vector constructor iterator (c_list_item_widget constructor / destructor)
+	INVOKE_TYPE(0x28870B, 0x0, void(__stdcall*)(void*, uint32, int32, void*, void*),
+		profile_edit_list_get_extra_item_widgets(list), k_list_item_widget_size, k_profile_edit_list_item_count,
+		Memory::GetAddressRelative<void*>(0x61FFC9), Memory::GetAddressRelative<void*>(0x40A551));
+	return result;
+}
+
+// c_player_profile_edit_list destructor, called by the screen destructor
+static void __fastcall profile_edit_list_destructor(void* list, void* edx)
+{
+	// eh vector destructor iterator
+	INVOKE_TYPE(0x2886A8, 0x0, void(__stdcall*)(void*, uint32, int32, void*),
+		profile_edit_list_get_extra_item_widgets(list), k_list_item_widget_size, k_profile_edit_list_item_count,
+		Memory::GetAddressRelative<void*>(0x40A551));
+	INVOKE_TYPE(0x23B7CA, 0x0, void(__thiscall*)(void*), list);
+}
+
 // c_screen_player_profile_edit::post_initialize_button_keys, runs on every pane switch: texts of the Nameplate pane
 static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_widget* screen, void* edx)
 {
@@ -1108,7 +1151,7 @@ static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_
 		c_text_widget* description = screen->try_find_screen_text(0);
 		if (description != nullptr)
 		{
-			description->set_text(L"Choose the background shown behind your name in lobbies and menus.");
+			description->set_text(L"Choose the background shown behind your name in the lobby.");
 		}
 		for (uint32 text_index = 1; text_index < 3; text_index++)
 		{
@@ -1119,13 +1162,6 @@ static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_
 			}
 		}
 	}
-}
-
-// player widgets in the menus (profile lists, sign-in, appearance preview): show the local nameplate
-static void __fastcall player_widget_set_appearance_with_nameplate(void* representation, void* edx, s_player_appearance* appearance)
-{
-	INVOKE_TYPE(0x2205CA, 0x0, void(__thiscall*)(void*, s_player_appearance*), representation, appearance);
-	INVOKE_TYPE(0x220624, 0x0, void(__thiscall*)(void*, int32), representation, (int32)nameplate_get_user_role());
 }
 
 // local player details: the bungie user role (nameplate) used to come from the Live account
@@ -1146,14 +1182,16 @@ void nameplates_apply_patches(void)
 	WritePointer(Memory::GetAddressRelative(0x64CE75), (void*)profile_edit_list_handle_item_pressed);
 	WritePointer(Memory::GetAddressRelative(0x7D3134) + 24 * sizeof(void*), (void*)player_profile_edit_post_initialize_button_keys);
 
+	// player profile edit list: 4 item widgets so all 4 items are visible
+	WriteValue<uint32>(Memory::GetAddressRelative(0x63C6C6), k_profile_edit_screen_size + k_profile_edit_list_item_count * k_list_item_widget_size);
+	WriteValue<uint32>(Memory::GetAddressRelative(0x64BFBB), k_profile_edit_screen_size + k_profile_edit_list_item_count * k_list_item_widget_size);
+	PatchCall(Memory::GetAddressRelative(0x63BD5A), profile_edit_list_constructor);
+	PatchCall(Memory::GetAddressRelative(0x63BDB3), profile_edit_list_destructor);
+	WritePointer(Memory::GetAddressRelative(0x7D894C) + 22 * sizeof(void*), (void*)profile_edit_list_get_list_items);
+	WritePointer(Memory::GetAddressRelative(0x7D894C) + 23 * sizeof(void*), (void*)profile_edit_list_get_list_items_count);
+
 	PatchCall(Memory::GetAddressRelative(0x606AD3), user_interface_controller_get_user_properties_nameplate);
 	PatchCall(Memory::GetAddressRelative(0x61D3FB), user_interface_controller_get_user_properties_nameplate);
-
-	// local player widgets in the menus
-	PatchCall(Memory::GetAddressRelative(0x40D153), player_widget_set_appearance_with_nameplate);
-	PatchCall(Memory::GetAddressRelative(0x636911), player_widget_set_appearance_with_nameplate);
-	PatchCall(Memory::GetAddressRelative(0x636D31), player_widget_set_appearance_with_nameplate);
-	PatchCall(Memory::GetAddressRelative(0x656DB3), player_widget_set_appearance_with_nameplate);
 
 	// pregame lobby: role 4 was shown as role 1, show every nameplate as itself
 	WriteValue<uint8>(Memory::GetAddressRelative(0x644483), 0xEB);
@@ -1180,6 +1218,16 @@ void nameplates_apply_patches_on_map_load(void)
 		*user_interface_widget_pane_get(&widget->panes, pane_index) = *user_interface_widget_pane_get(&widget->panes, pane_index - 1);
 	}
 	*user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_nameplate_item) = *user_interface_widget_pane_get(&widget->panes, 0);
+
+	// 4 visible list items
+	for (int32 pane_index = 0; pane_index < widget->panes.count; pane_index++)
+	{
+		s_window_pane_reference* pane = user_interface_widget_pane_get(&widget->panes, pane_index);
+		for (int32 list_index = 0; list_index < pane->list_block.count; list_index++)
+		{
+			TAG_BLOCK_GET_ELEMENT(&pane->list_block, list_index, s_list_reference)->num_visible_items = k_profile_edit_list_item_count;
+		}
+	}
 }
 
 void* ui_load_skulls_menu()
