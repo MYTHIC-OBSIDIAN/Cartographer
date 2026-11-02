@@ -1154,13 +1154,16 @@ static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_
 		{
 			description->set_text(L"Choose the background shown behind your name in the lobby.");
 		}
-		for (uint32 text_index = 1; text_index < 3; text_index++)
+		// callout 1 sits beside the Seventh Column logo (bounds set in nameplates_apply_patches_on_map_load), callout 2 is unused
+		c_text_widget* logo_callout = screen->try_find_screen_text(1);
+		if (logo_callout != nullptr)
 		{
-			c_text_widget* flavor_text = screen->try_find_screen_text(text_index);
-			if (flavor_text != nullptr)
-			{
-				flavor_text->set_text(L"");
-			}
+			logo_callout->set_text(L"The Seventh Column");
+		}
+		c_text_widget* unused_callout = screen->try_find_screen_text(2);
+		if (unused_callout != nullptr)
+		{
+			unused_callout->set_text(L"");
 		}
 	}
 }
@@ -1232,6 +1235,15 @@ void nameplates_apply_patches_on_map_load(void)
 		picture->bitmap_tag.group = _tag_group_bitmap;
 		picture->bitmap_tag.index = mp_games_bitmap;
 		picture->initial_sprite_frame = 5;
+	}
+
+	// own copy of the text blocks, so the Appearance callouts stay where they are: the first callout moves to the
+	// empty space at the top right of the logo (the logo is drawn from (-480, 370), about 292x302)
+	if (nameplate_pane->text_blocks.count > 1)
+	{
+		tag_injection_extend_block(&nameplate_pane->text_blocks, sizeof(s_text_block_reference), 0);
+		s_text_block_reference* logo_callout = TAG_BLOCK_GET_ELEMENT(&nameplate_pane->text_blocks, 1, s_text_block_reference);
+		logo_callout->text_bounds = { 350, -165, 300, 10 };
 	}
 
 	// 4 visible list items

@@ -300,12 +300,28 @@ void c_screen_settings::post_initialize_button_keys()
 		|| DATUM_INDEX_TO_ABSOLUTE_INDEX(this->m_settings_list.get_old_data_index()) == _item_guide)
 	{
 		c_text_widget* description = this->try_find_screen_text(_pane_guide_text_description);
+		c_text_widget* binary_text = this->try_find_screen_text(_pane_guide_text_flavor_text33);
+		c_text_widget* callout_text = this->try_find_screen_text(_pane_guide_text_flavor_text34);
 		c_text_widget* flavor_text1 = this->try_find_screen_text(_pane_guide_text_custom_flavor_text1);
 		c_text_widget* flavor_text2 = this->try_find_screen_text(_pane_guide_text_custom_flavor_text2);
 		c_bitmap_widget* main_bitmap = this->try_find_bitmap_widget(_pane_guide_bitmap_settings_screen_bitmap);
 		if (description)
 		{
 			description->set_text(L"Turn campaign modifiers on or off.");
+		}
+
+		// LAN edition: the About callouts ("the logo / the myth / the legend." and the binary) get skull versions
+		if (binary_text)
+		{
+			// "alas poor yorick" in 7 bit ASCII, the same style as the About binary
+			binary_text->set_text(
+				L"1100001 1101100 1100001 1110011 0100000 1110000 1101111 1101111 "
+				L"1110010 0100000 1111001 1101111 1110010 1101001 1100011 1101011");
+		}
+
+		if (callout_text)
+		{
+			callout_text->set_text(L"That's\r\njust\r\nwrong");
 		}
 
 		if (flavor_text1)
