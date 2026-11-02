@@ -11,6 +11,7 @@
 #include "cache/cache_files.h"
 #include "interface/user_interface_memory.h"
 #include "interface/user_interface_screen_widget_definition.h"
+#include "interface/user_interface_shared_globals.h"
 #include "tag_files/tag_loader/tag_injection.h"
 #include "memory/data.h"
 
@@ -1217,7 +1218,21 @@ void nameplates_apply_patches_on_map_load(void)
 	{
 		*user_interface_widget_pane_get(&widget->panes, pane_index) = *user_interface_widget_pane_get(&widget->panes, pane_index - 1);
 	}
-	*user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_nameplate_item) = *user_interface_widget_pane_get(&widget->panes, 0);
+	s_window_pane_reference* nameplate_pane = user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_nameplate_item);
+	*nameplate_pane = *user_interface_widget_pane_get(&widget->panes, 0);
+
+	// the Nameplate pane shows the Seventh Column logo added to the LAN edition mainmenu.map (mp_games bitmap 5, an unused
+	// 8x8 placeholder in the stock map) in place of the Appearance helmet (edit_profile bitmap 1, picture block 4)
+	const datum mp_games_bitmap = tag_loaded(_tag_group_bitmap, "ui\\screens\\game_shell\\mp_game_select\\mp_games");
+	if (mp_games_bitmap != NONE && nameplate_pane->bitmap_blocks.count > 4)
+	{
+		// own copy of the bitmap blocks, so the Appearance pane keeps the helmet
+		tag_injection_extend_block(&nameplate_pane->bitmap_blocks, sizeof(s_bitmap_block_reference), 0);
+		s_bitmap_block_reference* picture = TAG_BLOCK_GET_ELEMENT(&nameplate_pane->bitmap_blocks, 4, s_bitmap_block_reference);
+		picture->bitmap_tag.group = _tag_group_bitmap;
+		picture->bitmap_tag.index = mp_games_bitmap;
+		picture->initial_sprite_frame = 5;
+	}
 
 	// 4 visible list items
 	for (int32 pane_index = 0; pane_index < widget->panes.count; pane_index++)

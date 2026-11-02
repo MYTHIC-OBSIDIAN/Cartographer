@@ -186,7 +186,7 @@ c_squad_settings_list::c_squad_settings_list(int16 user_flags) :
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_map;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_variant;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_quick_options;
-		SQUAD_ITEM_GET_NEW()->item_id = _item_switch_to_coop;
+		// LAN edition: no Switch to Co-op in System Link (Cartographer only showed an "Access Denied" message)
 		SQUAD_ITEM_GET_NEW()->item_id = _item_rename_squad;
 		break;
 
