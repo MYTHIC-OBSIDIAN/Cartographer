@@ -1158,7 +1158,7 @@ static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_
 		c_text_widget* logo_callout = screen->try_find_screen_text(1);
 		if (logo_callout != nullptr)
 		{
-			logo_callout->set_text(L"The Seventh Column");
+			logo_callout->set_text(L"The Seventh Column -\r\nTru7h. Carnage. Bungie");
 		}
 		c_text_widget* unused_callout = screen->try_find_screen_text(2);
 		if (unused_callout != nullptr)

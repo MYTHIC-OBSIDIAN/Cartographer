@@ -321,7 +321,7 @@ void c_screen_settings::post_initialize_button_keys()
 
 		if (callout_text)
 		{
-			callout_text->set_text(L"That's\r\njust\r\nwrong");
+			callout_text->set_text(L"That's just wrong...");
 		}
 
 		if (flavor_text1)
@@ -407,7 +407,8 @@ void c_screen_settings::apply_patches_on_map_load()
 	*guide_pane = *about_pane;
 
 	// LAN edition: the Skulls pane shows the skull picture added to the LAN edition mainmenu.map
-	// (ui\screens\game_shell\mp_game_select\mp_games, bitmap 2, 512x512, an unused 8x8 placeholder in the stock map)
+	// (ui\screens\game_shell\mp_game_select\mp_games, bitmap 2, an unused 8x8 placeholder in the stock map): 1024x512, the
+	// skull where the 512x512 Settings pictures go with 256 extra on the left, and leader arrows to the two callouts
 	const datum mp_games_bitmap = tag_loaded(_tag_group_bitmap, "ui\\screens\\game_shell\\mp_game_select\\mp_games");
 	if (mp_games_bitmap != NONE)
 	{
@@ -417,6 +418,7 @@ void c_screen_settings::apply_patches_on_map_load()
 		picture->bitmap_tag.group = _tag_group_bitmap;
 		picture->bitmap_tag.index = mp_games_bitmap;
 		picture->initial_sprite_frame = 2;
+		picture->topleft.x -= 256;
 	}
 	
 	// updating the new number of visible items in each pane
