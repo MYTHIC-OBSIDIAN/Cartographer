@@ -8,7 +8,10 @@
 #include "input/controllers.h"
 #include "interface/user_interface.h"
 #include "H2MOD/Modules/Shell/Config.h"
+#include "cache/cache_files.h"
 #include "interface/user_interface_memory.h"
+#include "interface/user_interface_screen_widget_definition.h"
+#include "tag_files/tag_loader/tag_injection.h"
 #include "memory/data.h"
 
 #include "H2MOD/GUI/ImGui_Integration/imgui_handler.h"
@@ -885,7 +888,7 @@ void c_skulls_menu::initialize(c_screen_parameters* screen_parameters)
 	c_text_widget* subheader_text_widget = get_screen_subheader_text();
 	if (subheader_text_widget)
 	{
-		subheader_text_widget->set_text(L"Press A to turn a skull on or off. Skulls only change campaign games, and stay set until you quit the game.");
+		subheader_text_widget->set_text(L"Turn campaign modifiers on or off.");
 	}
 }
 
@@ -897,15 +900,14 @@ const void* c_skulls_menu::load_proc(void) const
 // nameplates (LAN edition)
 
 #define k_nameplates_list_name "nameplates list"
-#define k_appearance_list_nameplate_item 7
 
 // lobby name row backgrounds in mainmenu.map (ui\screens\game_shell\pregame_lobby\item_background_lobby), by index
 static const wchar_t* const k_nameplate_names[] =
 {
 	L"Default",
-	L"bungie.net",
-	L"bungie.net Staff",
-	L"Bungie Logos",
+	L"Bungie.net",
+	L"Bungie.net Staff",
+	L"Seventh Column",
 	L"Stars",
 	L"Bungie",
 	L"Bungie Stars",
@@ -1031,45 +1033,99 @@ const void* c_nameplates_menu::load_proc(void) const
 	return c_nameplates_menu::load;
 }
 
-// appearance settings list (halo2.exe c_screen_multiplayer_setting_menu, screen 47): an 8th item, Nameplate
+// player profile edit list (halo2.exe c_player_profile_edit_list): Nameplate added under Appearance
+// list order: 0 Appearance, 1 Nameplate, 2 and 3 = the game's items 1 and 2
+#define k_profile_edit_list_nameplate_item 1
+#define k_profile_edit_screen_widget_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile_menu"
 
-static void* user_interface_widget_find_child(void* widget, int32 type, uint32 index)
+// the lobby shows nameplate bitmap (user role - 1), role 0 and 1 both show the default one
+static int8 nameplate_get_user_role(void)
 {
-	return INVOKE_TYPE(0x211909, 0x0, void*(__thiscall*)(void*, int32, uint32, bool), widget, type, index, false);
+	const int32 nameplate = nameplate_get_selected();
+	return (int8)(nameplate == 0 ? 0 : nameplate + 1);
 }
 
-static void __fastcall appearance_list_update_list_items(void* list, void* edx, void* item, int32 skin_index)
+static void __fastcall profile_edit_list_update_list_items(void* list, void* edx, void* item, int32 skin_index)
 {
-	const int16 item_index = *(int16*)((uint8*)item + 0x70);
-	if (item_index == k_appearance_list_nameplate_item)
+	int16* item_data_index = (int16*)((uint8*)item + 0x70);
+	const int16 item_index = *item_data_index;
+
+	if (item_index == k_profile_edit_list_nameplate_item)
 	{
-		void* label_text = user_interface_widget_find_child(item, 6, 0);
-		void* value_text = user_interface_widget_find_child(item, 6, 1);
-		if (label_text != nullptr)
+		void* text = INVOKE_TYPE(0x211973, 0x0, void*(__thiscall*)(void*, int32), item, 0);
+		if (text != nullptr)
 		{
-			INVOKE_TYPE(0x21BAA9, 0x0, void(__thiscall*)(void*, const wchar_t*), label_text, L"Nameplate");
-		}
-		if (value_text != nullptr)
-		{
-			INVOKE_TYPE(0x21BAA9, 0x0, void(__thiscall*)(void*, const wchar_t*), value_text, k_nameplate_names[nameplate_get_selected()]);
+			INVOKE_TYPE(0x21BAA9, 0x0, void(__thiscall*)(void*, const wchar_t*), text, L"Nameplate");
 		}
 		return;
 	}
 
-	INVOKE_TYPE(0x257070, 0x0, void(__thiscall*)(void*, void*, int32), list, item, skin_index);
+	// the game's own items after Nameplate are one place further down
+	if (item_index > k_profile_edit_list_nameplate_item)
+	{
+		*item_data_index = item_index - 1;
+	}
+	INVOKE_TYPE(0x24C6AC, 0x0, void(__thiscall*)(void*, void*, int32), list, item, skin_index);
+	*item_data_index = item_index;
 }
 
-static void __fastcall appearance_list_handle_item_pressed(void* list, void* edx, s_event_record** event, datum* item_index)
+static void __fastcall profile_edit_list_handle_item_pressed(void* list, void* edx, s_event_record** event, datum* item_index)
 {
-	if (event != nullptr && *event != nullptr && item_index != nullptr
-		&& DATUM_INDEX_TO_ABSOLUTE_INDEX(*item_index) == k_appearance_list_nameplate_item)
+	if (event == nullptr || *event == nullptr || item_index == nullptr || *item_index == NONE)
 	{
-		// same call the game uses to open the colour and emblem pickers
-		INVOKE_TYPE(0x20C809, 0x0, void(__cdecl*)(uint32, void*), FLAG((*event)->controller), (void*)c_nameplates_menu::load);
 		return;
 	}
 
-	INVOKE_TYPE(0x257835, 0x0, void(__thiscall*)(void*, s_event_record**, datum*), list, event, item_index);
+	const int16 list_item_index = DATUM_INDEX_TO_ABSOLUTE_INDEX(*item_index);
+	if (list_item_index == k_profile_edit_list_nameplate_item)
+	{
+		// same call the game uses to open the profile sub menus
+		INVOKE_TYPE(0x20C851, 0x0, void(__cdecl*)(uint32, void*), FLAG((*event)->controller), (void*)c_nameplates_menu::load);
+		return;
+	}
+
+	if (list_item_index > k_profile_edit_list_nameplate_item)
+	{
+		data_array* data = *(data_array**)((uint8*)list + 0x70);
+		const int16 game_item_index = list_item_index - 1;
+		const uint16 identifier = *(uint16*)((uint8*)data->data + data->size * game_item_index);
+		datum game_item_datum = DATUM_INDEX_NEW(game_item_index, identifier);
+		INVOKE_TYPE(0x24CD82, 0x0, void(__thiscall*)(void*, s_event_record**, datum*), list, event, &game_item_datum);
+		return;
+	}
+
+	INVOKE_TYPE(0x24CD82, 0x0, void(__thiscall*)(void*, s_event_record**, datum*), list, event, item_index);
+}
+
+// c_screen_player_profile_edit::post_initialize_button_keys, runs on every pane switch: texts of the Nameplate pane
+static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_widget* screen, void* edx)
+{
+	INVOKE_TYPE(0x210B4E, 0x0, void(__thiscall*)(c_screen_widget*), screen);
+
+	const int16 pane_index = *(int16*)((uint8*)screen + 0x9F8);
+	if (pane_index == k_profile_edit_list_nameplate_item)
+	{
+		c_text_widget* description = screen->try_find_screen_text(0);
+		if (description != nullptr)
+		{
+			description->set_text(L"Choose the background shown behind your name in lobbies and menus.");
+		}
+		for (uint32 text_index = 1; text_index < 3; text_index++)
+		{
+			c_text_widget* flavor_text = screen->try_find_screen_text(text_index);
+			if (flavor_text != nullptr)
+			{
+				flavor_text->set_text(L"");
+			}
+		}
+	}
+}
+
+// player widgets in the menus (profile lists, sign-in, appearance preview): show the local nameplate
+static void __fastcall player_widget_set_appearance_with_nameplate(void* representation, void* edx, s_player_appearance* appearance)
+{
+	INVOKE_TYPE(0x2205CA, 0x0, void(__thiscall*)(void*, s_player_appearance*), representation, appearance);
+	INVOKE_TYPE(0x220624, 0x0, void(__thiscall*)(void*, int32), representation, (int32)nameplate_get_user_role());
 }
 
 // local player details: the bungie user role (nameplate) used to come from the Live account
@@ -1078,22 +1134,52 @@ static void __cdecl user_interface_controller_get_user_properties_nameplate(e_co
 	INVOKE_TYPE(0x20696F, 0x0, void(__cdecl*)(e_controller_index, s_player_identifier*, s_player_configuration*), controller_index, controller_user_identifier, properties);
 	if (properties != nullptr)
 	{
-		properties->bungie_user_role = (int8)nameplate_get_selected();
+		properties->bungie_user_role = nameplate_get_user_role();
 	}
 }
 
 void nameplates_apply_patches(void)
 {
-	// appearance list: 8 items instead of 7 (push 7 -> push 8 for the list data count)
-	WriteValue<uint8>(Memory::GetAddressRelative(0x657971), 8);
-	WritePointer(Memory::GetAddressRelative(0x7DAA34) + 24 * sizeof(void*), (void*)appearance_list_update_list_items);
-	WritePointer(Memory::GetAddressRelative(0x65796A), (void*)appearance_list_handle_item_pressed);
+	// player profile edit list: 4 items instead of 3 (push 3 -> push 4 for the list data count)
+	WriteValue<uint8>(Memory::GetAddressRelative(0x64CE7C), 4);
+	WritePointer(Memory::GetAddressRelative(0x7D894C) + 24 * sizeof(void*), (void*)profile_edit_list_update_list_items);
+	WritePointer(Memory::GetAddressRelative(0x64CE75), (void*)profile_edit_list_handle_item_pressed);
+	WritePointer(Memory::GetAddressRelative(0x7D3134) + 24 * sizeof(void*), (void*)player_profile_edit_post_initialize_button_keys);
 
 	PatchCall(Memory::GetAddressRelative(0x606AD3), user_interface_controller_get_user_properties_nameplate);
 	PatchCall(Memory::GetAddressRelative(0x61D3FB), user_interface_controller_get_user_properties_nameplate);
 
+	// local player widgets in the menus
+	PatchCall(Memory::GetAddressRelative(0x40D153), player_widget_set_appearance_with_nameplate);
+	PatchCall(Memory::GetAddressRelative(0x636911), player_widget_set_appearance_with_nameplate);
+	PatchCall(Memory::GetAddressRelative(0x636D31), player_widget_set_appearance_with_nameplate);
+	PatchCall(Memory::GetAddressRelative(0x656DB3), player_widget_set_appearance_with_nameplate);
+
 	// pregame lobby: role 4 was shown as role 1, show every nameplate as itself
 	WriteValue<uint8>(Memory::GetAddressRelative(0x644483), 0xEB);
+}
+
+void nameplates_apply_patches_on_map_load(void)
+{
+	// edit profile screen: one pane per list item, add the Nameplate pane (a copy of the Appearance pane) after Appearance
+	const datum widget_datum = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_profile_edit_screen_widget_tag);
+	if (widget_datum == NONE)
+	{
+		return;
+	}
+
+	s_user_interface_screen_widget_definition* widget = user_interface_screen_widget_definition_get(widget_datum);
+	if (widget->panes.count != 3)
+	{
+		return;
+	}
+
+	tag_injection_extend_block(&widget->panes, sizeof(s_window_pane_reference), 1);
+	for (int32 pane_index = widget->panes.count - 1; pane_index > k_profile_edit_list_nameplate_item; pane_index--)
+	{
+		*user_interface_widget_pane_get(&widget->panes, pane_index) = *user_interface_widget_pane_get(&widget->panes, pane_index - 1);
+	}
+	*user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_nameplate_item) = *user_interface_widget_pane_get(&widget->panes, 0);
 }
 
 void* ui_load_skulls_menu()

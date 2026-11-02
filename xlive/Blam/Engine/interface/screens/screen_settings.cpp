@@ -38,13 +38,14 @@ enum e_settings_list_items : uint16
 	//h2v
 	_item_player_profile,
 	_item_variant,
+
+	// LAN edition: "Skulls" (Cartographer's guide entry, re-used), listed after Game Variants
+	_item_guide,
+
 	_item_video,
 	_item_audio,
 	_item_network,
 	_item_about,
-
-	// LAN edition: "Skulls" (Cartographer's guide entry, re-used)
-	_item_guide,
 	k_total_no_of_settings_list_items
 };
 
@@ -52,13 +53,14 @@ enum e_settings_screen_panes
 {
 	_settings_pane_player_profile,
 	_settings_pane_variant,
+
+	//custom addition (LAN edition: Skulls, after Game Variants)
+	_settings_pane_guide,
+
 	_settings_pane_video,
 	_settings_pane_audio,
 	_settings_pane_network,
 	_settings_pane_about,
-
-	//custom addition
-	_settings_pane_guide,
 	k_total_no_of_settings_pane,
 
 	k_total_no_of_settings_pane_orignal = 6,
@@ -302,7 +304,7 @@ void c_screen_settings::post_initialize_button_keys()
 		c_bitmap_widget* main_bitmap = this->try_find_bitmap_widget(_pane_guide_bitmap_settings_screen_bitmap);
 		if (description)
 		{
-			description->set_text(L"Turn each skull on or off. Skulls change how campaign plays.");
+			description->set_text(L"Turn campaign modifiers on or off.");
 		}
 
 		if (flavor_text1)
@@ -375,6 +377,12 @@ void c_screen_settings::apply_patches_on_map_load()
 	// add window_pane for guide option 
 	tag_injection_extend_block(&main_widget_tag->panes, sizeof(s_window_pane_reference), k_number_of_addition_panes_for_settings_screen);
 	
+	// LAN edition: the new pane goes after Game Variants, so move Video, Audio, Network and About one place down
+	for (int32 pane_index = k_total_no_of_settings_pane - 1; pane_index > _settings_pane_guide; pane_index--)
+	{
+		*user_interface_widget_pane_get(&main_widget_tag->panes, pane_index) = *user_interface_widget_pane_get(&main_widget_tag->panes, pane_index - 1);
+	}
+
 	s_window_pane_reference* guide_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _settings_pane_guide);
 	s_window_pane_reference* about_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _settings_pane_about);
 

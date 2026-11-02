@@ -257,8 +257,9 @@ public:
 	virtual const void* load_proc(void) const override;
 };
 
-// adds the Nameplate entry to the appearance settings and sends the chosen nameplate with the player's details
+// adds the Nameplate entry to the player profile edit screen and sends the chosen nameplate with the player's details
 void nameplates_apply_patches(void);
+void nameplates_apply_patches_on_map_load(void);
 
 void* ui_load_cartographer_guide_menu();
 void* ui_load_skulls_menu();
