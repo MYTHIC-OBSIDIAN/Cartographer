@@ -85,7 +85,8 @@ static void draw_hud_get_bitmap_data(
 	real_rectangle2d* bounds,
 	int16* out_bitmap_index,
 	int16* out_width_pixels,
-	int16* out_height_pixels);
+	int16* out_height_pixels,
+	e_screen_split_type split_type);
 
 static real32 __cdecl draw_hud_widget_get_value(int32 unused, string_id input_name);
 
@@ -273,7 +274,8 @@ static void draw_hud_get_bitmap_data(
 	real_rectangle2d* bounds,
 	int16* out_bitmap_index,
 	int16* out_width_pixels,
-	int16* out_height_pixels)
+	int16* out_height_pixels,
+	e_screen_split_type split_type)
 {
 	ASSERT(bitmap_widget);
 	ASSERT(bounds);
@@ -284,7 +286,7 @@ static void draw_hud_get_bitmap_data(
 	// If returned bitmap index is NONE the draw call will exit early.
 	*out_bitmap_index = NONE;
 
-	const int32 sequence_index = bitmap_widget->screen_sequence_indices[new_hud_get_screen_split_type(local_render_user_index)];
+	const int32 sequence_index = bitmap_widget->screen_sequence_indices[split_type];
 
 	if (bitmap_widget->shader.index == NONE || bitmap_widget->bitmap.index == NONE || sequence_index < 0)
 		return;
@@ -432,10 +434,43 @@ static void __cdecl draw_hud_bitmap_widget(
 	int16 bitmap_width = 0;
 	int16 bitmap_height = 0;
 
-	draw_hud_get_bitmap_data(local_render_user_index, bitmap_widget, &bitmap_bounds, &bitmap_index, &bitmap_width, &bitmap_height);
+	const e_screen_split_type split_type = new_hud_get_screen_split_type(local_render_user_index);
+	draw_hud_get_bitmap_data(local_render_user_index, bitmap_widget, &bitmap_bounds, &bitmap_index, &bitmap_width, &bitmap_height, split_type);
 
 	if (bitmap_index == NONE)
 		return;
+
+	// LAN edition: in split screen the crosshair widgets use their half/quarter screen sequences, small Xbox-era
+	// bitmaps that look blurry once the HUD is scaled up for PC resolutions. Draw the full screen bitmap instead,
+	// scaled down to the size the split screen bitmap would have been drawn at.
+	real32 crosshair_split_draw_ratio = 1.f;
+	if (bitmap_widget->anchor == _hud_anchor_crosshair && split_type != _screen_split_type_full)
+	{
+		real_rectangle2d full_bounds;
+		int16 full_index = NONE;
+		int16 full_width = 0;
+		int16 full_height = 0;
+		draw_hud_get_bitmap_data(local_render_user_index, bitmap_widget, &full_bounds, &full_index, &full_width, &full_height, _screen_split_type_full);
+
+		const real32 split_drawn_width = bitmap_width * (bitmap_bounds.x1 - bitmap_bounds.x0);
+		const real32 split_drawn_height = bitmap_height * (bitmap_bounds.y1 - bitmap_bounds.y0);
+		const real32 full_drawn_width = full_width * (full_bounds.x1 - full_bounds.x0);
+		const real32 full_drawn_height = full_height * (full_bounds.y1 - full_bounds.y0);
+		if (full_index != NONE && split_drawn_width > 0.f && split_drawn_height > 0.f && full_drawn_width > split_drawn_width)
+		{
+			// same shape only, so a different picture in the full screen sequence is never squashed
+			const real32 width_ratio = split_drawn_width / full_drawn_width;
+			const real32 height_ratio = split_drawn_height / full_drawn_height;
+			if (fabsf(width_ratio - height_ratio) < 0.05f * width_ratio)
+			{
+				crosshair_split_draw_ratio = width_ratio;
+				bitmap_bounds = full_bounds;
+				bitmap_index = full_index;
+				bitmap_width = full_width;
+				bitmap_height = full_height;
+			}
+		}
+	}
 
 	s_draw_hud_widget_input_results* hud_input_results = global_hud_draw_widget_function_results_get();
 	*hud_input_results = *widget_function_results;
@@ -488,9 +523,14 @@ static void __cdecl draw_hud_bitmap_widget(
 		(real32)screen_offset.y + offset_result.y
 	};
 
+	// the bitmap is drawn at hud_scale * crosshair_split_draw_ratio (1 except for split screen crosshairs, see above),
+	// its screen offset stays in hud units
+	const real32 bitmap_draw_scale = hud_scale * crosshair_split_draw_ratio;
+
 	real_point2d final_location;
-	final_location.x = (((calc_offset.x - calc_registration.x) + bitmap_bounds.x0) * hud_scale) + anchor_point.x;
-	final_location.y = (((calc_offset.y - calc_registration.y) + bitmap_bounds.y0) * hud_scale) + anchor_point.y;
+	final_location.x = (calc_offset.x * hud_scale) + ((bitmap_bounds.x0 - calc_registration.x) * bitmap_draw_scale) + anchor_point.x;
+	final_location.y = (calc_offset.y * hud_scale) + ((bitmap_bounds.y0 - calc_registration.y) * bitmap_draw_scale) + anchor_point.y;
+	hud_scale = bitmap_draw_scale;
 
 
 	if (bitmap_widget->flags.test(_bitmap_widget_flag_flip_horizontally))
