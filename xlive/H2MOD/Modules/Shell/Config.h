@@ -82,6 +82,7 @@ extern bool H2Config_force_off_d3d9ex;
 extern bool H2Config_force_off_sm3;
 extern bool H2Config_use_vsync;
 extern e_display_split_type H2Config_split_mode;
+extern int H2Config_button_glyphs;
 
 #ifndef NDEBUG
 extern int H2Config_forced_event;

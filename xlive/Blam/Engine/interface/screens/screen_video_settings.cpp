@@ -11,6 +11,7 @@
 #include "screen_restore_video_defaults.h"
 #include "screen_vsync_setting.h"
 #include "screen_splitscreen_setting.h"
+#include "screen_button_glyphs_setting.h"
 
 #include "cache/cache_files.h"
 #include "interface/user_interface_bitmap_block.h"
@@ -41,6 +42,7 @@ enum e_video_settings_list_items : uint16
 	_item_anti_aliasing,
 	_item_lod_setting,
 	_item_safe_area,
+	_item_button_glyphs,//LAN edition
 	_item_splitscreen,//new-addon
 	_item_restore_defaults,
 
@@ -167,6 +169,12 @@ void c_video_settings_list::update_list_items(c_list_item_widget* item, int32 sk
 			primary_string = _string_id_safe_area;
 			secondary_string = rasterizer_settings_get_safe_area_string(rasterizer_settings->safe_area);
 			break;
+		case _item_button_glyphs:
+			primary_string = _string_id_invalid;
+			secondary_string = _string_id_invalid;
+			primary_text->set_text(c_screen_button_glyphs_menu::get_header_string());
+			secondary_text->set_text(c_screen_button_glyphs_menu::get_option_string());
+			break;
 		case _item_splitscreen:
 			primary_string = _string_id_invalid;
 			secondary_string = _string_id_invalid;
@@ -242,6 +250,9 @@ void c_video_settings_list::handle_item_pressed_event(s_event_record* const& eve
 		break;
 	case _item_safe_area:
 		load_proc = &c_screen_safe_area_menu::load;
+		break;
+	case _item_button_glyphs:
+		load_proc = &c_screen_button_glyphs_menu::load;
 		break;
 	case _item_splitscreen:
 		load_proc = &c_screen_splitscreen_menu::load;

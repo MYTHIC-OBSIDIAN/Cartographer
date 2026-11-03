@@ -91,6 +91,7 @@
 #include "tag_files/files_windows.h"
 #include "tag_files/tag_loader/tag_injection.h"
 #include "text/font_cache.h"
+#include "text/font_group.h"
 #include "units/units.h"
 #include "widgets/cloth.h"
 #include "widgets/liquid.h"
@@ -311,6 +312,9 @@ void H2MOD::Initialize()
 
 		// adds support for more monitor resolutions
 		rasterizer_settings_apply_hooks();
+
+		// LAN edition: Button Glyphs video setting picks the font table
+		font_table_apply_patches((e_button_glyph_style)H2Config_button_glyphs);
 
 		KeyboardInput::Initialize();
 		

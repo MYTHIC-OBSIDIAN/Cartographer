@@ -201,6 +201,7 @@ set_config_entry(CSimpleIniA* simple_ini, const char* section_key, const char* c
 e_override_texture_resolution H2Config_Override_Shadows = e_override_texture_resolution::tex_default;
 e_override_texture_resolution H2Config_Override_Water = e_override_texture_resolution::tex_default;
 e_display_split_type H2Config_split_mode = _display_split_type_none; // treating none as automatic
+int H2Config_button_glyphs = 1; // LAN edition: 0 Original Xbox, 1 Xbox 360 (font_table.txt), 2 Modern
 
 bool H2Config_upnp_enable = true;
 bool H2Config_no_events = false;
@@ -496,6 +497,7 @@ void SaveH2Config()
 			CONFIG_SET(&ini, "disable_amd_or_ati_patches", &g_rasterizer_dx9_driver_globals.disable_amd_or_ati_patches);
 			CONFIG_SET(&ini, "use_vsync", &H2Config_use_vsync);
 			CONFIG_SET(&ini, "splitscreen_mode", (int)H2Config_split_mode);
+			CONFIG_SET(&ini, "button_glyphs", H2Config_button_glyphs);
 		}
 
 		CONFIG_SET(&ini, "enable_xdelay", &H2Config_xDelay);
@@ -732,6 +734,9 @@ void ReadH2Config()
 				CONFIG_GET(&ini, "splitscreen_mode", "0", &splitscreen_override);
 				splitscreen_override = IN_RANGE(splitscreen_override, _display_split_type_none, _display_split_type_vertical) ? splitscreen_override : _display_split_type_none;
 				H2Config_split_mode = (e_display_split_type)splitscreen_override;
+
+				CONFIG_GET(&ini, "button_glyphs", "1", &H2Config_button_glyphs);
+				H2Config_button_glyphs = IN_RANGE(H2Config_button_glyphs, 0, 2) ? H2Config_button_glyphs : 1;
 			}
 			// dedicated server only
 			else
