@@ -369,6 +369,7 @@ void main_loop_body(void)
 			{
 				user_interface_update(dt);
 				wmv_update();
+				wmv_afk_movie_update();
 			}
 
 			network_receive();
