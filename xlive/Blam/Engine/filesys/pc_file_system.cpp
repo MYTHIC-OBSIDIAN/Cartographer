@@ -112,19 +112,128 @@ static bool pc_file_system_saved_games_path(const wchar_t* sub_path, wchar_t* ou
 	return true;
 }
 
-// first run with the savegame folder: copy the profiles and saves from the old folder, which is left as it was
-static void pc_file_system_saved_games_copy_from_appdata(void)
+static bool pc_file_system_path_is_folder(const wchar_t* path)
 {
+	const DWORD attributes = GetFileAttributesW(path);
+	return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY);
+}
+
+// true when the folder holds at least one saved game / profile folder (S0000000 ...)
+static bool pc_file_system_folder_has_saved_games(const wchar_t* folder)
+{
+	wchar_t search[MAX_PATH];
+	if (swprintf(search, NUMBEROF(search), L"%s\\S*", folder) < 0)
+	{
+		return false;
+	}
+
+	WIN32_FIND_DATAW find_data;
+	HANDLE find = FindFirstFileW(search, &find_data);
+	if (find == INVALID_HANDLE_VALUE)
+	{
+		return false;
+	}
+
+	bool result = false;
+	do
+	{
+		if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		{
+			result = true;
+			break;
+		}
+	} while (FindNextFileW(find, &find_data));
+	FindClose(find);
+	return result;
+}
+
+// copies the folder's files and sub folders, existing files are kept
+static void pc_file_system_copy_folder(const wchar_t* source, const wchar_t* destination, int32 depth)
+{
+	if (depth > 8 || (!CreateDirectoryW(destination, NULL) && GetLastError() != ERROR_ALREADY_EXISTS))
+	{
+		return;
+	}
+
+	wchar_t search[MAX_PATH];
+	if (swprintf(search, NUMBEROF(search), L"%s\\*", source) < 0)
+	{
+		return;
+	}
+
+	WIN32_FIND_DATAW find_data;
+	HANDLE find = FindFirstFileW(search, &find_data);
+	if (find == INVALID_HANDLE_VALUE)
+	{
+		return;
+	}
+
+	do
+	{
+		if (wcscmp(find_data.cFileName, L".") == 0 || wcscmp(find_data.cFileName, L"..") == 0)
+		{
+			continue;
+		}
+
+		wchar_t from[MAX_PATH];
+		wchar_t to[MAX_PATH];
+		if (swprintf(from, NUMBEROF(from), L"%s\\%s", source, find_data.cFileName) < 0
+			|| swprintf(to, NUMBEROF(to), L"%s\\%s", destination, find_data.cFileName) < 0)
+		{
+			continue;
+		}
+
+		if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		{
+			pc_file_system_copy_folder(from, to, depth + 1);
+		}
+		else
+		{
+			CopyFileW(from, to, TRUE);
+		}
+	} while (FindNextFileW(find, &find_data));
+	FindClose(find);
+	return;
+}
+
+enum e_saved_games_location
+{
+	_saved_games_location_unknown,
+	_saved_games_location_game_folder,		// <halo2.exe folder>\savegame
+	_saved_games_location_appdata,			// the game's own folder, used when the game folder can't be written to
+};
+static e_saved_games_location g_saved_games_location = _saved_games_location_unknown;
+
+// first saved games request (on the game thread, not at dll load): check the savegame folder can be written to,
+// and copy the profiles and saves from the old folder if it has none yet (the old folder is left as it was)
+static void pc_file_system_saved_games_location_initialize(void)
+{
+	g_saved_games_location = _saved_games_location_appdata;
+
 	wchar_t new_folder[MAX_PATH];
-	if (!pc_file_system_saved_games_path(nullptr, new_folder, false))
+	if (!pc_file_system_saved_games_path(nullptr, new_folder, true))
+	{
+		error(_error_log, "savegame folder could not be created next to halo2.exe, using the AppData folder");
+		return;
+	}
+
+	wchar_t test_file[MAX_PATH];
+	if (swprintf(test_file, NUMBEROF(test_file), L"%swrite_test.tmp", new_folder) < 0)
 	{
 		return;
 	}
-	if (GetFileAttributesW(new_folder) != INVALID_FILE_ATTRIBUTES)
+	HANDLE test = CreateFileW(test_file, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+	if (test == INVALID_HANDLE_VALUE)
 	{
-		// already exists (pc_file_system_saved_games_path only creates the folders before the last part)
+		error(_error_log, "savegame folder next to halo2.exe can't be written to, using the AppData folder");
 		return;
 	}
+	CloseHandle(test);
+
+	g_saved_games_location = _saved_games_location_game_folder;
+
+	// without the trailing backslash
+	new_folder[wcslen(new_folder) - 1] = L'\0';
 
 	wchar_t old_folder[MAX_PATH];
 	if (FAILED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, SHGFP_TYPE_CURRENT, old_folder))
@@ -132,31 +241,13 @@ static void pc_file_system_saved_games_copy_from_appdata(void)
 	{
 		return;
 	}
-	const DWORD old_attributes = GetFileAttributesW(old_folder);
-	if (old_attributes == INVALID_FILE_ATTRIBUTES || !(old_attributes & FILE_ATTRIBUTE_DIRECTORY))
-	{
-		return;
-	}
 
-	if (!CreateDirectoryW(new_folder, NULL))
+	if (pc_file_system_path_is_folder(old_folder)
+		&& !pc_file_system_folder_has_saved_games(new_folder)
+		&& pc_file_system_folder_has_saved_games(old_folder))
 	{
-		return;
+		pc_file_system_copy_folder(old_folder, new_folder, 0);
 	}
-
-	// SHFileOperation takes double null terminated lists
-	wchar_t from[MAX_PATH + 4] = {};
-	wchar_t to[MAX_PATH + 2] = {};
-	if (wcscpy_s(from, MAX_PATH + 2, old_folder) != 0 || wcscat_s(from, MAX_PATH + 2, L"\\*") != 0 || wcscpy_s(to, MAX_PATH + 1, new_folder) != 0)
-	{
-		return;
-	}
-
-	SHFILEOPSTRUCTW operation = {};
-	operation.wFunc = FO_COPY;
-	operation.pFrom = from;
-	operation.pTo = to;
-	operation.fFlags = FOF_NO_UI;
-	SHFileOperationW(&operation);
 	return;
 }
 
@@ -165,10 +256,39 @@ static bool __cdecl pc_file_system_create_directory_hierarchy(e_pc_file_system_t
 {
 	if (type == _pc_file_system_type_saved_games)
 	{
-		return pc_file_system_saved_games_path(sub_path, out_path, trailing_slash);
+		if (g_saved_games_location == _saved_games_location_unknown)
+		{
+			pc_file_system_saved_games_location_initialize();
+		}
+
+		if (g_saved_games_location == _saved_games_location_game_folder
+			&& pc_file_system_saved_games_path(sub_path, out_path, trailing_slash))
+		{
+			return true;
+		}
 	}
 
 	return p_pc_file_system_create_directory_hierarchy(type, sub_path, out_path, trailing_slash);
+}
+
+// the game creates a new profile / saved game slot and reads it back without checking it was created
+// (halo2.exe+0x9C9B3: mov eax, [esp+10h]; mov ecx, [eax+4]): fail the request instead of crashing
+static uintptr_t g_saved_game_slot_created_return;
+static uintptr_t g_saved_game_slot_failed_return;
+static __declspec(naked) void saved_game_slot_null_check(void)
+{
+	__asm
+	{
+		mov eax, [esp + 0x10]
+		test eax, eax
+		jz slot_failed
+		mov ecx, [eax + 0x4]
+		jmp dword ptr [g_saved_game_slot_created_return]
+
+	slot_failed:
+		mov edi, 0x57
+		jmp dword ptr [g_saved_game_slot_failed_return]
+	}
 }
 
 bool __cdecl pc_file_system_get_drive_letter_for_type(e_pc_file_system_type type, wchar_t* buffer)
@@ -178,7 +298,10 @@ bool __cdecl pc_file_system_get_drive_letter_for_type(e_pc_file_system_type type
 
 void pc_file_system_apply_hooks()
 {
-	pc_file_system_saved_games_copy_from_appdata();
+	g_saved_game_slot_created_return = Memory::GetAddress(0x9C9BA);
+	g_saved_game_slot_failed_return = Memory::GetAddress(0x9C9E9);
+	WriteJmpTo(Memory::GetAddress(0x9C9B3), (void*)saved_game_slot_null_check);
+	NopFill(Memory::GetAddress(0x9C9B8), 2);
 
 	DETOUR_ATTACH(p_pc_file_system_create_directory_hierarchy, Memory::GetAddress<t_pc_file_system_create_directory_hierarchy>(0x8EF9E), pc_file_system_create_directory_hierarchy);
 }
