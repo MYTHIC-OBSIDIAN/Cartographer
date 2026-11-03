@@ -30,6 +30,12 @@ static const char* const k_font_table_names[k_button_glyph_style_count] =
 	"font_table_modern",	// Modern
 };
 
+static void __cdecl font_character_cache_dispose(void)
+{
+	INVOKE(0x8D63C, 0x0, font_character_cache_dispose);
+	return;
+}
+
 // halo2.exe+0x31B97 builds "<name>[_<language>].txt" from this name (pushed at +0x31BCE and +0x31CA3)
 static char g_font_table_name[32] = "font_table";
 
@@ -74,7 +80,9 @@ void font_table_set_button_glyph_style(e_button_glyph_style style)
 {
 	font_table_set_name(style);
 
-	// reload the fonts (same as Cartographer's language switch)
+	// reload the fonts: free the character cache (halo2.exe+0x8D63C, rebuilt by font_initialize) so the glyphs
+	// already drawn with the old fonts are drawn again, then load the fonts from the new table
+	font_character_cache_dispose();
 	*Memory::GetAddress<uint8*>(0x47E7C0) = 0;
 	font_initialize();
 	return;

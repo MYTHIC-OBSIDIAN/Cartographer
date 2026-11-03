@@ -338,7 +338,7 @@ void c_screen_video_settings::apply_patches_on_map_load()
 	s_window_pane_reference const* main_pane = user_interface_widget_pane_get(&main_widget_tag->panes, 0);
 	s_list_reference* main_list = user_interface_widget_pane_get_list(&main_pane->list_block, 0);
 
-	// Orignal value was 9, but now that we have 10 elements to show this needs to be increased
+	// Orignal value was 9, now 11 items (vsync, splitscreen and Button Glyphs added) shown without scrolling
 	main_list->num_visible_items = k_no_of_visible_items_for_video_settings;
 
 	return;

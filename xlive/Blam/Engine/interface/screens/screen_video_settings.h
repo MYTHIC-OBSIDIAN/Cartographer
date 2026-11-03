@@ -7,7 +7,7 @@
 
 enum
 {
-	k_no_of_visible_items_for_video_settings = (8 + 2)
+	k_no_of_visible_items_for_video_settings = (8 + 3)	// LAN edition: + Button Glyphs, all 11 items without scrolling
 };
 
 /* classes */
