@@ -76,6 +76,12 @@ void font_table_apply_patches(e_button_glyph_style style)
 	return;
 }
 
+void font_table_select_button_glyph_style(e_button_glyph_style style)
+{
+	font_table_set_name(style);
+	return;
+}
+
 void font_table_set_button_glyph_style(e_button_glyph_style style)
 {
 	font_table_set_name(style);

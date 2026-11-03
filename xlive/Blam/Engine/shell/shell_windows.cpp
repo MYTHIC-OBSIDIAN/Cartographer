@@ -13,6 +13,7 @@
 
 #include "H2MOD/Modules/CustomMenu/CustomLanguage.h"
 #include "H2MOD/Modules/OnScreenDebug/OnscreenDebug.h"
+#include "text/font_group.h"
 #include "H2MOD/Modules/Shell/Config.h"
 #include "H2MOD/Modules/Shell/H2MODShell.h"
 #include "H2MOD/Modules/Shell/Startup/Startup.h"
@@ -166,6 +167,9 @@ bool shell_platform_initialize(void)
 	{
 		InitH2Config();
 		PostH2Config();
+
+		// LAN edition: the Button Glyphs setting from the config picks the font table loaded at startup
+		font_table_select_button_glyph_style((e_button_glyph_style)H2Config_button_glyphs);
 	}
 
 	h2log_initialize();

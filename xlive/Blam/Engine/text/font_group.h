@@ -40,5 +40,8 @@ enum e_button_glyph_style : int32
 // before the fonts are loaded: use the font table for this style
 void font_table_apply_patches(e_button_glyph_style style);
 
+// picks the font table without reloading (after the config is read, before the fonts are loaded)
+void font_table_select_button_glyph_style(e_button_glyph_style style);
+
 // switches the font table and reloads the fonts
 void font_table_set_button_glyph_style(e_button_glyph_style style);
