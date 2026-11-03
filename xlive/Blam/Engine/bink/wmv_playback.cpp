@@ -191,7 +191,19 @@ void wmv_afk_movie_update(void)
 		return;
 	}
 
-	const bool on_main_menu = game_is_ui_shell() && network_life_cycle_get_state() == _life_cycle_state_none;
+	const bool ui_shell = game_is_ui_shell();
+	const e_life_cycle_state life_cycle = network_life_cycle_get_state();
+	const bool on_main_menu = ui_shell && life_cycle == _life_cycle_state_none;
+
+	// debug.txt: when the main menu check changes, so a movie that never plays can be explained
+	static int32 last_logged_state = NONE;
+	const int32 state = (ui_shell ? 0x100 : 0) | (int32)life_cycle;
+	if (state != last_logged_state)
+	{
+		last_logged_state = state;
+		error(_error_log, "idle movie: %s (ui shell %d, life cycle %d)", on_main_menu ? "on the main menu, waiting for 3 minutes without input" : "not on the main menu", ui_shell ? 1 : 0, (int32)life_cycle);
+	}
+
 	if (!on_main_menu || wmv_playback_in_progress())
 	{
 		g_afk_movie_last_input_ticks = now;
@@ -221,7 +233,13 @@ void wmv_afk_movie_update(void)
 	g_afk_movie_playing = wmv_playback_in_progress();
 	if (!g_afk_movie_playing)
 	{
+		// the movie player could not open the file (usually a video codec Windows Media Foundation can't decode)
+		error(_error_log, "idle movie: the movie player could not play %s, re-encode it as WMV (Windows Media Video)", utf8_path);
 		g_afk_movie_last_input_ticks = now;
+	}
+	else
+	{
+		error(_error_log, "idle movie: playing %s", utf8_path);
 	}
 	return;
 }
