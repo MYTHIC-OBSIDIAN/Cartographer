@@ -479,6 +479,12 @@ char* __cdecl get_font_filename_hook(char* result, int32 buff_len) //Font Table 
 	}
 
 	strcpy_s(result, buff_len, current_language->font_table_filename);
+
+	// LAN edition: languages that use the default font table get the one picked by the Button Glyphs setting
+	if (_stricmp(result, "font_table.txt") == 0)
+	{
+		sprintf_s(result, buff_len, "%s.txt", font_table_get_name());
+	}
 	return result;
 }
 
