@@ -15,6 +15,7 @@
 #include "effects/contrails.h"
 #include "effects/effects.h"
 #include "effects/particle_update.h"
+#include "filesys/pc_file_system.h"
 #include "physics/character_physics_mode_melee.h"
 #include "game/aim_assist.h"
 #include "game/cheats.h"
@@ -295,6 +296,9 @@ void H2MOD::Initialize()
 
 	// Apply patches
 	game_apply_pre_winmain_patches();
+
+	// LAN edition: player profiles and saves go in a "savegame" folder next to halo2.exe
+	pc_file_system_apply_hooks();
 
 #ifdef TERMINAL_ENABLED
 	CommandCollection::InitializeCommands();
