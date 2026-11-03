@@ -2,6 +2,7 @@
 
 // miscellaneous cartographer menus
 
+#include "input/controllers.h"
 #include "interface/user_interface_widget_list.h"
 #include "interface/user_interface_widget_list_item.h"
 #include "interface/user_interface_widget_window.h"
@@ -228,6 +229,7 @@ class c_nameplates_edit_list : public c_list_widget
 protected:
 	c_list_item_widget m_list_item_widgets[k_no_of_visible_items_for_nameplates_list];
 	c_slot2<c_nameplates_edit_list, struct s_event_record*, int32> m_slot_2;
+	e_controller_index m_controller_index;
 
 	void handle_item_pressed_event(struct s_event_record* const& event, int32* pitem_index);
 	void set_item_text(c_list_item_widget* item);

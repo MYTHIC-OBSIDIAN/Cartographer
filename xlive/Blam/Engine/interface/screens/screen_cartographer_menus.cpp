@@ -6,6 +6,7 @@
 #include "game/cheats.h"
 #include "game/players.h"
 #include "input/controllers.h"
+#include "saved_games/cartographer_player_profile/cartographer_player_profile.h"
 #include "interface/user_interface.h"
 #include "H2MOD/Modules/Shell/Config.h"
 #include "cache/cache_files.h"
@@ -914,14 +915,36 @@ static const wchar_t* const k_nameplate_names[] =
 	L"Bungie Stars",
 };
 
-static int32 nameplate_get_selected(void)
+static_assert(NUMBEROF(k_nameplate_names) == k_cartographer_profile_nameplate_count, "nameplate count");
+
+// the nameplate is saved in the player profile (cartographer profile v4) of the controller
+static int32 nameplate_get_selected(e_controller_index controller_index)
 {
-	return (H2Config_nameplate >= 0 && H2Config_nameplate < (int32)NUMBEROF(k_nameplate_names)) ? H2Config_nameplate : 0;
+	if (controller_index < 0 || controller_index >= k_number_of_controllers)
+	{
+		return 0;
+	}
+	const int32 nameplate = cartographer_player_profile_get_by_controller_index(controller_index)->nameplate;
+	return nameplate < (int32)NUMBEROF(k_nameplate_names) ? nameplate : 0;
+}
+
+// the controller the screen was opened for (lowest bit of the user flags)
+static e_controller_index nameplate_controller_from_user_flags(uint16 user_flags)
+{
+	for (int32 controller = 0; controller < k_number_of_controllers; controller++)
+	{
+		if (user_flags & FLAG(controller))
+		{
+			return (e_controller_index)controller;
+		}
+	}
+	return k_no_controller;
 }
 
 c_nameplates_edit_list::c_nameplates_edit_list(uint16 _flags) :
 	c_list_widget(_flags),
-	m_slot_2(this, &c_nameplates_edit_list::handle_item_pressed_event)
+	m_slot_2(this, &c_nameplates_edit_list::handle_item_pressed_event),
+	m_controller_index(nameplate_controller_from_user_flags(_flags))
 {
 	data_array* nameplates_list_data = ui_list_data_new(k_nameplates_list_name, NUMBEROF(k_nameplate_names), sizeof(datum));
 	this->m_list_data = nameplates_list_data;
@@ -963,7 +986,7 @@ void c_nameplates_edit_list::set_item_text(c_list_item_widget* item)
 	if (text_widget)
 	{
 		wchar_t label[64];
-		swprintf(label, NUMBEROF(label), L"%s%s", k_nameplate_names[list_item_index], list_item_index == nameplate_get_selected() ? L" (Selected)" : L"");
+		swprintf(label, NUMBEROF(label), L"%s%s", k_nameplate_names[list_item_index], list_item_index == nameplate_get_selected(m_controller_index) ? L" (Selected)" : L"");
 		text_widget->set_text(label);
 	}
 }
@@ -981,8 +1004,14 @@ void c_nameplates_edit_list::handle_item_pressed_event(s_event_record* const& ev
 		return;
 	}
 
-	H2Config_nameplate = list_item_index;
-	SaveH2Config();
+	const e_controller_index controller_index = (e_controller_index)event->controller;
+	if (controller_index < 0 || controller_index >= k_number_of_controllers)
+	{
+		return;
+	}
+	m_controller_index = controller_index;
+	cartographer_player_profile_get_by_controller_index(controller_index)->nameplate = (uint8)list_item_index;
+	cartographer_player_profile_save(controller_index);
 
 	// send the new details so the lobby shows the nameplate straight away
 	INVOKE_TYPE(0x206A97, 0x0, void(__cdecl*)(e_controller_index), event->controller);
@@ -1040,9 +1069,9 @@ const void* c_nameplates_menu::load_proc(void) const
 #define k_profile_edit_screen_widget_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile_menu"
 
 // the lobby shows nameplate bitmap (user role - 1), role 0 and 1 both show the default one
-static int8 nameplate_get_user_role(void)
+static int8 nameplate_get_user_role(e_controller_index controller_index)
 {
-	const int32 nameplate = nameplate_get_selected();
+	const int32 nameplate = nameplate_get_selected(controller_index);
 	return (int8)(nameplate == 0 ? 0 : nameplate + 1);
 }
 
@@ -1174,7 +1203,7 @@ static void __cdecl user_interface_controller_get_user_properties_nameplate(e_co
 	INVOKE_TYPE(0x20696F, 0x0, void(__cdecl*)(e_controller_index, s_player_identifier*, s_player_configuration*), controller_index, controller_user_identifier, properties);
 	if (properties != nullptr)
 	{
-		properties->bungie_user_role = nameplate_get_user_role();
+		properties->bungie_user_role = nameplate_get_user_role(controller_index);
 	}
 }
 

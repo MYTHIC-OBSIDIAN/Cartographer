@@ -10,6 +10,7 @@ enum e_saved_game_cartographer_player_profile_version : uint32
 	_saved_game_cartographer_player_profile_version_1,
 	_saved_game_cartographer_player_profile_version_2,
 	_saved_game_cartographer_player_profile_version_3,
+	_saved_game_cartographer_player_profile_version_4,
 
 	k_saved_game_cartographer_player_profile_version_count,
 };
@@ -85,15 +86,42 @@ struct s_saved_game_cartographer_player_profile_v3
 };
 ASSERT_STRUCT_SIZE(s_saved_game_cartographer_player_profile_v3, 268);
 
+// LAN edition: v3 plus the lobby nameplate
+struct s_saved_game_cartographer_player_profile_v4
+{
+	s_saved_game_cartographer_player_profile_main_header header;
+	uint8 field_of_view;
+	uint8 vehicle_field_of_view;
+	bool static_first_person;
+	bool controller_custom_layout_enabled;
+	real32 mouse_sensitivity;
+	real32 raw_mouse_sensitivity;
+	bool mouse_uniform;
+	bool raw_mouse_input;
+	bool controller_modern;
+	int8 controller_deadzone_type;
+	real32 controller_sensitivity;
+	ControllerInput::CustomControllerLayout custom_layout;
+	real_point2d deadzone_axial;
+	real32 deadzone_radial;
+	real32 crosshair_offset;
+	real32 crosshair_scale;
+	real_point3d weapon_offsets[k_weapon_offset_weapon_count];
+	uint8 nameplate;		// index in the Nameplate menu, 0 = Default
+	uint8 pad_0[3];
+};
+ASSERT_STRUCT_SIZE(s_saved_game_cartographer_player_profile_v4, 272);
+
 
 // These properties control the currently used version of the cartographer profile in the project.
-typedef s_saved_game_cartographer_player_profile_v3 s_saved_game_cartographer_player_profile;
+typedef s_saved_game_cartographer_player_profile_v4 s_saved_game_cartographer_player_profile;
 
 union s_saved_game_cartographer_player_profile_container
 {
 	s_saved_game_cartographer_player_profile_v1 v1;
 	s_saved_game_cartographer_player_profile_v2 v2;
 	s_saved_game_cartographer_player_profile_v3 v3;
+	s_saved_game_cartographer_player_profile_v4 v4;
 	s_saved_game_cartographer_player_profile current;
 };
 
@@ -108,7 +136,10 @@ struct s_cartographer_profile_run_time
 
 /* constants */
 
-constexpr e_saved_game_cartographer_player_profile_version k_cartographer_profile_version = _saved_game_cartographer_player_profile_version_3;
+// LAN edition: entries in the Nameplate menu (s_saved_game_cartographer_player_profile::nameplate)
+constexpr uint8 k_cartographer_profile_nameplate_count = 7;
+
+constexpr e_saved_game_cartographer_player_profile_version k_cartographer_profile_version = _saved_game_cartographer_player_profile_version_4;
 
 /* prototype */
 

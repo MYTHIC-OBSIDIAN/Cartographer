@@ -7,6 +7,7 @@
 
 #include "game/players.h"
 #include "input/input_abstraction.h"
+#include "H2MOD/Modules/Shell/Config.h"
 
 /*
 * To add a new player profile version, start by creating a new structure for the profile version (e.g., s_saved_game_cartographer_player_profile_v3).
@@ -43,10 +44,14 @@ static void cartographer_player_profile_new(s_saved_game_cartographer_player_pro
 
 static void cartographer_player_profile_new(s_saved_game_cartographer_player_profile_v3* settings);
 
+static void cartographer_player_profile_new(s_saved_game_cartographer_player_profile_v4* settings);
+
 // when creating a newer version of the cartographer profile create a function that can upgrade from the previous version to the new one
 static void cartographer_player_profile_upgrade_to_v2(s_saved_game_cartographer_player_profile_container* settings);
 
 static void cartographer_player_profile_upgrade_to_v3(s_saved_game_cartographer_player_profile_container* settings);
+
+static void cartographer_player_profile_upgrade_to_v4(s_saved_game_cartographer_player_profile_container* settings);
 
 static bool cartographer_player_profile_upgrade_check(s_saved_game_cartographer_player_profile_container* settings, bool* out_upgrade_performed);
 
@@ -271,6 +276,16 @@ static void cartographer_player_profile_new(s_saved_game_cartographer_player_pro
 	return;
 }
 
+static void cartographer_player_profile_new(s_saved_game_cartographer_player_profile_v4* settings)
+{
+	// same defaults as v3, then the v4 header and fields
+	cartographer_player_profile_new((s_saved_game_cartographer_player_profile_v3*)settings);
+	cartographer_player_profile_header_new(&settings->header, _saved_game_cartographer_player_profile_version_4);
+	settings->nameplate = 0;
+	csmemset(settings->pad_0, 0, sizeof(settings->pad_0));
+	return;
+}
+
 static void cartographer_player_profile_upgrade_to_v2(s_saved_game_cartographer_player_profile_container* settings)
 {
 	cartographer_player_profile_new(&settings->v2);
@@ -302,6 +317,20 @@ static void cartographer_player_profile_upgrade_to_v3(s_saved_game_cartographer_
 	return;
 }
 
+static void cartographer_player_profile_upgrade_to_v4(s_saved_game_cartographer_player_profile_container* settings)
+{
+	// v4 only adds fields at the end: keep everything from v3
+	const s_saved_game_cartographer_player_profile_v3 old_settings = settings->v3;
+
+	cartographer_player_profile_new(&settings->v4);
+	csmemcpy(&settings->v4, &old_settings, sizeof(old_settings));
+	settings->v4.header.version = _saved_game_cartographer_player_profile_version_4;
+
+	// profiles from before the per-profile nameplate start with the nameplate that was saved for the whole PC
+	settings->v4.nameplate = (H2Config_nameplate > 0 && H2Config_nameplate < k_cartographer_profile_nameplate_count) ? (uint8)H2Config_nameplate : 0;
+	return;
+}
+
 static bool cartographer_player_profile_upgrade_check(s_saved_game_cartographer_player_profile_container* settings, bool* out_upgrade_performed)
 {
 	bool result = true;
@@ -321,6 +350,10 @@ static bool cartographer_player_profile_upgrade_check(s_saved_game_cartographer_
 			*out_upgrade_performed = true;
 			break;
 		case _saved_game_cartographer_player_profile_version_3:
+			cartographer_player_profile_upgrade_to_v4(settings);
+			*out_upgrade_performed = true;
+			break;
+		case _saved_game_cartographer_player_profile_version_4:
 			break;
 		default:
 			DISPLAY_ASSERT("A cartographer profile version that was un-expected was reached during upgrading!!!");
