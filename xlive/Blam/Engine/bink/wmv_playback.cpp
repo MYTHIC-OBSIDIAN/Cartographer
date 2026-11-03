@@ -20,7 +20,7 @@ void __cdecl wmv_render(void)
 	return;
 }
 
-// LAN edition: <halo2.exe folder>\movies\afk.wmv plays after 3 minutes without input on the main menu
+// LAN edition: <halo2.exe folder>\movie\afk.wmv plays after 3 minutes without input on the main menu
 // (not in a lobby); any key, mouse or controller input stops it, and the timer starts again afterwards
 
 #include "game/game.h"
@@ -149,7 +149,7 @@ static bool afk_movie_get_path(char* utf8_path, uint32 size)
 		return false;
 	}
 	last_backslash[1] = L'\0';
-	if (wcscat_s(path, NUMBEROF(path), L"movies\\afk.wmv") != 0)
+	if (wcscat_s(path, NUMBEROF(path), L"movie\\afk.wmv") != 0)
 	{
 		return false;
 	}
@@ -221,7 +221,7 @@ void wmv_afk_movie_update(void)
 		if (!g_afk_movie_missing)
 		{
 			g_afk_movie_missing = true;
-			error(_error_log, "movies\\afk.wmv not found next to halo2.exe, the idle movie is not played");
+			error(_error_log, "movie\\afk.wmv not found next to halo2.exe, the idle movie is not played");
 		}
 		g_afk_movie_last_input_ticks = now;
 		return;
