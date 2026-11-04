@@ -21,7 +21,7 @@ enum
 	k_crash_window_text_box_size_y = 200
 };
 
-#define k_crash_window_name L"Crash Report for \"Halo 2: Project Cartographer\""
+#define k_crash_window_name L"Halo 2 encountered a fatal error"
 #define k_crash_header_text L"Halo 2 has encountered a fatal error and needs to exit."
 #define k_crash_header_text_1 L"A crash dump file has been created with information on what caused the fatal error."
 #define k_crash_header_text_2 L"This file may be needed for debugging purposes."
