@@ -17,6 +17,7 @@
 #include "game/game.h"
 #include "game/game_globals.h"
 #include "game/game_options.h"
+#include "game/player_constants.h"
 #include "interface/user_interface.h"
 #include "interface/user_interface_controller.h"
 #include "interface/user_interface_errors.h"
