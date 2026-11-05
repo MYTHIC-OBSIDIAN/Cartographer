@@ -13,6 +13,15 @@
 #include "text/unicode.h"
 #include "main/levels.h"
 #include "main/level_definitions.h"
+#include "main/main_game.h"
+#include "game/game.h"
+#include "game/game_globals.h"
+#include "game/game_options.h"
+#include "interface/user_interface.h"
+#include "interface/user_interface_controller.h"
+#include "interface/user_interface_errors.h"
+#include "interface/user_interface_networking.h"
+#include "networking/logic/network_life_cycle.h"
 
 #include <algorithm>
 
@@ -1593,7 +1602,93 @@ struct bitmap_data* custom_map_get_preview_bitmap(const s_secure_map_id* custom_
 	return preview;
 }
 
-// c_custom_game_custom_map_list item pressed: built-in DIGSITE levels are selected like on the DEFAULT tab
+/* custom campaign maps (LAN edition) */
+
+// Campaign (solo) map files from the custom maps folder are listed on the CUSTOM tab with the multiplayer maps.
+// Picking one starts it straight away as a campaign game on Normal for the players on this PC (1, or 2 in
+// split screen co-op); it can't be played with System Link players.
+
+static void __cdecl close_cache_header(HANDLE* map_handle);
+
+// true when the custom map is a campaign map, *out_scenario_path is its scenario path
+static bool custom_map_is_campaign(const s_secure_map_id* id, char* out_scenario_path, size_t out_scenario_path_size)
+{
+	wchar_t file_path[k_map_file_path_size];
+	{
+		c_map_manager* manager = map_manager_get();
+		c_critical_section_scope lock(manager->m_lock);
+		s_custom_map_entry* entry = nullptr;
+		if (!manager->get_entry_by_id(id, &entry) || entry == nullptr)
+		{
+			return false;
+		}
+		wcsncpy_s(file_path, entry->file_path, _TRUNCATE);
+	}
+
+	cache_file_header header;
+	HANDLE map_handle;
+	if (!open_cache_header(file_path, &header, &map_handle))
+	{
+		return false;
+	}
+	close_cache_header(&map_handle);
+
+	if (header.type != _scenario_type_solo)
+	{
+		return false;
+	}
+	strncpy_s(out_scenario_path, out_scenario_path_size, header.path, _TRUNCATE);
+	return true;
+}
+
+static void custom_campaign_map_show_error(uint16 user_flags, const wchar_t* title, const wchar_t* body)
+{
+	screen_error_ok_dialog_with_custom_text(_user_interface_channel_type_gameshell_dialog, _ui_error_generic, _window_4, (int16)user_flags, nullptr, nullptr, title, body);
+	return;
+}
+
+static void custom_campaign_map_launch(const s_secure_map_id* id, const char* scenario_path)
+{
+	const uint16 user_flags = user_interface_controller_get_signed_in_controllers_mask();
+	uint32 local_player_count = user_interface_controller_get_signed_in_controller_count();
+	local_player_count = PIN(local_player_count, 1, k_number_of_users);
+
+	if (network_life_cycle_get_state() != _life_cycle_state_none
+		&& (uint32)user_interface_squad_get_player_count() > local_player_count)
+	{
+		custom_campaign_map_show_error(user_flags, L"Campaign Map",
+			L"Custom campaign maps can only be played by the players on this PC. Play it from a Split Screen lobby without System Link players.");
+		return;
+	}
+
+	if (local_player_count > k_maximum_coop_players)
+	{
+		custom_campaign_map_show_error(user_flags, L"Too Many Players",
+			L"Co-op campaign is for 2 players. Sign out players to play this campaign map.");
+		return;
+	}
+
+	static s_game_options options;
+	game_options_new(&options);
+	options.game_mode = _game_mode_campaign;
+	options.is_custom_map = true;
+	options.custom_map_id = *id;
+	MultiByteToWideChar(CP_UTF8, 0, scenario_path, -1, options.scenario_path, NUMBEROF(options.scenario_path));
+	options.difficulty = _campaign_difficulty_level_normal;
+	options.coop = local_player_count > 1;
+	game_options_setup_default_players(local_player_count, &options);
+
+	// leave the lobby, then load the map as a campaign game
+	if (network_life_cycle_get_state() != _life_cycle_state_none)
+	{
+		network_life_cycle_end();
+	}
+	main_game_change(&options);
+	return;
+}
+
+// c_custom_game_custom_map_list item pressed: built-in DIGSITE levels are selected like on the DEFAULT tab,
+// campaign map files start as a campaign game
 static void __fastcall c_custom_game_custom_map_list__handle_item_pressed(void* list, void* edx, void* item, datum* item_index)
 {
 	uint8* list_data = (uint8*)list;
@@ -1628,6 +1723,22 @@ static void __fastcall c_custom_game_custom_map_list__handle_item_pressed(void* 
 		const int32 window = ((int32(__thiscall*)(void*))screen_vtable[0x84 / 4])(screen);
 		INVOKE_TYPE(0x2096DA, 0x0, void(__cdecl*)(int32, int32), channel, window);
 		return;
+	}
+
+	if (item_index != nullptr
+		&& *item_index != NONE
+		&& data != nullptr
+		&& *(bool*)(list_data + k_map_list_ignore_selection_offset) == false
+		&& *(bool*)(list_data + k_map_list_save_to_profile_offset) == false)
+	{
+		const s_secure_map_id* id = (const s_secure_map_id*)list_data_entry_get(data, *item_index);
+		char scenario_path[k_maximum_filename_length];
+		if (custom_map_is_campaign(id, scenario_path, NUMBEROF(scenario_path)))
+		{
+			const s_secure_map_id selected_id = *id;
+			custom_campaign_map_launch(&selected_id, scenario_path);
+			return;
+		}
 	}
 
 	INVOKE_TYPE(0x25ACD8, 0x0, void(__thiscall*)(void*, void*, datum*), list, item, item_index);
