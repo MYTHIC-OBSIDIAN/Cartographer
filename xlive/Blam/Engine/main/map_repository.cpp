@@ -854,6 +854,7 @@ static const wchar_t* const k_digsite_custom_map_files[] =
 	L"m1_defense",
 	L"m1_exploration",
 	L"earthcity_e3",
+	L"permafrost",
 	// were built-in levels (still in the mainmenu.map level list, which gives their name, description and picture)
 	L"anchor_point",
 	L"convergence",
@@ -951,6 +952,7 @@ static const s_digsite_list_entry k_digsite_list_order[] =
 	{ false, L"m1_exploration" },     // M1 Exploration
 	{ false, L"earth_ark" },          // Earth Ark
 	{ false, L"earthcity_e3" },       // E3 2003 Demo (campaign map)
+	{ false, L"permafrost" },         // Permafrost
 };
 
 // the DEFAULT list ends at this level (Tombstone), everything sorted after it is listed under DIGSITE
@@ -1105,7 +1107,7 @@ static bool custom_map_file_is_in_game_maps_folder(const wchar_t* file_path)
 
 static bool custom_map_entry_is_game_maps_folder_digsite(const s_custom_map_entry* entry)
 {
-	return custom_map_file_is_digsite(entry->file_path) && custom_map_file_is_in_game_maps_folder(entry->file_path);
+	return custom_map_file_is_in_game_maps_folder(entry->file_path);
 }
 
 // the mainmenu.map multiplayer level whose scenario has the map file's name (DIGSITE map files that used to be
@@ -1250,8 +1252,9 @@ static void digsite_custom_maps_synchronize(c_map_manager* manager)
 
 	do
 	{
-		if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0
-			|| !custom_map_file_is_digsite(find_data.cFileName))
+		// every map file in digsite_maps is a DIGSITE map (the names listed above are only needed for their order,
+		// previews, and to ignore copies left in the custom maps folder)
+		if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
 		{
 			continue;
 		}
