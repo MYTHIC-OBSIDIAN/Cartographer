@@ -985,7 +985,10 @@ void digsite_apply_patches_on_map_load(void)
 		csmemcpy(bitmap, first, sizeof(bitmap_data));
 		*(uint32*)(bitmap + 0x1C) = raw[i][0];	// level of detail 0 raw data offset
 		*(uint32*)(bitmap + 0x34) = raw[i][1];	// level of detail 0 raw data size
-		csmemset(bitmap + 0x50, 0, sizeof(bitmap_data) - 0x50);	// runtime data (zero in the map file), never bitmap 0's texture
+		// start unloaded like in the map file: bitmap 0 may already be loaded, and its "loaded" flag (more_flags 0x2)
+		// with the runtime data cleared made the game use a null pointer (halo2.exe+0x265A18)
+		bitmap[9] = 0;	// more_flags
+		csmemset(bitmap + 0x50, 0, sizeof(bitmap_data) - 0x50);	// runtime data (zero in the map file)
 	}
 	return;
 }
