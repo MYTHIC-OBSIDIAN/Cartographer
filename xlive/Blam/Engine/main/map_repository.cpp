@@ -856,6 +856,7 @@ static const wchar_t* const k_digsite_custom_map_files[] =
 	L"m1_exploration",
 	L"earthcity_e3",
 	L"permafrost",
+	L"alphamoon",
 	// were built-in levels (still in the mainmenu.map level list, which gives their name, description and picture)
 	L"anchor_point",
 	L"convergence",
@@ -905,29 +906,50 @@ static const s_digsite_custom_map_preview k_digsite_custom_map_previews[] =
 	{ L"m1_defense",       "ui\\code_global_bitmaps\\multiplayer49", 3 },
 	{ L"m1_exploration",   "ui\\code_global_bitmaps\\multiplayer49", 4 },
 	{ L"earthcity_e3",     "ui\\code_global_bitmaps\\multiplayer49", 5 },
-	// bitmap 6 is added to the tag when the main menu loads, see digsite_apply_patches_on_map_load
+	// bitmaps 6 and up are added to the tag when the main menu loads, see digsite_apply_patches_on_map_load
 	{ L"permafrost",       "ui\\code_global_bitmaps\\multiplayer49", 6 },
+	{ L"alphamoon",        "ui\\code_global_bitmaps\\multiplayer49", 7 },
 };
 
-// descriptions of DIGSITE map files, shown in place of the map file's own
+// names and descriptions of DIGSITE map files, shown in place of the map file's own (nullptr keeps the map's own)
 struct s_digsite_custom_map_description
 {
 	const wchar_t* map_file_name;
+	const wchar_t* name;
 	const wchar_t* description;
 };
 
 static const s_digsite_custom_map_description k_digsite_custom_map_descriptions[] =
 {
-	{ L"permafrost", L"Bundle up!" },
+	{ L"permafrost", nullptr,       L"Bundle up!" },
+	{ L"alphamoon",  L"Alpha Moon", nullptr },
 };
 
+static void custom_map_file_get_name(const wchar_t* file_path, wchar_t* out_name, size_t out_name_count);
+static bool digsite_map_file_names_match(const wchar_t* a, const wchar_t* b);
+
+static const s_digsite_custom_map_description* digsite_custom_map_get_description(const wchar_t* file_path)
+{
+	wchar_t file_name[MAX_PATH];
+	custom_map_file_get_name(file_path, file_name, NUMBEROF(file_name));
+	for (const s_digsite_custom_map_description& entry : k_digsite_custom_map_descriptions)
+	{
+		if (digsite_map_file_names_match(file_name, entry.map_file_name))
+		{
+			return &entry;
+		}
+	}
+	return nullptr;
+}
+
 // multiplayer49 holds its previews in a block moved into the meta padding of the LAN edition mainmenu.map, which has room
-// for 6; the 7th bitmap is stored where the tag's own one-bitmap block was (tag + 0x50) and appended at map load
+// for 6; the rest are appended here at map load. The map stores a table where the tag's own one-bitmap block was
+// (tag + 0x50): 'DGXP', count, then count x (raw data offset, raw data size), each 440x414 like bitmap 0
 #define k_digsite_extra_preview_tag "ui\\code_global_bitmaps\\multiplayer49"
 #define k_digsite_extra_preview_bitmaps_in_map 6
-#define k_digsite_extra_preview_offset 0x50
-#define k_digsite_extra_preview_width 440
-#define k_digsite_extra_preview_height 414
+#define k_digsite_extra_preview_table_offset 0x50
+#define k_digsite_extra_preview_table_magic 'PXGD'	// "DGXP" in the file
+#define k_digsite_extra_preview_max_count 13		// what fits in the 0x74 bytes
 
 void digsite_apply_patches_on_map_load(void)
 {
@@ -943,15 +965,28 @@ void digsite_apply_patches_on_map_load(void)
 		return;
 	}
 
-	const uint8* extra = (const uint8*)group + k_digsite_extra_preview_offset;
-	if (*(const int16*)(extra + 4) != k_digsite_extra_preview_width || *(const int16*)(extra + 6) != k_digsite_extra_preview_height)
+	const uint32* table = (const uint32*)((const uint8*)group + k_digsite_extra_preview_table_offset);
+	const uint32 count = table[1];
+	if (table[0] != k_digsite_extra_preview_table_magic || count == 0 || count > k_digsite_extra_preview_max_count)
 	{
-		// mainmenu.map without the extra preview
+		// mainmenu.map without extra previews
 		return;
 	}
 
-	tag_injection_extend_block(&group->bitmaps, sizeof(bitmap_data), 1);
-	csmemcpy(TAG_BLOCK_GET_ELEMENT((s_tag_block*)&group->bitmaps, k_digsite_extra_preview_bitmaps_in_map, bitmap_data), extra, sizeof(bitmap_data));
+	// copy the table first: extending the block doesn't move the tag, but keep it simple
+	uint32 raw[k_digsite_extra_preview_max_count][2];
+	csmemcpy(raw, &table[2], sizeof(uint32) * 2 * count);
+
+	tag_injection_extend_block(&group->bitmaps, sizeof(bitmap_data), count);
+	const bitmap_data* first = TAG_BLOCK_GET_ELEMENT((s_tag_block*)&group->bitmaps, 0, bitmap_data);
+	for (uint32 i = 0; i < count; i++)
+	{
+		uint8* bitmap = (uint8*)TAG_BLOCK_GET_ELEMENT((s_tag_block*)&group->bitmaps, k_digsite_extra_preview_bitmaps_in_map + i, bitmap_data);
+		csmemcpy(bitmap, first, sizeof(bitmap_data));
+		*(uint32*)(bitmap + 0x1C) = raw[i][0];	// level of detail 0 raw data offset
+		*(uint32*)(bitmap + 0x34) = raw[i][1];	// level of detail 0 raw data size
+		csmemset(bitmap + 0x50, 0, sizeof(bitmap_data) - 0x50);	// runtime data (zero in the map file), never bitmap 0's texture
+	}
 	return;
 }
 
@@ -1001,6 +1036,7 @@ static const s_digsite_list_entry k_digsite_list_order[] =
 	{ false, L"m1_defense" },         // M1 Defense
 	{ false, L"m1_exploration" },     // M1 Exploration
 	{ false, L"earth_ark" },          // Earth Ark
+	{ false, L"alphamoon" },          // Alpha Moon
 	{ false, L"earthcity_e3" },       // E3 2003 Demo (campaign map)
 };
 
@@ -1390,6 +1426,11 @@ static uint32 custom_map_list_get_ids_for_tab(s_secure_map_id* out_ids, uint32 o
 				{
 					ustrncpy(out_ids[count].map_name, level_name, k_custom_map_name_length);
 				}
+				const s_digsite_custom_map_description* override_text = digsite_custom_map_get_description(entry->file_path);
+				if (override_text != nullptr && override_text->name != nullptr)
+				{
+					ustrncpy(out_ids[count].map_name, override_text->name, k_custom_map_name_length);
+				}
 			}
 			if (out_file_names != nullptr)
 			{
@@ -1702,18 +1743,17 @@ static bool __cdecl map_select_get_custom_map_ui_level_definition(const s_secure
 			csmemcpy(out_level_definition + 0x244, level->level_descriptions.description, sizeof(level->level_descriptions.description));
 		}
 
-		wchar_t file_name[MAX_PATH];
-		custom_map_file_get_name(entry->file_path, file_name, NUMBEROF(file_name));
-		for (const s_digsite_custom_map_description& override_description : k_digsite_custom_map_descriptions)
+		const s_digsite_custom_map_description* override_text = digsite_custom_map_get_description(entry->file_path);
+		if (override_text != nullptr && override_text->name != nullptr)
 		{
-			if (digsite_map_file_names_match(file_name, override_description.map_file_name))
+			wcsncpy_s((wchar_t*)(out_level_definition + 4), k_custom_map_name_length, override_text->name, _TRUNCATE);
+		}
+		if (override_text != nullptr && override_text->description != nullptr)
+		{
+			wchar_t(*descriptions)[128] = (wchar_t(*)[128])(out_level_definition + 0x244);
+			for (uint32 language = 0; language < k_language_count; language++)
 			{
-				wchar_t(*descriptions)[128] = (wchar_t(*)[128])(out_level_definition + 0x244);
-				for (uint32 language = 0; language < k_language_count; language++)
-				{
-					wcsncpy_s(descriptions[language], 128, override_description.description, _TRUNCATE);
-				}
-				break;
+				wcsncpy_s(descriptions[language], 128, override_text->description, _TRUNCATE);
 			}
 		}
 
