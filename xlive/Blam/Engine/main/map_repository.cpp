@@ -854,6 +854,16 @@ static const wchar_t* const k_digsite_custom_map_files[] =
 	L"m1_defense",
 	L"m1_exploration",
 	L"earthcity_e3",
+	// were built-in levels (still in the mainmenu.map level list, which gives their name, description and picture)
+	L"anchor_point",
+	L"convergence",
+	L"convict",
+	L"timberland",
+	L"rodentia",
+	L"forerunner_sample",
+	L"covenant_sample",
+	L"human_sample",
+	L"example",
 };
 
 // preview pictures of the DIGSITE map files, stored in preview bitmap tags that the LAN edition mainmenu.map doesn't otherwise use
@@ -895,7 +905,8 @@ static const s_digsite_custom_map_preview k_digsite_custom_map_previews[] =
 	{ L"earthcity_e3",     "ui\\code_global_bitmaps\\multiplayer49", 5 },
 };
 
-// order of the DIGSITE list; built-in levels are named by the last part of their scenario path, map files by file name
+// order of the DIGSITE list, by map file name (LAN edition: DIGSITE has no built-in levels any more, they are all
+// map files in digsite_maps; builtin_level is kept for the list format)
 // DIGSITE maps missing from this list are added at the end (built-in levels first, then map files A-Z)
 struct s_digsite_list_entry
 {
@@ -905,26 +916,26 @@ struct s_digsite_list_entry
 
 static const s_digsite_list_entry k_digsite_list_order[] =
 {
-	{ true,  L"anchor_point" },       // Anchor Point
+	{ false, L"anchor_point" },       // Anchor Point
 	{ false, L"artery" },             // Artery
 	{ false, L"cloud_city" },         // Cloud City
-	{ true,  L"convergence" },        // Convergence
-	{ true,  L"convict" },            // Convict
-	{ true,  L"timberland" },         // Deforestation
+	{ false, L"convergence" },        // Convergence
+	{ false, L"convict" },            // Convict
+	{ false, L"timberland" },         // Deforestation
 	{ false, L"evergreen" },          // Evergreen
 	{ false, L"fourth_station" },     // Fourth Station
 	{ false, L"gauntlet" },           // Gauntlet
 	{ false, L"grotto" },             // Grotto
 	{ false, L"missile_beach" },      // Missile Beach
 	{ false, L"overboard" },          // Overboard
-	{ true,  L"rodentia" },           // Rodentia
+	{ false, L"rodentia" },           // Rodentia
 	{ false, L"shaft" },              // Shaft
 	{ false, L"solitude" },           // Solitude
 	{ false, L"sunken_chamber" },     // Sunken Chamber
-	{ true,  L"forerunner_sample" },  // Beach Battle
-	{ true,  L"covenant_sample" },    // Covenant
-	{ true,  L"human_sample" },       // Earth City
-	{ true,  L"example" },            // Example
+	{ false, L"forerunner_sample" },  // Beach Battle
+	{ false, L"covenant_sample" },    // Covenant
+	{ false, L"human_sample" },       // Earth City
+	{ false, L"example" },            // Example
 	{ false, L"soccer" },             // Soccer Match
 	{ false, L"03_ascension" },       // Ascension 2003
 	{ false, L"03_burial_mounds" },   // Burial Mounds 2003
@@ -1097,9 +1108,71 @@ static bool custom_map_entry_is_game_maps_folder_digsite(const s_custom_map_entr
 	return custom_map_file_is_digsite(entry->file_path) && custom_map_file_is_in_game_maps_folder(entry->file_path);
 }
 
+// the mainmenu.map multiplayer level whose scenario has the map file's name (DIGSITE map files that used to be
+// built-in levels take their name, description and picture from it), nullptr if none
+static const wchar_t* scenario_path_get_name_for_compare(const char* path, wchar_t* out_name, size_t out_name_count)
+{
+	const char* name = path;
+	for (const char* c = path; *c != '\0'; c++)
+	{
+		if (*c == '\\' || *c == '/')
+		{
+			name = c + 1;
+		}
+	}
+	size_t i = 0;
+	for (; i + 1 < out_name_count && name[i] != '\0'; i++)
+	{
+		out_name[i] = (wchar_t)(uint8)name[i];
+	}
+	out_name[i] = L'\0';
+	return out_name;
+}
+
+static const s_multiplayer_ui_level_definition* digsite_custom_map_get_level_definition(const wchar_t* file_path)
+{
+	wchar_t file_name[MAX_PATH];
+	custom_map_file_get_name(file_path, file_name, NUMBEROF(file_name));
+
+	data_array* levels = levels_get_multiplayer_level_data();
+	if (levels == nullptr)
+	{
+		return nullptr;
+	}
+
+	const int32 last_default_sort_order = digsite_get_last_default_level_sort_order();
+	for (datum level_index = data_next_index(levels, NONE); level_index != NONE; level_index = data_next_index(levels, level_index))
+	{
+		const int32 map_id = *(int32*)((uint8*)list_data_entry_get(levels, level_index) + 4);
+		const s_multiplayer_ui_level_definition* level = levels_get_multiplayer_ui_level(map_id);
+		if (!digsite_level_is_builtin_digsite(level, last_default_sort_order))
+		{
+			continue;
+		}
+
+		wchar_t scenario_name[MAX_PATH];
+		scenario_path_get_name_for_compare(level->path, scenario_name, NUMBEROF(scenario_name));
+		if (digsite_map_file_names_match(file_name, scenario_name))
+		{
+			return level;
+		}
+	}
+	return nullptr;
+}
+
 // preview bitmap tag of a DIGSITE map file, NONE if it has none
 static datum digsite_custom_map_preview_bitmap_get(const wchar_t* file_path, int16* out_bitmap_index)
 {
+	const s_multiplayer_ui_level_definition* level = digsite_custom_map_get_level_definition(file_path);
+	if (level != nullptr && level->bitmap.index != NONE)
+	{
+		if (out_bitmap_index != nullptr)
+		{
+			*out_bitmap_index = 0;
+		}
+		return level->bitmap.index;
+	}
+
 	wchar_t name[MAX_PATH];
 	custom_map_file_get_name(file_path, name, NUMBEROF(name));
 
@@ -1257,6 +1330,15 @@ static uint32 custom_map_list_get_ids_for_tab(s_secure_map_id* out_ids, uint32 o
 		{
 			csmemcpy(out_ids[count].hash, entry->hash, k_sha256_hash_size_bytes);
 			ustrncpy(out_ids[count].map_name, entry->map_name, k_custom_map_name_length);
+			if (digsite)
+			{
+				const s_multiplayer_ui_level_definition* level = digsite_custom_map_get_level_definition(entry->file_path);
+				const wchar_t* level_name = (level != nullptr ? multiplayer_ui_level_get_display_name(level) : nullptr);
+				if (level_name != nullptr && level_name[0] != L'\0')
+				{
+					ustrncpy(out_ids[count].map_name, level_name, k_custom_map_name_length);
+				}
+			}
 			if (out_file_names != nullptr)
 			{
 				wchar_t file_name[MAX_PATH];
@@ -1332,27 +1414,8 @@ static void digsite_list_get_ids(std::vector<s_secure_map_id>& out_ids)
 {
 	std::vector<s_digsite_list_candidate> candidates;
 
-	// built-in levels after Tombstone
-	const int32 last_default_sort_order = digsite_get_last_default_level_sort_order();
-	data_array* levels = levels_get_multiplayer_level_data();
-	if (levels != nullptr)
-	{
-		for (datum level_index = data_next_index(levels, NONE); level_index != NONE; level_index = data_next_index(levels, level_index))
-		{
-			const int32 map_id = *(int32*)((uint8*)list_data_entry_get(levels, level_index) + 4);
-			const s_multiplayer_ui_level_definition* level = levels_get_multiplayer_ui_level(map_id);
-			if (digsite_level_is_builtin_digsite(level, last_default_sort_order)
-				&& candidates.size() < k_maximum_number_of_digsite_builtin_levels)
-			{
-				s_digsite_list_candidate candidate;
-				digsite_builtin_level_make_id(&candidate.id, map_id, multiplayer_ui_level_get_display_name(level));
-				candidate.name = scenario_path_get_name(level->path);
-				candidate.builtin_level = true;
-				candidate.added = false;
-				candidates.push_back(candidate);
-			}
-		}
-	}
+	// built-in levels after Tombstone are no longer listed here (LAN edition: they are map files in digsite_maps,
+	// listed below; the built-in entries are only hidden from DEFAULT)
 
 	// DIGSITE map files, A-Z by the name shown in the list (used for files missing from k_digsite_list_order)
 	const uint32 custom_map_count = custom_map_list_get_ids_for_tab(nullptr, 0, true);
@@ -1576,6 +1639,17 @@ static bool __cdecl map_select_get_custom_map_ui_level_definition(const s_secure
 		&& entry != nullptr
 		&& custom_map_entry_is_game_maps_folder_digsite(entry))
 	{
+		const s_multiplayer_ui_level_definition* level = digsite_custom_map_get_level_definition(entry->file_path);
+		if (level != nullptr)
+		{
+			const wchar_t* name = multiplayer_ui_level_get_display_name(level);
+			if (name != nullptr && name[0] != L'\0')
+			{
+				wcsncpy_s((wchar_t*)(out_level_definition + 4), k_custom_map_name_length, name, _TRUNCATE);
+			}
+			csmemcpy(out_level_definition + 0x244, level->level_descriptions.description, sizeof(level->level_descriptions.description));
+		}
+
 		int16 bitmap_index = 0;
 		const datum preview_bitmap = digsite_custom_map_preview_bitmap_get(entry->file_path, &bitmap_index);
 		if (preview_bitmap != NONE
