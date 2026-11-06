@@ -9,6 +9,7 @@
 #include "screen_press_start_introduction.h"
 #include "screen_squad_settings.h"
 #include "screen_settings.h"
+#include "main/map_repository.h"
 #include "screen_network_squad_browser.h"
 #include "screen_single_player_profile_select.h"
 #include "screen_virtual_keyboard.h"
@@ -30,6 +31,7 @@ void screens_apply_patches_on_map_load()
 	c_screen_button_settings_menu::apply_patches_on_ui_map_load();
 	c_screen_video_settings::apply_patches_on_map_load();
 	nameplates_apply_patches_on_map_load();
+	digsite_apply_patches_on_map_load();
 }
 
 void screens_apply_patches_on_mp_map_load()

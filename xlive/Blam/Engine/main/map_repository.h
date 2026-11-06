@@ -150,3 +150,6 @@ const wchar_t* get_custom_map_folder_path();
 
 // preview picture of a custom map (only DIGSITE map files have one), nullptr if it has none
 struct bitmap_data* custom_map_get_preview_bitmap(const s_secure_map_id* custom_map_id);
+
+// LAN edition: adds the DIGSITE preview bitmaps that don't fit in the mainmenu.map tags (main menu only)
+void digsite_apply_patches_on_map_load(void);

@@ -2,6 +2,7 @@
 #include "map_repository.h"
 
 #include "bitmaps/bitmap_group.h"
+#include "tag_files/tag_loader/tag_injection.h"
 #include "cache/cache_files.h"
 #include "interface/signal_slot.h"
 #include "interface/user_interface_memory.h"
@@ -904,7 +905,55 @@ static const s_digsite_custom_map_preview k_digsite_custom_map_previews[] =
 	{ L"m1_defense",       "ui\\code_global_bitmaps\\multiplayer49", 3 },
 	{ L"m1_exploration",   "ui\\code_global_bitmaps\\multiplayer49", 4 },
 	{ L"earthcity_e3",     "ui\\code_global_bitmaps\\multiplayer49", 5 },
+	// bitmap 6 is added to the tag when the main menu loads, see digsite_apply_patches_on_map_load
+	{ L"permafrost",       "ui\\code_global_bitmaps\\multiplayer49", 6 },
 };
+
+// descriptions of DIGSITE map files, shown in place of the map file's own
+struct s_digsite_custom_map_description
+{
+	const wchar_t* map_file_name;
+	const wchar_t* description;
+};
+
+static const s_digsite_custom_map_description k_digsite_custom_map_descriptions[] =
+{
+	{ L"permafrost", L"Bundle up!" },
+};
+
+// multiplayer49 holds its previews in a block moved into the meta padding of the LAN edition mainmenu.map, which has room
+// for 6; the 7th bitmap is stored where the tag's own one-bitmap block was (tag + 0x50) and appended at map load
+#define k_digsite_extra_preview_tag "ui\\code_global_bitmaps\\multiplayer49"
+#define k_digsite_extra_preview_bitmaps_in_map 6
+#define k_digsite_extra_preview_offset 0x50
+#define k_digsite_extra_preview_width 440
+#define k_digsite_extra_preview_height 414
+
+void digsite_apply_patches_on_map_load(void)
+{
+	const datum preview_tag = tag_loaded(_tag_group_bitmap, k_digsite_extra_preview_tag);
+	if (preview_tag == NONE)
+	{
+		return;
+	}
+
+	bitmap_group* group = bitmap_group_get(preview_tag);
+	if (group->bitmaps.count != k_digsite_extra_preview_bitmaps_in_map)
+	{
+		return;
+	}
+
+	const uint8* extra = (const uint8*)group + k_digsite_extra_preview_offset;
+	if (*(const int16*)(extra + 4) != k_digsite_extra_preview_width || *(const int16*)(extra + 6) != k_digsite_extra_preview_height)
+	{
+		// mainmenu.map without the extra preview
+		return;
+	}
+
+	tag_injection_extend_block(&group->bitmaps, sizeof(bitmap_data), 1);
+	csmemcpy(TAG_BLOCK_GET_ELEMENT(&group->bitmaps, k_digsite_extra_preview_bitmaps_in_map, bitmap_data), extra, sizeof(bitmap_data));
+	return;
+}
 
 // order of the DIGSITE list, by map file name (LAN edition: DIGSITE has no built-in levels any more, they are all
 // map files in digsite_maps; builtin_level is kept for the list format)
@@ -1651,6 +1700,21 @@ static bool __cdecl map_select_get_custom_map_ui_level_definition(const s_secure
 				wcsncpy_s((wchar_t*)(out_level_definition + 4), k_custom_map_name_length, name, _TRUNCATE);
 			}
 			csmemcpy(out_level_definition + 0x244, level->level_descriptions.description, sizeof(level->level_descriptions.description));
+		}
+
+		wchar_t file_name[MAX_PATH];
+		custom_map_file_get_name(entry->file_path, file_name, NUMBEROF(file_name));
+		for (const s_digsite_custom_map_description& override_description : k_digsite_custom_map_descriptions)
+		{
+			if (digsite_map_file_names_match(file_name, override_description.map_file_name))
+			{
+				wchar_t(*descriptions)[128] = (wchar_t(*)[128])(out_level_definition + 0x244);
+				for (uint32 language = 0; language < k_language_count; language++)
+				{
+					wcsncpy_s(descriptions[language], 128, override_description.description, _TRUNCATE);
+				}
+				break;
+			}
 		}
 
 		int16 bitmap_index = 0;
