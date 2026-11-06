@@ -853,6 +853,7 @@ static const wchar_t* const k_digsite_custom_map_files[] =
 	L"m1_assault",
 	L"m1_defense",
 	L"m1_exploration",
+	L"earthcity_e3",
 };
 
 // preview pictures of the DIGSITE map files, stored in preview bitmap tags that the LAN edition mainmenu.map doesn't otherwise use
@@ -885,12 +886,13 @@ static const s_digsite_custom_map_preview k_digsite_custom_map_previews[] =
 	{ L"soccer",           "ui\\code_global_bitmaps\\campaign16", 0 },
 	{ L"solitude",         "ui\\code_global_bitmaps\\campaign17", 0 },
 	{ L"sunken_chamber",   "ui\\code_global_bitmaps\\campaign18", 0 },
-	// these five share one tag that holds five bitmaps
+	// these six share one tag that holds six bitmaps
 	{ L"arcology",         "ui\\code_global_bitmaps\\multiplayer49", 0 },
 	{ L"bloodgulch_test",  "ui\\code_global_bitmaps\\multiplayer49", 1 },
 	{ L"m1_assault",       "ui\\code_global_bitmaps\\multiplayer49", 2 },
 	{ L"m1_defense",       "ui\\code_global_bitmaps\\multiplayer49", 3 },
 	{ L"m1_exploration",   "ui\\code_global_bitmaps\\multiplayer49", 4 },
+	{ L"earthcity_e3",     "ui\\code_global_bitmaps\\multiplayer49", 5 },
 };
 
 // order of the DIGSITE list; built-in levels are named by the last part of their scenario path, map files by file name
@@ -937,6 +939,7 @@ static const s_digsite_list_entry k_digsite_list_order[] =
 	{ false, L"m1_defense" },         // M1 Defense
 	{ false, L"m1_exploration" },     // M1 Exploration
 	{ false, L"earth_ark" },          // Earth Ark
+	{ false, L"earthcity_e3" },       // E3 2003 Demo (campaign map)
 };
 
 // the DEFAULT list ends at this level (Tombstone), everything sorted after it is listed under DIGSITE
@@ -1638,7 +1641,7 @@ static bool custom_map_is_campaign(const s_secure_map_id* id, char* out_scenario
 	{
 		return false;
 	}
-	strncpy_s(out_scenario_path, out_scenario_path_size, header.path, _TRUNCATE);
+	strncpy_s(out_scenario_path, out_scenario_path_size, header.scenario_path, _TRUNCATE);
 	return true;
 }
 
