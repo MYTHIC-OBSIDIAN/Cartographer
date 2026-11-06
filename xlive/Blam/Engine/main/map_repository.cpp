@@ -106,7 +106,7 @@ bool __thiscall c_map_manager::remove_marked_for_deletion()
 {
 	c_critical_section_scope lock(m_lock);
 
-	// runs at the end of the custom maps folder scan: DIGSITE maps come from the game's maps folder instead
+	// runs at the end of the custom maps folder scan: DIGSITE maps come from the digsite_maps folder instead
 	digsite_custom_maps_synchronize(this);
 
 	bool maps_removed = false;
@@ -1059,7 +1059,7 @@ static bool custom_map_file_is_digsite(const wchar_t* file_path)
 	return false;
 }
 
-// <game install folder>\maps\ (DIGSITE map files are read from here, not from the custom maps folder)
+// <game install folder>\digsite_maps\ (DIGSITE map files are read from here, not from the maps or custom maps folders)
 static const wchar_t* digsite_get_game_maps_folder(void)
 {
 	static wchar_t s_game_maps_folder[MAX_PATH] = L"";
@@ -1073,7 +1073,7 @@ static const wchar_t* digsite_get_game_maps_folder(void)
 			if (last_separator != nullptr)
 			{
 				last_separator[1] = L'\0';
-				swprintf_s(s_game_maps_folder, L"%smaps\\", exe_path);
+				swprintf_s(s_game_maps_folder, L"%sdigsite_maps\\", exe_path);
 			}
 		}
 	}
@@ -1155,7 +1155,7 @@ static void digsite_custom_maps_synchronize(c_map_manager* manager)
 		}
 	}
 
-	// DIGSITE map files in the game's maps folder: keep the ones already loaded, queue new or changed ones
+	// DIGSITE map files in the digsite_maps folder: keep the ones already loaded, queue new or changed ones
 	const wchar_t* game_maps_folder = digsite_get_game_maps_folder();
 	if (game_maps_folder[0] == L'\0')
 	{
@@ -1244,7 +1244,7 @@ static uint32 custom_map_list_get_ids_for_tab(s_secure_map_id* out_ids, uint32 o
 	for (uint16 i = 0; i < manager->m_map_count; i++)
 	{
 		const s_custom_map_entry* entry = &manager->m_new_custom_map_entry_list_buffer[i];
-		// CUSTOM: everything except DIGSITE map files, DIGSITE: DIGSITE map files from the game's maps folder only
+		// CUSTOM: everything except DIGSITE map files, DIGSITE: DIGSITE map files from the digsite_maps folder only
 		const bool include = (digsite
 			? custom_map_entry_is_game_maps_folder_digsite(entry)
 			: !custom_map_file_is_digsite(entry->file_path));
