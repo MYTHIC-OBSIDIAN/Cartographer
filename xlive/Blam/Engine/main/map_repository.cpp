@@ -978,6 +978,7 @@ static const s_digsite_list_entry k_digsite_list_order[] =
 	{ false, L"grotto" },             // Grotto
 	{ false, L"missile_beach" },      // Missile Beach
 	{ false, L"overboard" },          // Overboard
+	{ false, L"permafrost" },         // Permafrost
 	{ false, L"rodentia" },           // Rodentia
 	{ false, L"shaft" },              // Shaft
 	{ false, L"solitude" },           // Solitude
@@ -1001,7 +1002,6 @@ static const s_digsite_list_entry k_digsite_list_order[] =
 	{ false, L"m1_exploration" },     // M1 Exploration
 	{ false, L"earth_ark" },          // Earth Ark
 	{ false, L"earthcity_e3" },       // E3 2003 Demo (campaign map)
-	{ false, L"permafrost" },         // Permafrost
 };
 
 // the DEFAULT list ends at this level (Tombstone), everything sorted after it is listed under DIGSITE
