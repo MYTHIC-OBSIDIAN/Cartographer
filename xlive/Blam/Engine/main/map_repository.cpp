@@ -951,7 +951,7 @@ void digsite_apply_patches_on_map_load(void)
 	}
 
 	tag_injection_extend_block(&group->bitmaps, sizeof(bitmap_data), 1);
-	csmemcpy(TAG_BLOCK_GET_ELEMENT(&group->bitmaps, k_digsite_extra_preview_bitmaps_in_map, bitmap_data), extra, sizeof(bitmap_data));
+	csmemcpy(TAG_BLOCK_GET_ELEMENT((s_tag_block*)&group->bitmaps, k_digsite_extra_preview_bitmaps_in_map, bitmap_data), extra, sizeof(bitmap_data));
 	return;
 }
 
