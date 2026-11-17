@@ -135,6 +135,13 @@ static uint32 afk_movie_last_input_ticks(uint32 now)
 	{
 		g_afk_movie_last_input_ticks = last_input.dwTime;
 	}
+
+	// input that arrived after "now" was read is newer than now: count it as now, or now - last input wraps around to
+	// about 49 days and the movie starts straight away
+	if ((int32)(g_afk_movie_last_input_ticks - now) > 0)
+	{
+		g_afk_movie_last_input_ticks = now;
+	}
 	return g_afk_movie_last_input_ticks;
 }
 
@@ -217,7 +224,7 @@ void wmv_afk_movie_update(void)
 		g_afk_movie_waiting_for_input = false;
 	}
 
-	if (now - last_input < k_afk_movie_idle_milliseconds)
+	if ((int32)(now - last_input) < (int32)k_afk_movie_idle_milliseconds)
 	{
 		return;
 	}
