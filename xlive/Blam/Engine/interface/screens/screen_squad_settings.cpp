@@ -24,6 +24,9 @@
 #include "saved_games/game_variant.h"
 
 #include "tag_files/tag_loader/tag_injection.h"
+
+#include <intrin.h>
+#include <stdarg.h>
 #include "text/text_group.h"
 
 
@@ -861,6 +864,43 @@ static bool __fastcall network_session_set_maximum_peers_coop(c_network_session*
 	return INVOKE_TYPE(0x1C5D3F, 0x0, bool(__thiscall*)(c_network_session*, int32), session, max_peers);
 }
 
+// LAN edition: co-op diagnostics, simulation abort hooks (see system_link_coop_debug_update)
+static void coop_debug_event(const char* format, ...);
+
+typedef void(__cdecl* simulation_abort_t)(void);
+static simulation_abort_t p_simulation_abort_world;	// halo2.exe 0x5AE234
+static simulation_abort_t p_simulation_abort_end;	// halo2.exe 0x5AE8D1
+
+static uint32 coop_debug_exe_address(void* address)
+{
+	return (uint32)address - (uint32)GetModuleHandle(NULL) + 0x400000;
+}
+
+static void coop_debug_simulation_state(const char* label, void* return_address)
+{
+	const uint8* simulation_globals = (const uint8*)Memory::GetAddressRelative(0x9178D0);
+	const uint8* world = *(const uint8**)Memory::GetAddressRelative(0x9178DC);
+	coop_debug_event("%s called from 0x%08X: initialized=%d fatal=%d aborted=%d d9=%d world=%p world_type=%d world_flag_2C=%d",
+		label,
+		coop_debug_exe_address(return_address),
+		simulation_globals[0], simulation_globals[1], simulation_globals[2], simulation_globals[9],
+		world,
+		world ? *(const int32*)(world + 0x8) : -1,
+		world ? world[0x2C] : -1);
+}
+
+static void __cdecl simulation_abort_world_hook(void)
+{
+	coop_debug_simulation_state("SIMULATION ABORT (world)", _ReturnAddress());
+	p_simulation_abort_world();
+}
+
+static void __cdecl simulation_abort_end_hook(void)
+{
+	coop_debug_simulation_state("SIMULATION ABORT (game end)", _ReturnAddress());
+	p_simulation_abort_end();
+}
+
 void c_screen_squad_settings::apply_instance_patches()
 {
 	//Replace orignal call with custom one inside pregame_lobby
@@ -880,6 +920,9 @@ void c_screen_squad_settings::apply_instance_patches()
 	WriteBytes(Memory::GetAddressRelative(0x6165EE), (LPVOID)coop_all_local_check, sizeof(coop_all_local_check));
 
 	PatchCall(Memory::GetAddressRelative(0x5D9A81), network_session_set_maximum_peers_coop);
+
+	DETOUR_ATTACH(p_simulation_abort_world, Memory::GetAddressRelative<simulation_abort_t>(0x5AE234), simulation_abort_world_hook);
+	DETOUR_ATTACH(p_simulation_abort_end, Memory::GetAddressRelative<simulation_abort_t>(0x5AE8D1), simulation_abort_end_hook);
 }
 
 void c_screen_squad_settings::apply_patches_on_map_load()
@@ -981,6 +1024,16 @@ static void coop_debug_write(const char* line)
 	fflush(g_coop_debug_file);
 }
 
+static void coop_debug_event(const char* format, ...)
+{
+	char line[1024];
+	va_list args;
+	va_start(args, format);
+	_vsnprintf_s(line, sizeof(line), _TRUNCATE, format, args);
+	va_end(args);
+	coop_debug_write(line);
+}
+
 void system_link_coop_debug_update(void)
 {
 	if (!game_life_cycle_initialized())
@@ -1053,6 +1106,12 @@ void system_link_coop_debug_update(void)
 		}
 
 		COOP_DEBUG_APPEND(" | scenario=%ls", parameters->scenario_path);
+
+		const uint8* simulation_globals = (const uint8*)Memory::GetAddressRelative(0x9178D0);
+		const uint8* world = *(const uint8**)Memory::GetAddressRelative(0x9178DC);
+		COOP_DEBUG_APPEND(" | sim init=%d fatal=%d aborted=%d world_type=%d",
+			simulation_globals[0], simulation_globals[1], simulation_globals[2],
+			world ? *(const int32*)(world + 0x8) : -1);
 
 		if (life_cycle_changed || strcmp(line, g_coop_debug_last_line) != 0)
 		{
