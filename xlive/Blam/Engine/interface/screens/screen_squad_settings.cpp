@@ -849,6 +849,18 @@ static bool __fastcall network_session_is_full_coop_limit(void* session, void* e
 	return false;
 }
 
+// LAN edition: when a co-op game starts, the host limits the session to 1 machine (co-op was split-screen only),
+// which drops the remote System Link player. Keep room for the 2 co-op machines in System Link sessions.
+// c_network_session::set_maximum_peers(max_peers), halo2.exe 0x5C5D3F, called from the start game handler at 0x5D9A81
+static bool __fastcall network_session_set_maximum_peers_coop(c_network_session* session, void* edx, int32 max_peers)
+{
+	if (session->m_session_class == _network_session_class_system_link && max_peers < k_maximum_coop_players)
+	{
+		max_peers = k_maximum_coop_players;
+	}
+	return INVOKE_TYPE(0x1C5D3F, 0x0, bool(__thiscall*)(c_network_session*, int32), session, max_peers);
+}
+
 void c_screen_squad_settings::apply_instance_patches()
 {
 	//Replace orignal call with custom one inside pregame_lobby
@@ -866,6 +878,8 @@ void c_screen_squad_settings::apply_instance_patches()
 	WriteBytes(Memory::GetAddressRelative(0x6165E9), (LPVOID)coop_player_count_check, sizeof(coop_player_count_check));
 	const uint8 coop_all_local_check[] = { 0x3B, 0xFF };			// cmp edi, edi (was cmp edi, ebx: every player local)
 	WriteBytes(Memory::GetAddressRelative(0x6165EE), (LPVOID)coop_all_local_check, sizeof(coop_all_local_check));
+
+	PatchCall(Memory::GetAddressRelative(0x5D9A81), network_session_set_maximum_peers_coop);
 }
 
 void c_screen_squad_settings::apply_patches_on_map_load()
@@ -1001,8 +1015,10 @@ void system_link_coop_debug_update(void)
 
 		const int32 start_status = INVOKE_TYPE(0x216490, 0x0, int32(__cdecl*)(real32*), NULL);
 		const bool replies_to_search = INVOKE_TYPE(0x1ADA7B, 0x0, bool(__cdecl*)(c_network_session**), NULL);
+		static uint8 status_buffer[0x2000];
+		const bool status_built = INVOKE_TYPE(0x1B23C3, 0x0, bool(__cdecl*)(void*), status_buffer);
 
-		COOP_DEBUG_APPEND("SESSION life_cycle=%d protocol=%d local_state=%d mode=%d privacy=%d dedicated=%d max_peers=%d max_players=%d countdown=%d/%u delay=%u/%u start_status=%d replies_to_search=%d field_4C90=%u",
+		COOP_DEBUG_APPEND("SESSION life_cycle=%d protocol=%d local_state=%d mode=%d privacy=%d dedicated=%d max_peers=%d max_players=%d countdown=%d/%u delay=%u/%u start_status=%d replies_to_search=%d status_built=%d field_4C90=%u field_5EB8=%d",
 			life_cycle,
 			user_interface_squad_get_active_protocol(),
 			session->m_local_state,
@@ -1017,7 +1033,9 @@ void system_link_coop_debug_update(void)
 			parameters->countdown_delayed_timer,
 			start_status,
 			replies_to_search,
-			parameters->field_4C90);
+			status_built,
+			parameters->field_4C90,
+			(int32)(int16)parameters->field_5EB8);
 
 		COOP_DEBUG_APPEND(" | peers=%d local=%d host=%d", membership->peer_count, session->m_local_peer_index, session->m_session_host_peer_index);
 		for (int32 i = 0; i < membership->peer_count && i < (int32)NUMBEROF(membership->peers); i++)
