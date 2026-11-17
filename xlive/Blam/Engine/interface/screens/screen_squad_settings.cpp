@@ -921,6 +921,10 @@ void c_screen_squad_settings::apply_instance_patches()
 
 	PatchCall(Memory::GetAddressRelative(0x5D9A81), network_session_set_maximum_peers_coop);
 
+	// Starting a networked game from the session (halo2.exe 0x5D90FA) refused campaign games with more than 1 machine
+	// (cmp peer_count, 1 / jg fail at 0x5D928A). Allow the 2 co-op machines.
+	WriteValue<uint8>(Memory::GetAddressRelative(0x5D928A) + 2, (uint8)k_maximum_coop_players);
+
 	DETOUR_ATTACH(p_simulation_abort_world, Memory::GetAddressRelative<simulation_abort_t>(0x5AE234), simulation_abort_world_hook);
 	DETOUR_ATTACH(p_simulation_abort_end, Memory::GetAddressRelative<simulation_abort_t>(0x5AE8D1), simulation_abort_end_hook);
 }
