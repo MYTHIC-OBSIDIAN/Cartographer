@@ -901,6 +901,16 @@ static void __cdecl simulation_abort_end_hook(void)
 	p_simulation_abort_end();
 }
 
+typedef bool(__cdecl* network_game_start_t)(c_network_session* session, int32 a2);
+static network_game_start_t p_network_game_start;	// halo2.exe 0x5D90FA
+
+static bool __cdecl network_game_start_hook(c_network_session* session, int32 a2)
+{
+	const bool result = p_network_game_start(session, a2);
+	coop_debug_event("GAME START from session (called from 0x%08X): result=%d", coop_debug_exe_address(_ReturnAddress()), result);
+	return result;
+}
+
 void c_screen_squad_settings::apply_instance_patches()
 {
 	//Replace orignal call with custom one inside pregame_lobby
@@ -926,6 +936,7 @@ void c_screen_squad_settings::apply_instance_patches()
 	WriteValue<uint8>(Memory::GetAddressRelative(0x5D928A) + 2, (uint8)k_maximum_coop_players);
 
 	DETOUR_ATTACH(p_simulation_abort_world, Memory::GetAddressRelative<simulation_abort_t>(0x5AE234), simulation_abort_world_hook);
+	DETOUR_ATTACH(p_network_game_start, Memory::GetAddressRelative<network_game_start_t>(0x5D90FA), network_game_start_hook);
 	DETOUR_ATTACH(p_simulation_abort_end, Memory::GetAddressRelative<simulation_abort_t>(0x5AE8D1), simulation_abort_end_hook);
 }
 
