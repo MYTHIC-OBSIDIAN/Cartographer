@@ -16,6 +16,9 @@
 #include "main/map_repository.h"
 #include "main/level_definitions.h"
 #include "networking/network_event.h"
+#include "networking/logic/life_cycle_manager.h"
+#include "networking/logic/network_logic.h"
+#include "networking/logic/network_search.h"
 #include "networking/logic/network_session_interface.h"
 #include "networking/session/network_session.h"
 #include "saved_games/game_variant.h"
@@ -906,4 +909,179 @@ void c_screen_squad_settings::apply_patches_on_map_load()
 	}
 
 	return;
+}
+
+
+// LAN edition: System Link co-op diagnostics
+// Writes "coop_debug.txt" next to halo2.exe while a System Link session or the System Link browser is active.
+// A line is only written when the state changes, so the file stays small.
+
+static FILE* g_coop_debug_file = NULL;
+static bool g_coop_debug_file_failed = false;
+static char g_coop_debug_last_line[2048] = "";
+static char g_coop_debug_last_browser_line[2048] = "";
+static uint32 g_coop_debug_last_update = 0;
+static e_life_cycle_state g_coop_debug_last_life_cycle = _life_cycle_state_none;
+
+static void coop_debug_write(const char* line)
+{
+	if (g_coop_debug_file_failed)
+	{
+		return;
+	}
+
+	if (g_coop_debug_file == NULL)
+	{
+		wchar_t path[MAX_PATH];
+		DWORD length = GetModuleFileNameW(NULL, path, NUMBEROF(path));
+		if (length == 0 || length >= NUMBEROF(path))
+		{
+			g_coop_debug_file_failed = true;
+			return;
+		}
+		wchar_t* slash = wcsrchr(path, L'\\');
+		if (slash == NULL)
+		{
+			g_coop_debug_file_failed = true;
+			return;
+		}
+		slash[1] = L'\0';
+		wcscat_s(path, NUMBEROF(path), L"coop_debug.txt");
+		if (_wfopen_s(&g_coop_debug_file, path, L"w") != 0 || g_coop_debug_file == NULL)
+		{
+			g_coop_debug_file = NULL;
+			g_coop_debug_file_failed = true;
+			return;
+		}
+	}
+
+	// Keep the file to a sensible size
+	if (ftell(g_coop_debug_file) > 4 * 1024 * 1024)
+	{
+		return;
+	}
+
+	SYSTEMTIME time;
+	GetLocalTime(&time);
+	fprintf(g_coop_debug_file, "[%02d:%02d:%02d.%03d] %s\n", time.wHour, time.wMinute, time.wSecond, time.wMilliseconds, line);
+	fflush(g_coop_debug_file);
+}
+
+void system_link_coop_debug_update(void)
+{
+	if (!game_life_cycle_initialized())
+	{
+		return;
+	}
+
+	c_game_life_cycle_manager* life_cycle_manager = c_game_life_cycle_manager::get();
+	const e_life_cycle_state life_cycle = life_cycle_manager->get_life_cycle();
+
+	// Always record life cycle changes immediately once logging has started
+	const bool life_cycle_changed = life_cycle != g_coop_debug_last_life_cycle;
+	g_coop_debug_last_life_cycle = life_cycle;
+
+	const uint32 now = GetTickCount();
+	if (!life_cycle_changed && now - g_coop_debug_last_update < 250)
+	{
+		return;
+	}
+	g_coop_debug_last_update = now;
+
+	char line[2048];
+	int32 length = 0;
+	const int32 size = sizeof(line);
+#define COOP_DEBUG_APPEND(...) do { if (length < size) { int32 written = _snprintf_s(line + length, size - length, _TRUNCATE, __VA_ARGS__); length = written < 0 ? size : length + written; } } while (0)
+
+	c_network_session* session = NULL;
+	if (network_life_cycle_in_squad_session(&session) && session != NULL && session->m_session_class == _network_session_class_system_link)
+	{
+		const s_session_parameters* parameters = &session->m_session_parameters;
+		const s_session_membership* membership = &session->m_session_membership;
+
+		const int32 start_status = INVOKE_TYPE(0x216490, 0x0, int32(__cdecl*)(real32*), NULL);
+		const bool replies_to_search = INVOKE_TYPE(0x1ADA7B, 0x0, bool(__cdecl*)(c_network_session**), NULL);
+
+		COOP_DEBUG_APPEND("SESSION life_cycle=%d protocol=%d local_state=%d mode=%d privacy=%d dedicated=%d max_peers=%d max_players=%d countdown=%d/%u delay=%u/%u start_status=%d replies_to_search=%d field_4C90=%u",
+			life_cycle,
+			user_interface_squad_get_active_protocol(),
+			session->m_local_state,
+			parameters->session_mode,
+			parameters->party_privacy,
+			parameters->dedicated_server,
+			parameters->max_peers,
+			parameters->max_party_players,
+			parameters->countdown_running,
+			parameters->countdown_timer,
+			parameters->countdown_delay_reason,
+			parameters->countdown_delayed_timer,
+			start_status,
+			replies_to_search,
+			parameters->field_4C90);
+
+		COOP_DEBUG_APPEND(" | peers=%d local=%d host=%d", membership->peer_count, session->m_local_peer_index, session->m_session_host_peer_index);
+		for (int32 i = 0; i < membership->peer_count && i < (int32)NUMBEROF(membership->peers); i++)
+		{
+			COOP_DEBUG_APPEND(" [%d map=%d %u%%]", i, membership->peers[i].map_status, membership->peers[i].map_progress_percentage);
+		}
+
+		COOP_DEBUG_APPEND(" | players=%d", membership->player_count);
+		for (int32 i = 0; i < (int32)NUMBEROF(membership->players); i++)
+		{
+			if (TEST_BIT(membership->player_valid_flags, i))
+			{
+				COOP_DEBUG_APPEND(" [%d peer=%d user=%d]", i, membership->players[i].peer_index, membership->players[i].peer_user_index);
+			}
+		}
+
+		COOP_DEBUG_APPEND(" | scenario=%ls", parameters->scenario_path);
+
+		if (life_cycle_changed || strcmp(line, g_coop_debug_last_line) != 0)
+		{
+			strcpy_s(g_coop_debug_last_line, sizeof(g_coop_debug_last_line), line);
+			coop_debug_write(line);
+		}
+	}
+	else
+	{
+		// Not in a System Link squad: record what the System Link browser can see
+		const int32 count = network_search_session_count();
+		bool any = false;
+		COOP_DEBUG_APPEND("BROWSER life_cycle=%d", life_cycle);
+		for (int32 i = 0; i < count; i++)
+		{
+			s_available_session* available = network_search_session(i);
+			if (available == NULL)
+			{
+				continue;
+			}
+			any = true;
+			const s_network_squad_status_data_game_details* details = &available->status_data.game_details;
+			COOP_DEBUG_APPEND(" [%d valid=%d listed=%d status=%d version=%d mode=%d game_mode=%d game_state=%d game_type=%d engine=%d players=%d name=%ls]",
+				i,
+				available->session_valid,
+				available->field_44,
+				available->status_data_valid,
+				available->status_data.header.network_protocol_version,
+				available->status_data.session_mode,
+				details->game_mode,
+				details->game_state,
+				details->network_game_type,
+				details->game_engine_type,
+				details->player_count,
+				details->session_name);
+		}
+
+		if (!any)
+		{
+			COOP_DEBUG_APPEND(" (no sessions found)");
+		}
+
+		if ((any || life_cycle_changed) && strcmp(line, g_coop_debug_last_browser_line) != 0)
+		{
+			strcpy_s(g_coop_debug_last_browser_line, sizeof(g_coop_debug_last_browser_line), line);
+			coop_debug_write(line);
+		}
+	}
+#undef COOP_DEBUG_APPEND
 }
