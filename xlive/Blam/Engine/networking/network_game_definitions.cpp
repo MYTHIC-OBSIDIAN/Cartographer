@@ -23,10 +23,13 @@ void network_game_definitions_apply_patches()
 
 void network_game_definitions_encode_game_variant(c_bitstream* packet, s_game_variant* variant)
 {
+	// LAN edition: always write the engine index, like the original encoder does.
+	// Campaign (co-op) games have no multiplayer variant (engine index 0); writing nothing here left the receiver
+	// reading the next fields from the wrong bits, so System Link co-op session parameters failed to decode.
+	packet->write_integer("variant-game-engine-index", variant->variant_game_engine_index, k_game_engine_type_bits_required);
+
 	if (!variant->variant_game_engine_index)
 		return;
-
-	packet->write_integer("variant-game-engine-index", variant->variant_game_engine_index, k_game_engine_type_bits_required);
 
 	packet->write_integer("variant-flags", variant->flags, 1);
 
@@ -184,7 +187,8 @@ bool network_game_definitions_decode_game_variant(c_bitstream* packet, s_game_va
 	if (!variant->variant_game_engine_index)
 	{
 		csmemset(variant, 0, sizeof(s_game_variant));
-		return false;
+		// LAN edition: no variant (campaign / co-op) is valid, as in the original decoder
+		return true;
 	}
 
 	variant->flags = (int16)packet->read_integer("variant-flags", 1);
