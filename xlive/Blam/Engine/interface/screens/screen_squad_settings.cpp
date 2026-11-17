@@ -854,6 +854,15 @@ void c_screen_squad_settings::apply_instance_patches()
 	// LAN edition: co-op player limit, for local players signing in (split-screen) and for peers joining (System Link)
 	PatchCall(Memory::GetAddressRelative(0x5B2E63), network_session_is_full_coop_limit);
 	PatchCall(Memory::GetAddressRelative(0x5CAEF0), network_session_is_full_coop_limit);
+
+	// LAN edition: allow System Link co-op with the 2 players on different PCs
+	// The pregame start check (halo2.exe 0x616490) required exactly 2 players that are both local to this machine,
+	// otherwise it reports "Playing a co-op campaign requires 2 players on a single Xbox console" and blocks the start.
+	// Change it to require exactly 2 players in the session, local or remote.
+	const uint8 coop_player_count_check[] = { 0x83, 0xFF, 0x02 };	// cmp edi, 2 (was cmp ebx, 2: local player count)
+	WriteBytes(Memory::GetAddressRelative(0x6165E9), (LPVOID)coop_player_count_check, sizeof(coop_player_count_check));
+	const uint8 coop_all_local_check[] = { 0x3B, 0xFF };			// cmp edi, edi (was cmp edi, ebx: every player local)
+	WriteBytes(Memory::GetAddressRelative(0x6165EE), (LPVOID)coop_all_local_check, sizeof(coop_all_local_check));
 }
 
 void c_screen_squad_settings::apply_patches_on_map_load()
