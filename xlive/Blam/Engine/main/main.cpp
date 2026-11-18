@@ -31,7 +31,6 @@
 #include "input/input_windows.h"
 #include "interface/terminal.h"
 #include "interface/user_interface.h"
-#include "interface/screens/screen_squad_settings.h"
 #include "networking/logic/life_cycle_manager.h"
 #include "networking/logic/network_search.h"
 #include "networking/panorama/panorama_presence.h"
@@ -377,7 +376,6 @@ void main_loop_body(void)
 			network_update();
 			simulation_update();
 			life_cycle_update();
-			system_link_coop_debug_update();
 
 			if (simulation_in_progress())
 			{

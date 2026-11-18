@@ -71,6 +71,3 @@ public:
 	virtual const void* load_proc(void) const override;
 };
 ASSERT_STRUCT_SIZE(c_screen_squad_settings, 0xEC4);
-
-// LAN edition: writes coop_debug.txt next to halo2.exe while in a System Link session or browsing System Link games
-void system_link_coop_debug_update(void);

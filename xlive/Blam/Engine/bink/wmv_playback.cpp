@@ -20,7 +20,7 @@ void __cdecl wmv_render(void)
 	return;
 }
 
-// LAN edition: <halo2.exe folder>\movie\afk.wmv plays once after 3 minutes without input on the main menu
+// LAN edition: <halo2.exe folder>\movie\afk.wmv plays after 3 minutes without input on the main menu
 // (not in a lobby); any key, mouse or controller input stops it, and the timer starts again afterwards
 
 #include "game/game.h"
@@ -61,9 +61,6 @@ static uint32 g_afk_movie_last_input_ticks = 0;
 static uint32 g_afk_movie_started_ticks = 0;
 static bool g_afk_movie_playing = false;
 static bool g_afk_movie_missing = false;
-// the movie played to the end: it doesn't play again until there has been input
-static bool g_afk_movie_waiting_for_input = false;
-static uint32 g_afk_movie_finished_ticks = 0;
 static WORD g_afk_movie_last_buttons[XUSER_MAX_COUNT] = {};
 
 static t_xinput_get_state afk_movie_xinput_get_state(void)
@@ -135,13 +132,6 @@ static uint32 afk_movie_last_input_ticks(uint32 now)
 	{
 		g_afk_movie_last_input_ticks = last_input.dwTime;
 	}
-
-	// input that arrived after "now" was read is newer than now: count it as now, or now - last input wraps around to
-	// about 49 days and the movie starts straight away
-	if ((int32)(g_afk_movie_last_input_ticks - now) > 0)
-	{
-		g_afk_movie_last_input_ticks = now;
-	}
 	return g_afk_movie_last_input_ticks;
 }
 
@@ -186,13 +176,9 @@ void wmv_afk_movie_update(void)
 	{
 		if (!wmv_playback_in_progress())
 		{
-			// finished, or skipped with a button the game checks: after a skip it plays again after 3 more idle minutes,
-			// after playing to the end only once there has been input
-			const bool skipped = (int32)(last_input - g_afk_movie_started_ticks) > (int32)k_afk_movie_input_grace_milliseconds;
+			// finished or skipped: wait another 3 minutes
 			g_afk_movie_playing = false;
 			g_afk_movie_last_input_ticks = now;
-			g_afk_movie_waiting_for_input = !skipped;
-			g_afk_movie_finished_ticks = now;
 		}
 		else if (now - g_afk_movie_started_ticks > k_afk_movie_input_grace_milliseconds
 			&& (int32)(last_input - g_afk_movie_started_ticks) > (int32)k_afk_movie_input_grace_milliseconds)
@@ -201,7 +187,6 @@ void wmv_afk_movie_update(void)
 			wmv_stop();
 			g_afk_movie_playing = false;
 			g_afk_movie_last_input_ticks = now;
-			g_afk_movie_waiting_for_input = false;
 		}
 		return;
 	}
@@ -214,17 +199,7 @@ void wmv_afk_movie_update(void)
 		return;
 	}
 
-	if (g_afk_movie_waiting_for_input)
-	{
-		if ((int32)(last_input - g_afk_movie_finished_ticks) <= 0)
-		{
-			// still idle since the movie finished: play it only once per idle stretch
-			return;
-		}
-		g_afk_movie_waiting_for_input = false;
-	}
-
-	if ((int32)(now - last_input) < (int32)k_afk_movie_idle_milliseconds)
+	if (now - last_input < k_afk_movie_idle_milliseconds)
 	{
 		return;
 	}

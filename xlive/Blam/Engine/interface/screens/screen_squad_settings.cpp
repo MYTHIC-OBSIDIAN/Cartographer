@@ -16,17 +16,11 @@
 #include "main/map_repository.h"
 #include "main/level_definitions.h"
 #include "networking/network_event.h"
-#include "networking/logic/life_cycle_manager.h"
-#include "networking/logic/network_logic.h"
-#include "networking/logic/network_search.h"
 #include "networking/logic/network_session_interface.h"
 #include "networking/session/network_session.h"
 #include "saved_games/game_variant.h"
 
 #include "tag_files/tag_loader/tag_injection.h"
-
-#include <intrin.h>
-#include <stdarg.h>
 #include "text/text_group.h"
 
 
@@ -192,8 +186,7 @@ c_squad_settings_list::c_squad_settings_list(int16 user_flags) :
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_map;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_variant;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_quick_options;
-		// LAN edition: System Link co-op enabled for testing (Cartographer only showed an "Access Denied" message)
-		SQUAD_ITEM_GET_NEW()->item_id = _item_switch_to_coop;
+		// LAN edition: no Switch to Co-op in System Link (Cartographer only showed an "Access Denied" message)
 		SQUAD_ITEM_GET_NEW()->item_id = _item_rename_squad;
 		break;
 
@@ -466,7 +459,8 @@ void c_squad_settings_list::handle_item_switch_to_coop(
 	{
 		screen_error_ok_dialog_show(_user_interface_channel_type_game_error, _ui_error_beta_feature_disabled, _window_4, FLAG(event->controller), 0, 0);
 	}
-	else if (network_squad_session_get_session_class() == _network_session_class_xbox_live)
+	else if (network_squad_session_get_session_class() == _network_session_class_system_link
+		|| network_squad_session_get_session_class() == _network_session_class_xbox_live)
 	{
 		screen_error_ok_dialog_with_custom_text(
 			_user_interface_channel_type_gameshell_dialog,
@@ -852,65 +846,6 @@ static bool __fastcall network_session_is_full_coop_limit(void* session, void* e
 	return false;
 }
 
-// LAN edition: when a co-op game starts, the host limits the session to 1 machine (co-op was split-screen only),
-// which drops the remote System Link player. Keep room for the 2 co-op machines in System Link sessions.
-// c_network_session::set_maximum_peers(max_peers), halo2.exe 0x5C5D3F, called from the start game handler at 0x5D9A81
-static bool __fastcall network_session_set_maximum_peers_coop(c_network_session* session, void* edx, int32 max_peers)
-{
-	if (session->m_session_class == _network_session_class_system_link && max_peers < k_maximum_coop_players)
-	{
-		max_peers = k_maximum_coop_players;
-	}
-	return INVOKE_TYPE(0x1C5D3F, 0x0, bool(__thiscall*)(c_network_session*, int32), session, max_peers);
-}
-
-// LAN edition: co-op diagnostics, simulation abort hooks (see system_link_coop_debug_update)
-static void coop_debug_event(const char* format, ...);
-
-typedef void(__cdecl* simulation_abort_t)(void);
-static simulation_abort_t p_simulation_abort_world;	// halo2.exe 0x5AE234
-static simulation_abort_t p_simulation_abort_end;	// halo2.exe 0x5AE8D1
-
-static uint32 coop_debug_exe_address(void* address)
-{
-	return (uint32)address - (uint32)GetModuleHandle(NULL) + 0x400000;
-}
-
-static void coop_debug_simulation_state(const char* label, void* return_address)
-{
-	const uint8* simulation_globals = (const uint8*)Memory::GetAddressRelative(0x9178D0);
-	const uint8* world = *(const uint8**)Memory::GetAddressRelative(0x9178DC);
-	coop_debug_event("%s called from 0x%08X: initialized=%d fatal=%d aborted=%d d9=%d world=%p world_type=%d world_flag_2C=%d",
-		label,
-		coop_debug_exe_address(return_address),
-		simulation_globals[0], simulation_globals[1], simulation_globals[2], simulation_globals[9],
-		world,
-		world ? *(const int32*)(world + 0x8) : -1,
-		world ? world[0x2C] : -1);
-}
-
-static void __cdecl simulation_abort_world_hook(void)
-{
-	coop_debug_simulation_state("SIMULATION ABORT (world)", _ReturnAddress());
-	p_simulation_abort_world();
-}
-
-static void __cdecl simulation_abort_end_hook(void)
-{
-	coop_debug_simulation_state("SIMULATION ABORT (game end)", _ReturnAddress());
-	p_simulation_abort_end();
-}
-
-typedef bool(__cdecl* network_game_start_t)(c_network_session* session, int32 a2);
-static network_game_start_t p_network_game_start;	// halo2.exe 0x5D90FA
-
-static bool __cdecl network_game_start_hook(c_network_session* session, int32 a2)
-{
-	const bool result = p_network_game_start(session, a2);
-	coop_debug_event("GAME START from session (called from 0x%08X): result=%d", coop_debug_exe_address(_ReturnAddress()), result);
-	return result;
-}
-
 void c_screen_squad_settings::apply_instance_patches()
 {
 	//Replace orignal call with custom one inside pregame_lobby
@@ -919,25 +854,6 @@ void c_screen_squad_settings::apply_instance_patches()
 	// LAN edition: co-op player limit, for local players signing in (split-screen) and for peers joining (System Link)
 	PatchCall(Memory::GetAddressRelative(0x5B2E63), network_session_is_full_coop_limit);
 	PatchCall(Memory::GetAddressRelative(0x5CAEF0), network_session_is_full_coop_limit);
-
-	// LAN edition: allow System Link co-op with the 2 players on different PCs
-	// The pregame start check (halo2.exe 0x616490) required exactly 2 players that are both local to this machine,
-	// otherwise it reports "Playing a co-op campaign requires 2 players on a single Xbox console" and blocks the start.
-	// Change it to require exactly 2 players in the session, local or remote.
-	const uint8 coop_player_count_check[] = { 0x83, 0xFF, 0x02 };	// cmp edi, 2 (was cmp ebx, 2: local player count)
-	WriteBytes(Memory::GetAddressRelative(0x6165E9), (LPVOID)coop_player_count_check, sizeof(coop_player_count_check));
-	const uint8 coop_all_local_check[] = { 0x3B, 0xFF };			// cmp edi, edi (was cmp edi, ebx: every player local)
-	WriteBytes(Memory::GetAddressRelative(0x6165EE), (LPVOID)coop_all_local_check, sizeof(coop_all_local_check));
-
-	PatchCall(Memory::GetAddressRelative(0x5D9A81), network_session_set_maximum_peers_coop);
-
-	// Starting a networked game from the session (halo2.exe 0x5D90FA) refused campaign games with more than 1 machine
-	// (cmp peer_count, 1 / jg fail at 0x5D928A). Allow the 2 co-op machines.
-	WriteValue<uint8>(Memory::GetAddressRelative(0x5D928A) + 2, (uint8)k_maximum_coop_players);
-
-	DETOUR_ATTACH(p_simulation_abort_world, Memory::GetAddressRelative<simulation_abort_t>(0x5AE234), simulation_abort_world_hook);
-	DETOUR_ATTACH(p_network_game_start, Memory::GetAddressRelative<network_game_start_t>(0x5D90FA), network_game_start_hook);
-	DETOUR_ATTACH(p_simulation_abort_end, Memory::GetAddressRelative<simulation_abort_t>(0x5AE8D1), simulation_abort_end_hook);
 }
 
 void c_screen_squad_settings::apply_patches_on_map_load()
@@ -981,199 +897,4 @@ void c_screen_squad_settings::apply_patches_on_map_load()
 	}
 
 	return;
-}
-
-
-// LAN edition: System Link co-op diagnostics
-// Writes "coop_debug.txt" next to halo2.exe while a System Link session or the System Link browser is active.
-// A line is only written when the state changes, so the file stays small.
-
-static FILE* g_coop_debug_file = NULL;
-static bool g_coop_debug_file_failed = false;
-static char g_coop_debug_last_line[2048] = "";
-static char g_coop_debug_last_browser_line[2048] = "";
-static uint32 g_coop_debug_last_update = 0;
-static e_life_cycle_state g_coop_debug_last_life_cycle = _life_cycle_state_none;
-
-static void coop_debug_write(const char* line)
-{
-	if (g_coop_debug_file_failed)
-	{
-		return;
-	}
-
-	if (g_coop_debug_file == NULL)
-	{
-		wchar_t path[MAX_PATH];
-		DWORD length = GetModuleFileNameW(NULL, path, NUMBEROF(path));
-		if (length == 0 || length >= NUMBEROF(path))
-		{
-			g_coop_debug_file_failed = true;
-			return;
-		}
-		wchar_t* slash = wcsrchr(path, L'\\');
-		if (slash == NULL)
-		{
-			g_coop_debug_file_failed = true;
-			return;
-		}
-		slash[1] = L'\0';
-		wcscat_s(path, NUMBEROF(path), L"coop_debug.txt");
-		if (_wfopen_s(&g_coop_debug_file, path, L"w") != 0 || g_coop_debug_file == NULL)
-		{
-			g_coop_debug_file = NULL;
-			g_coop_debug_file_failed = true;
-			return;
-		}
-	}
-
-	// Keep the file to a sensible size
-	if (ftell(g_coop_debug_file) > 4 * 1024 * 1024)
-	{
-		return;
-	}
-
-	SYSTEMTIME time;
-	GetLocalTime(&time);
-	fprintf(g_coop_debug_file, "[%02d:%02d:%02d.%03d] %s\n", time.wHour, time.wMinute, time.wSecond, time.wMilliseconds, line);
-	fflush(g_coop_debug_file);
-}
-
-static void coop_debug_event(const char* format, ...)
-{
-	char line[1024];
-	va_list args;
-	va_start(args, format);
-	_vsnprintf_s(line, sizeof(line), _TRUNCATE, format, args);
-	va_end(args);
-	coop_debug_write(line);
-}
-
-void system_link_coop_debug_update(void)
-{
-	if (!game_life_cycle_initialized())
-	{
-		return;
-	}
-
-	c_game_life_cycle_manager* life_cycle_manager = c_game_life_cycle_manager::get();
-	const e_life_cycle_state life_cycle = life_cycle_manager->get_life_cycle();
-
-	// Always record life cycle changes immediately once logging has started
-	const bool life_cycle_changed = life_cycle != g_coop_debug_last_life_cycle;
-	g_coop_debug_last_life_cycle = life_cycle;
-
-	const uint32 now = GetTickCount();
-	if (!life_cycle_changed && now - g_coop_debug_last_update < 250)
-	{
-		return;
-	}
-	g_coop_debug_last_update = now;
-
-	char line[2048];
-	int32 length = 0;
-	const int32 size = sizeof(line);
-#define COOP_DEBUG_APPEND(...) do { if (length < size) { int32 written = _snprintf_s(line + length, size - length, _TRUNCATE, __VA_ARGS__); length = written < 0 ? size : length + written; } } while (0)
-
-	c_network_session* session = NULL;
-	if (network_life_cycle_in_squad_session(&session) && session != NULL && session->m_session_class == _network_session_class_system_link)
-	{
-		const s_session_parameters* parameters = &session->m_session_parameters;
-		const s_session_membership* membership = &session->m_session_membership;
-
-		const int32 start_status = INVOKE_TYPE(0x216490, 0x0, int32(__cdecl*)(real32*), NULL);
-		const bool replies_to_search = INVOKE_TYPE(0x1ADA7B, 0x0, bool(__cdecl*)(c_network_session**), NULL);
-		static uint8 status_buffer[0x2000];
-		const bool status_built = INVOKE_TYPE(0x1B23C3, 0x0, bool(__cdecl*)(void*), status_buffer);
-
-		COOP_DEBUG_APPEND("SESSION life_cycle=%d protocol=%d local_state=%d mode=%d privacy=%d dedicated=%d max_peers=%d max_players=%d countdown=%d/%u delay=%u/%u start_status=%d replies_to_search=%d status_built=%d field_4C90=%u field_5EB8=%d",
-			life_cycle,
-			user_interface_squad_get_active_protocol(),
-			session->m_local_state,
-			parameters->session_mode,
-			parameters->party_privacy,
-			parameters->dedicated_server,
-			parameters->max_peers,
-			parameters->max_party_players,
-			parameters->countdown_running,
-			parameters->countdown_timer,
-			parameters->countdown_delay_reason,
-			parameters->countdown_delayed_timer,
-			start_status,
-			replies_to_search,
-			status_built,
-			parameters->field_4C90,
-			(int32)(int16)parameters->field_5EB8);
-
-		COOP_DEBUG_APPEND(" | peers=%d local=%d host=%d", membership->peer_count, session->m_local_peer_index, session->m_session_host_peer_index);
-		for (int32 i = 0; i < membership->peer_count && i < (int32)NUMBEROF(membership->peers); i++)
-		{
-			COOP_DEBUG_APPEND(" [%d map=%d %u%%]", i, membership->peers[i].map_status, membership->peers[i].map_progress_percentage);
-		}
-
-		COOP_DEBUG_APPEND(" | players=%d", membership->player_count);
-		for (int32 i = 0; i < (int32)NUMBEROF(membership->players); i++)
-		{
-			if (TEST_BIT(membership->player_valid_flags, i))
-			{
-				COOP_DEBUG_APPEND(" [%d peer=%d user=%d]", i, membership->players[i].peer_index, membership->players[i].peer_user_index);
-			}
-		}
-
-		COOP_DEBUG_APPEND(" | scenario=%ls", parameters->scenario_path);
-
-		const uint8* simulation_globals = (const uint8*)Memory::GetAddressRelative(0x9178D0);
-		const uint8* world = *(const uint8**)Memory::GetAddressRelative(0x9178DC);
-		COOP_DEBUG_APPEND(" | sim init=%d fatal=%d aborted=%d world_type=%d",
-			simulation_globals[0], simulation_globals[1], simulation_globals[2],
-			world ? *(const int32*)(world + 0x8) : -1);
-
-		if (life_cycle_changed || strcmp(line, g_coop_debug_last_line) != 0)
-		{
-			strcpy_s(g_coop_debug_last_line, sizeof(g_coop_debug_last_line), line);
-			coop_debug_write(line);
-		}
-	}
-	else
-	{
-		// Not in a System Link squad: record what the System Link browser can see
-		const int32 count = network_search_session_count();
-		bool any = false;
-		COOP_DEBUG_APPEND("BROWSER life_cycle=%d", life_cycle);
-		for (int32 i = 0; i < count; i++)
-		{
-			s_available_session* available = network_search_session(i);
-			if (available == NULL)
-			{
-				continue;
-			}
-			any = true;
-			const s_network_squad_status_data_game_details* details = &available->status_data.game_details;
-			COOP_DEBUG_APPEND(" [%d valid=%d listed=%d status=%d version=%d mode=%d game_mode=%d game_state=%d game_type=%d engine=%d players=%d name=%ls]",
-				i,
-				available->session_valid,
-				available->field_44,
-				available->status_data_valid,
-				available->status_data.header.network_protocol_version,
-				available->status_data.session_mode,
-				details->game_mode,
-				details->game_state,
-				details->network_game_type,
-				details->game_engine_type,
-				details->player_count,
-				details->session_name);
-		}
-
-		if (!any)
-		{
-			COOP_DEBUG_APPEND(" (no sessions found)");
-		}
-
-		if ((any || life_cycle_changed) && strcmp(line, g_coop_debug_last_browser_line) != 0)
-		{
-			strcpy_s(g_coop_debug_last_browser_line, sizeof(g_coop_debug_last_browser_line), line);
-			coop_debug_write(line);
-		}
-	}
-#undef COOP_DEBUG_APPEND
 }
