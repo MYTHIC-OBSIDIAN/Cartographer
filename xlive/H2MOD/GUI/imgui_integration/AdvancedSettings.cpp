@@ -824,75 +824,7 @@ namespace ImGuiHandler {
 					}
 				}
 			}
-			void GameSettings()
-			{
-				if (ImGui::CollapsingHeader(advanced_settings_get_string(_advanced_string_game_title)))
-				{
-					ImGui::Columns(2, NULL, false);
-
-					TextVerticalPad(advanced_settings_get_string(_advanced_string_discord_presence));
-					ImGui::SameLine(ImGui::GetColumnWidth() - 35);
-					ImGui::Checkbox("##DRP", &H2Config_discord_enable);
-
-					TextVerticalPad(advanced_settings_get_string(_advanced_string_upnp_title));
-					ImGui::SameLine(ImGui::GetColumnWidth() - 35);
-					ImGui::Checkbox("##upnp", &H2Config_upnp_enable);
-					if (ImGui::IsItemHovered())
-					{
-						ImGui::SetTooltip(advanced_settings_get_string(_advanced_string_upnp_tooltip));
-					}
-
-					TextVerticalPad(advanced_settings_get_string(_advanced_string_no_events_title));
-					ImGui::SameLine(ImGui::GetColumnWidth() - 35);
-					ImGui::Checkbox("##no_events", &H2Config_no_events);
-					if (ImGui::IsItemHovered())
-						ImGui::SetTooltip(advanced_settings_get_string(_advanced_string_no_events_tooltip));
-
-					if (get_current_special_event() == _special_event_halloween) {
-						TextVerticalPad(advanced_settings_get_string(_advanced_string_skeleton_biped));
-						ImGui::SameLine(ImGui::GetColumnWidth() - 35);
-						ImGui::Checkbox("##spooky_scary", &H2Config_spooky_boy);
-						if (ImGui::IsItemHovered())
-							ImGui::SetTooltip(advanced_settings_get_string(_advanced_string_skeleton_biped_tooltip));
-					}
-
-					// next column elements now
-					//Skip Intro
-					ImGui::NextColumn();
-					TextVerticalPad(advanced_settings_get_string(_advanced_string_disable_intro_videos));
-					ImGui::SameLine(ImGui::GetColumnWidth() - 35);
-					ImGui::Checkbox("##Intro", &H2Config_skip_intro);
-
-					ImGui::Columns(1);
-
-					ImGui::Text(advanced_settings_get_string(_advanced_string_language));
-
-					const char* lang_items[]
-					{
-						advanced_settings_get_string(_advanced_string_lang_english),
-						advanced_settings_get_string(_advanced_string_lang_japanese),
-						advanced_settings_get_string(_advanced_string_lang_german),
-						advanced_settings_get_string(_advanced_string_lang_french),
-						advanced_settings_get_string(_advanced_string_lang_spanish),
-						advanced_settings_get_string(_advanced_string_lang_italian),
-						advanced_settings_get_string(_advanced_string_lang_korean),
-						advanced_settings_get_string(_advanced_string_lang_chinese),
-						advanced_settings_get_string(_advanced_string_lang_native) 
-					};
-
-					ImGui::PushItemWidth(ImGui::GetColumnWidth());
-					if (ImGui::Combo("##Language_Selection", (int*)&g_language, lang_items, k_language_count))
-					{
-						H2Config_language.code_main = (g_language == 8 ? -1 : g_language);
-						setCustomLanguage(H2Config_language.code_main, H2Config_language.code_variant);
-					}
-					ImGui::PopItemWidth();
-
-
-					ImGui::Columns(1);
-					ImGui::NewLine();
-				}
-			}
+			// LAN edition: the Game Settings section (Discord, UPnP, events, intro videos, language) was removed
 		}
 
 		
@@ -933,7 +865,7 @@ namespace ImGuiHandler {
 				if (g_advanced_settings_current_controller_index == _controller0)
 				{
 					HostSettings();
-					GameSettings();
+					// LAN edition: no Game Settings section
 				}
 
 #ifndef NDEBUG

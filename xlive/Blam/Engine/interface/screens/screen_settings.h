@@ -13,7 +13,7 @@ enum
 	// -h2v tag visible items : 6 , screen class items : 7
 	// -both have an extra "unused" item which might be the incomplete ui\screens\game_shell\settings_screen\extras\extras_enabled_dialog.wgit
 	// -it has the texts done and looks semi-okayish , should be worth restoring
-	k_no_of_visible_items_for_settings = 7,
+	k_no_of_visible_items_for_settings = 8,
 };
 
 /* classes */
@@ -34,6 +34,7 @@ protected:
 	void handle_item_about(struct s_event_record* const& event);
 	//custom addition
 	void handle_item_guide(struct s_event_record* const& event);
+	void handle_item_advanced_settings(struct s_event_record* const& event);
 
 
 public:

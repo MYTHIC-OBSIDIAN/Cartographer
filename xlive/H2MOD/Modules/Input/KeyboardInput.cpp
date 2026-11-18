@@ -12,7 +12,8 @@
 /* enums */
 enum
 {
-	k_number_of_global_hotkeys = 2
+	// LAN edition: only the console hotkey; the advanced settings open from Settings > Advanced Settings instead of the Home key
+	k_number_of_global_hotkeys = 1
 };
 
 
@@ -96,7 +97,6 @@ void KeyboardInput::Initialize()
 	}
 	ToggleKeyboardInput();
 
-	g_keyboard_hotkey_data[0] = { &H2Config_hotkeyIdGuide, hotkeyFuncGuide };
-	g_keyboard_hotkey_data[1] = { &H2Config_hotkeyIdConsole, hotkeyFuncConsole };
+	g_keyboard_hotkey_data[0] = { &H2Config_hotkeyIdConsole, hotkeyFuncConsole };
 	return;
 }
