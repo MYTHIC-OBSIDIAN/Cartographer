@@ -48,7 +48,8 @@ public:
 	virtual void update_list_items(c_list_item_widget* item, int32 skin_index) override;
 
 };
-ASSERT_STRUCT_SIZE(c_settings_list, 0x468);
+// LAN edition: one more list item than the stock 7 (Advanced Settings); the screen is allocated by Cartographer's load()
+ASSERT_STRUCT_SIZE(c_settings_list, 0x468 + 0x84 * (k_no_of_visible_items_for_settings - 7));
 
 
 class c_screen_settings : protected c_screen_with_menu
@@ -66,4 +67,4 @@ public:
 	virtual void post_initialize_button_keys() override;
 	virtual const void* load_proc(void) const override;
 };
-ASSERT_STRUCT_SIZE(c_screen_settings, 0xEC8);
+ASSERT_STRUCT_SIZE(c_screen_settings, 0xEC8 + 0x84 * (k_no_of_visible_items_for_settings - 7));
