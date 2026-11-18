@@ -13,7 +13,7 @@ enum
 	// -h2v tag visible items : 6 , screen class items : 7
 	// -both have an extra "unused" item which might be the incomplete ui\screens\game_shell\settings_screen\extras\extras_enabled_dialog.wgit
 	// -it has the texts done and looks semi-okayish , should be worth restoring
-	k_no_of_visible_items_for_settings = 8,
+	k_no_of_visible_items_for_settings = 7,
 };
 
 /* classes */
@@ -31,10 +31,10 @@ protected:
 	void handle_item_video(struct s_event_record* const& event);
 	void handle_item_audio(struct s_event_record* const& event);
 	void handle_item_network(struct s_event_record* const& event);
-	void handle_item_about(struct s_event_record* const& event);
+	// LAN edition: replaces About
+	void handle_item_advanced_settings(struct s_event_record* const& event);
 	//custom addition
 	void handle_item_guide(struct s_event_record* const& event);
-	void handle_item_advanced_settings(struct s_event_record* const& event);
 
 
 public:
@@ -48,8 +48,7 @@ public:
 	virtual void update_list_items(c_list_item_widget* item, int32 skin_index) override;
 
 };
-// LAN edition: one more list item than the stock 7 (Advanced Settings); the screen is allocated by Cartographer's load()
-ASSERT_STRUCT_SIZE(c_settings_list, 0x468 + 0x84 * (k_no_of_visible_items_for_settings - 7));
+ASSERT_STRUCT_SIZE(c_settings_list, 0x468);
 
 
 class c_screen_settings : protected c_screen_with_menu
@@ -67,4 +66,4 @@ public:
 	virtual void post_initialize_button_keys() override;
 	virtual const void* load_proc(void) const override;
 };
-ASSERT_STRUCT_SIZE(c_screen_settings, 0xEC8 + 0x84 * (k_no_of_visible_items_for_settings - 7));
+ASSERT_STRUCT_SIZE(c_screen_settings, 0xEC8);

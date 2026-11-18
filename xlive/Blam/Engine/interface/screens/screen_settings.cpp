@@ -48,10 +48,9 @@ enum e_settings_list_items : uint16
 	_item_audio,
 	_item_network,
 
-	// LAN edition: "Advanced Settings" opens Cartographer's advanced settings window (no longer on the Home key)
+	// LAN edition: "Advanced Settings" replaces About and opens Cartographer's advanced settings window
+	// (no longer on the Home key); it keeps the About picture and animated callouts
 	_item_advanced_settings,
-
-	_item_about,
 	k_total_no_of_settings_list_items
 };
 
@@ -66,8 +65,7 @@ enum e_settings_screen_panes
 	_settings_pane_video,
 	_settings_pane_audio,
 	_settings_pane_network,
-	_settings_pane_advanced_settings,
-	_settings_pane_about,
+	_settings_pane_advanced_settings,	// the stock About pane
 	k_total_no_of_settings_pane,
 
 	k_total_no_of_settings_pane_orignal = 6,
@@ -113,9 +111,6 @@ enum e_settings_cartographer_bitmap_type
 	_settings_cartographer_bitmap_type_default = 0,
 	k_number_of_cartographer_variant_bitmap_types,
 };
-
-// the Network pane has a description and 3 callouts
-constexpr int32 k_advanced_settings_pane_text_count = 4;
 
 /* globals */
 
@@ -178,14 +173,11 @@ void c_settings_list::update_list_items(c_list_item_widget* item, int32 skin_ind
 		case _item_network:
 			item_text->set_text_from_string_id(_string_id_settings_network);
 			break;
-		case _item_about:
-			item_text->set_text_from_string_id(_string_id_settings_about);
+		case _item_advanced_settings:
+			item_text->set_text(L"Advanced Settings");
 			break;
 		case _item_guide:
 			item_text->set_text(L"Skulls");
-			break;
-		case _item_advanced_settings:
-			item_text->set_text(L"Advanced Settings");
 			break;
 		}
 	}
@@ -214,14 +206,11 @@ void c_settings_list::handle_item_pressed_event(s_event_record* const& event, da
 	case _item_network:
 		handle_item_network(event);
 		break;
-	case _item_about:
-		handle_item_about(event);
+	case _item_advanced_settings:
+		handle_item_advanced_settings(event);
 		break;
 	case _item_guide:
 		handle_item_guide(event);
-		break;
-	case _item_advanced_settings:
-		handle_item_advanced_settings(event);
 		break;
 	}
 }
@@ -276,30 +265,21 @@ void c_settings_list::handle_item_network(
 	return;
 }
 
-void c_settings_list::handle_item_about(s_event_record* const& event)
+void c_settings_list::handle_item_advanced_settings(s_event_record* const& event)
 {
-	c_screen_parameters params;
-
-	params.initialize_default_user(FLAG(event->controller), _user_interface_channel_type_gameshell_dialog, _window_4, c_screen_about_dialog_menu::load);
-	params.execute_load_function();
+#ifndef IMGUI_DISABLE
+	if (!ImGuiHandler::IsWindowActive(k_advanced_settings_window_name))
+	{
+		ImGuiHandler::ImAdvancedSettings::set_controller_index(event->controller);
+		ImGuiHandler::ToggleWindow(k_advanced_settings_window_name);
+	}
+#endif
 	return;
 }
 
 void c_settings_list::handle_item_guide(s_event_record* const& event)
 {
 	ui_load_skulls_menu();
-	return;
-}
-
-void c_settings_list::handle_item_advanced_settings(s_event_record* const& event)
-{
-#ifndef IMGUI_DISABLE
-	if (!ImGuiHandler::IsWindowActive(k_advanced_settings_window_name))
-	{
-		ImGuiHandler::ImAdvancedSettings::set_controller_index((e_controller_index)event->controller);
-		ImGuiHandler::ToggleWindow(k_advanced_settings_window_name);
-	}
-#endif
 	return;
 }
 
@@ -366,24 +346,14 @@ void c_screen_settings::post_initialize_button_keys()
 
 	}
 
-	// LAN edition: Advanced Settings pane, a copy of the Network pane with its own text
+	// LAN edition: Advanced Settings uses the About pane (picture and animated callouts) with its own description
 	if (this->m_pane_index == _settings_pane_advanced_settings
 		|| DATUM_INDEX_TO_ABSOLUTE_INDEX(this->m_settings_list.get_old_data_index()) == _item_advanced_settings)
 	{
-		c_text_widget* description = this->try_find_screen_text(0);
+		c_text_widget* description = this->try_find_screen_text(_pane_about_text_description);
 		if (description)
 		{
-			description->set_text(L"Open the advanced settings: HUD, video, mouse and keyboard, controller and host options.");
-		}
-
-		// the Network pane's callouts don't apply here
-		for (int32 text_index = 1; text_index < k_advanced_settings_pane_text_count; text_index++)
-		{
-			c_text_widget* callout = this->try_find_screen_text(text_index);
-			if (callout)
-			{
-				callout->set_text(L"");
-			}
+			description->set_text(L"Edit advanced video and input options.");
 		}
 	}
 
@@ -442,25 +412,14 @@ void c_screen_settings::apply_patches_on_map_load()
 	// add window_pane for guide option 
 	tag_injection_extend_block(&main_widget_tag->panes, sizeof(s_window_pane_reference), k_number_of_addition_panes_for_settings_screen);
 	
-	// LAN edition: Skulls goes after Game Variants and Advanced Settings after Network.
-	// Stock panes: 0 profile, 1 variant, 2 video, 3 audio, 4 network, 5 about
-	// New panes:   0 profile, 1 variant, 2 skulls, 3 video, 4 audio, 5 network, 6 advanced settings, 7 about
+	// LAN edition: the new pane goes after Game Variants, so move Video, Audio, Network and About one place down
+	for (int32 pane_index = k_total_no_of_settings_pane - 1; pane_index > _settings_pane_guide; pane_index--)
 	{
-		auto pane = [&](int32 index) { return user_interface_widget_pane_get(&main_widget_tag->panes, index); };
-		*pane(_settings_pane_about) = *pane(5);
-		*pane(_settings_pane_network) = *pane(4);
-		*pane(_settings_pane_audio) = *pane(3);
-		*pane(_settings_pane_video) = *pane(2);
+		*user_interface_widget_pane_get(&main_widget_tag->panes, pane_index) = *user_interface_widget_pane_get(&main_widget_tag->panes, pane_index - 1);
 	}
 
 	s_window_pane_reference* guide_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _settings_pane_guide);
-	s_window_pane_reference* about_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _settings_pane_about);
-	s_window_pane_reference* network_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _settings_pane_network);
-	s_window_pane_reference* advanced_settings_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _settings_pane_advanced_settings);
-
-	// Advanced Settings uses the Network picture, with its own copy of the text blocks so the Network pane keeps its text
-	*advanced_settings_pane = *network_pane;
-	tag_injection_extend_block(&advanced_settings_pane->text_blocks, sizeof(s_text_block_reference), 0);
+	s_window_pane_reference* about_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _settings_pane_advanced_settings);
 
 	// copy data from about_pane
 	*guide_pane = *about_pane;
