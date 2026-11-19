@@ -15,6 +15,7 @@
 #define k_no_of_visible_items_for_cartographer_update_notice_list 2
 #define k_no_of_visible_items_for_skulls_list 4
 #define k_no_of_visible_items_for_nameplates_list 4
+#define k_no_of_visible_items_for_rank_list 4
 
 /* enums */
 
@@ -255,6 +256,43 @@ public:
 	// c_nameplates_menu virtual functions
 
 	virtual ~c_nameplates_menu() = default;
+	virtual void initialize(c_screen_parameters* screen_parameters) override;
+	virtual const void* load_proc(void) const override;
+};
+
+// LAN edition: rank picker (Rank 1 to 50), opened from Settings > Player Profile > Rank
+
+class c_rank_edit_list : public c_list_widget
+{
+protected:
+	c_list_item_widget m_list_item_widgets[k_no_of_visible_items_for_rank_list];
+	c_slot2<c_rank_edit_list, struct s_event_record*, int32> m_slot_2;
+	e_controller_index m_controller_index;
+
+	void handle_item_pressed_event(struct s_event_record* const& event, int32* pitem_index);
+	void set_item_text(c_list_item_widget* item);
+public:
+	c_rank_edit_list(uint16 _flags);
+
+	// c_rank_edit_list virtual functions
+
+	virtual ~c_rank_edit_list() = default;
+	virtual c_list_item_widget* get_list_items() override;
+	virtual int32 get_list_items_count() override;
+	virtual void update_list_items(c_list_item_widget* item, int32 skin_index) override;
+};
+
+class c_rank_menu : public c_screen_with_menu
+{
+protected:
+	c_rank_edit_list m_rank_edit_list;
+public:
+	c_rank_menu(e_user_interface_channel_type _ui_channel, e_user_interface_render_window _window_index, uint16 _flags);
+	static void* load(c_screen_parameters* parameters);
+
+	// c_rank_menu virtual functions
+
+	virtual ~c_rank_menu() = default;
 	virtual void initialize(c_screen_parameters* screen_parameters) override;
 	virtual const void* load_proc(void) const override;
 };

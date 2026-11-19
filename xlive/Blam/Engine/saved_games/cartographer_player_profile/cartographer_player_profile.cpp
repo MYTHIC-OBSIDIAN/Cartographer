@@ -282,6 +282,7 @@ static void cartographer_player_profile_new(s_saved_game_cartographer_player_pro
 	cartographer_player_profile_new((s_saved_game_cartographer_player_profile_v3*)settings);
 	cartographer_player_profile_header_new(&settings->header, _saved_game_cartographer_player_profile_version_4);
 	settings->nameplate = 0;
+	settings->rank = 0;
 	csmemset(settings->pad_0, 0, sizeof(settings->pad_0));
 	return;
 }

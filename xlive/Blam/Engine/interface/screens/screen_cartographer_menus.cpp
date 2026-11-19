@@ -1063,9 +1063,149 @@ const void* c_nameplates_menu::load_proc(void) const
 	return c_nameplates_menu::load;
 }
 
-// player profile edit list (halo2.exe c_player_profile_edit_list): Nameplate added under Appearance
-// list order: 0 Appearance, 1 Nameplate, 2 and 3 = the game's items 1 and 2
+// rank (LAN edition): the rank icon shown next to the player's name in the lobby, chosen like the nameplate
+
+#define k_rank_list_name "rank list"
+
+// the rank is saved in the player profile (cartographer profile v4) of the controller, as rank - 1
+static int32 rank_get_selected(e_controller_index controller_index)
+{
+	if (controller_index < 0 || controller_index >= k_number_of_controllers)
+	{
+		return 0;
+	}
+	const int32 rank = cartographer_player_profile_get_by_controller_index(controller_index)->rank;
+	return rank < k_cartographer_profile_rank_count ? rank : 0;
+}
+
+c_rank_edit_list::c_rank_edit_list(uint16 _flags) :
+	c_list_widget(_flags),
+	m_slot_2(this, &c_rank_edit_list::handle_item_pressed_event),
+	m_controller_index(nameplate_controller_from_user_flags(_flags))
+{
+	data_array* rank_list_data = ui_list_data_new(k_rank_list_name, k_cartographer_profile_rank_count, sizeof(datum));
+	this->m_list_data = rank_list_data;
+
+	data_make_valid(rank_list_data);
+
+	for (int32 i = 0; i < this->m_list_data->maximum_count; i++) {
+		datum_new(this->m_list_data);
+	}
+
+	linker_type2.link(&this->m_slot_2);
+}
+
+c_list_item_widget* c_rank_edit_list::get_list_items()
+{
+	return m_list_item_widgets;
+}
+
+int32 c_rank_edit_list::get_list_items_count()
+{
+	return NUMBEROF(m_list_item_widgets);
+}
+
+void c_rank_edit_list::set_item_text(c_list_item_widget* item)
+{
+	const datum data_index = item->get_last_data_index();
+	if (data_index == NONE)
+	{
+		return;
+	}
+
+	const int16 list_item_index = DATUM_INDEX_TO_ABSOLUTE_INDEX(data_index);
+	if (list_item_index < 0 || list_item_index >= k_cartographer_profile_rank_count)
+	{
+		return;
+	}
+
+	c_text_widget* text_widget = item->try_find_text_widget(_default_list_skin_text_main);
+	if (text_widget)
+	{
+		wchar_t label[64];
+		swprintf(label, NUMBEROF(label), L"Rank %d%s", list_item_index + 1, list_item_index == rank_get_selected(m_controller_index) ? L" (Selected)" : L"");
+		text_widget->set_text(label);
+	}
+}
+
+void c_rank_edit_list::update_list_items(c_list_item_widget* item, int32 skin_index)
+{
+	set_item_text(item);
+}
+
+void c_rank_edit_list::handle_item_pressed_event(s_event_record* const& event, int32* pitem_index)
+{
+	const int16 list_item_index = DATUM_INDEX_TO_ABSOLUTE_INDEX(*pitem_index);
+	if (list_item_index < 0 || list_item_index >= k_cartographer_profile_rank_count)
+	{
+		return;
+	}
+
+	const e_controller_index controller_index = (e_controller_index)event->controller;
+	if (controller_index < 0 || controller_index >= k_number_of_controllers)
+	{
+		return;
+	}
+	m_controller_index = controller_index;
+	cartographer_player_profile_get_by_controller_index(controller_index)->rank = (uint8)list_item_index;
+	cartographer_player_profile_save(controller_index);
+
+	// send the new details so the lobby shows the rank straight away
+	INVOKE_TYPE(0x206A97, 0x0, void(__cdecl*)(e_controller_index), event->controller);
+
+	for (int32 i = 0; i < (int32)NUMBEROF(m_list_item_widgets); i++)
+	{
+		set_item_text(&m_list_item_widgets[i]);
+	}
+}
+
+c_rank_menu::c_rank_menu(e_user_interface_channel_type _ui_channel, e_user_interface_render_window _window_index, uint16 _flags) :
+	c_screen_with_menu(_screen_brightness_level, _ui_channel, _window_index, _flags, &m_rank_edit_list),
+	m_rank_edit_list(_flags)
+{
+}
+
+void* c_rank_menu::load(c_screen_parameters* parameters)
+{
+	c_rank_menu* rank_menu = nullptr;
+	uint8* ui_buffer = (uint8*)ui_pool_allocate_space(sizeof(c_rank_menu), 0);
+
+	if (ui_buffer) {
+		rank_menu = new (ui_buffer) c_rank_menu(
+			parameters->get_channel_type(),
+			parameters->get_window_index(),
+			parameters->get_user_flags()
+		);
+		rank_menu->m_allocated = true;
+	}
+
+	user_interface_register_screen_to_channel(rank_menu, parameters);
+	return rank_menu;
+}
+
+void c_rank_menu::initialize(c_screen_parameters* screen_parameters)
+{
+	c_screen_with_menu::initialize(screen_parameters);
+
+	m_header_text.set_text(L"Rank");
+	c_text_widget* subheader_text_widget = get_screen_subheader_text();
+	if (subheader_text_widget)
+	{
+		subheader_text_widget->set_text(L"Display your rank in the lobby.");
+	}
+}
+
+const void* c_rank_menu::load_proc(void) const
+{
+	return c_rank_menu::load;
+}
+
+// player profile edit list (halo2.exe c_player_profile_edit_list): Nameplate and Rank added under Appearance
+// list order: 0 Appearance, 1 Nameplate, 2 Rank, 3 and 4 = the game's items 1 and 2
 #define k_profile_edit_list_nameplate_item 1
+#define k_profile_edit_list_rank_item 2
+#define k_profile_edit_list_custom_item_count 2
+#define k_profile_edit_list_last_custom_item k_profile_edit_list_rank_item
 #define k_profile_edit_screen_widget_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile_menu"
 
 // the lobby shows nameplate bitmap (user role - 1), role 0 and 1 both show the default one
@@ -1080,20 +1220,21 @@ static void __fastcall profile_edit_list_update_list_items(void* list, void* edx
 	int16* item_data_index = (int16*)((uint8*)item + 0x70);
 	const int16 item_index = *item_data_index;
 
-	if (item_index == k_profile_edit_list_nameplate_item)
+	if (item_index == k_profile_edit_list_nameplate_item || item_index == k_profile_edit_list_rank_item)
 	{
 		void* text = INVOKE_TYPE(0x211973, 0x0, void*(__thiscall*)(void*, int32), item, 0);
 		if (text != nullptr)
 		{
-			INVOKE_TYPE(0x21BAA9, 0x0, void(__thiscall*)(void*, const wchar_t*), text, L"Nameplate");
+			INVOKE_TYPE(0x21BAA9, 0x0, void(__thiscall*)(void*, const wchar_t*), text,
+				item_index == k_profile_edit_list_nameplate_item ? L"Nameplate" : L"Rank");
 		}
 		return;
 	}
 
-	// the game's own items after Nameplate are one place further down
-	if (item_index > k_profile_edit_list_nameplate_item)
+	// the game's own items after Nameplate and Rank are two places further down
+	if (item_index > k_profile_edit_list_last_custom_item)
 	{
-		*item_data_index = item_index - 1;
+		*item_data_index = item_index - k_profile_edit_list_custom_item_count;
 	}
 	INVOKE_TYPE(0x24C6AC, 0x0, void(__thiscall*)(void*, void*, int32), list, item, skin_index);
 	*item_data_index = item_index;
@@ -1114,10 +1255,16 @@ static void __fastcall profile_edit_list_handle_item_pressed(void* list, void* e
 		return;
 	}
 
-	if (list_item_index > k_profile_edit_list_nameplate_item)
+	if (list_item_index == k_profile_edit_list_rank_item)
+	{
+		INVOKE_TYPE(0x20C851, 0x0, void(__cdecl*)(uint32, void*), FLAG((*event)->controller), (void*)c_rank_menu::load);
+		return;
+	}
+
+	if (list_item_index > k_profile_edit_list_last_custom_item)
 	{
 		data_array* data = *(data_array**)((uint8*)list + 0x70);
-		const int16 game_item_index = list_item_index - 1;
+		const int16 game_item_index = list_item_index - k_profile_edit_list_custom_item_count;
 		const uint16 identifier = *(uint16*)((uint8*)data->data + data->size * game_item_index);
 		datum game_item_datum = DATUM_INDEX_NEW(game_item_index, identifier);
 		INVOKE_TYPE(0x24CD82, 0x0, void(__thiscall*)(void*, s_event_record**, datum*), list, event, &game_item_datum);
@@ -1127,11 +1274,11 @@ static void __fastcall profile_edit_list_handle_item_pressed(void* list, void* e
 	INVOKE_TYPE(0x24CD82, 0x0, void(__thiscall*)(void*, s_event_record**, datum*), list, event, item_index);
 }
 
-// the list has room for 3 item widgets (screen + 0xA60 + 0xB0), all 4 items are shown with 4 item widgets placed after the
-// screen object (which is allocated 0x210 bytes bigger for them)
+// the list has room for 3 item widgets (screen + 0xA60 + 0xB0), all 5 items are shown with 5 item widgets placed after the
+// screen object (which is allocated bigger for them)
 #define k_profile_edit_screen_size 0xCB8
 #define k_profile_edit_list_offset 0xA60
-#define k_profile_edit_list_item_count 4
+#define k_profile_edit_list_item_count 5
 #define k_list_item_widget_size 0x84
 
 static void* profile_edit_list_get_extra_item_widgets(void* list)
@@ -1195,6 +1342,23 @@ static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_
 			unused_callout->set_text(L"");
 		}
 	}
+	else if (pane_index == k_profile_edit_list_rank_item)
+	{
+		c_text_widget* description = screen->try_find_screen_text(0);
+		if (description != nullptr)
+		{
+			description->set_text(L"Display your rank in the lobby.");
+		}
+		// the Appearance callouts don't apply to the rank
+		for (int32 text_index = 1; text_index <= 2; text_index++)
+		{
+			c_text_widget* callout = screen->try_find_screen_text(text_index);
+			if (callout != nullptr)
+			{
+				callout->set_text(L"");
+			}
+		}
+	}
 }
 
 // local player details: the bungie user role (nameplate) used to come from the Live account
@@ -1204,18 +1368,23 @@ static void __cdecl user_interface_controller_get_user_properties_nameplate(e_co
 	if (properties != nullptr)
 	{
 		properties->bungie_user_role = nameplate_get_user_role(controller_index);
+
+		// the lobby shows rank icon (displayed skill) through ui_shared_globals: skill 0 = Rank 1 ... 49 = Rank 50
+		const int8 rank = (int8)rank_get_selected(controller_index);
+		properties->player_displayed_skill = rank;
+		properties->player_overall_skill = rank;
 	}
 }
 
 void nameplates_apply_patches(void)
 {
-	// player profile edit list: 4 items instead of 3 (push 3 -> push 4 for the list data count)
-	WriteValue<uint8>(Memory::GetAddressRelative(0x64CE7C), 4);
+	// player profile edit list: 5 items instead of 3 (push 3 -> push 5 for the list data count)
+	WriteValue<uint8>(Memory::GetAddressRelative(0x64CE7C), k_profile_edit_list_item_count);
 	WritePointer(Memory::GetAddressRelative(0x7D894C) + 24 * sizeof(void*), (void*)profile_edit_list_update_list_items);
 	WritePointer(Memory::GetAddressRelative(0x64CE75), (void*)profile_edit_list_handle_item_pressed);
 	WritePointer(Memory::GetAddressRelative(0x7D3134) + 24 * sizeof(void*), (void*)player_profile_edit_post_initialize_button_keys);
 
-	// player profile edit list: 4 item widgets so all 4 items are visible
+	// player profile edit list: 5 item widgets so all 5 items are visible
 	WriteValue<uint32>(Memory::GetAddressRelative(0x63C6C6), k_profile_edit_screen_size + k_profile_edit_list_item_count * k_list_item_widget_size);
 	WriteValue<uint32>(Memory::GetAddressRelative(0x64BFBB), k_profile_edit_screen_size + k_profile_edit_list_item_count * k_list_item_widget_size);
 	PatchCall(Memory::GetAddressRelative(0x63BD5A), profile_edit_list_constructor);
@@ -1232,7 +1401,7 @@ void nameplates_apply_patches(void)
 
 void nameplates_apply_patches_on_map_load(void)
 {
-	// edit profile screen: one pane per list item, add the Nameplate pane (a copy of the Appearance pane) after Appearance
+	// edit profile screen: one pane per list item, add the Nameplate and Rank panes (copies of the Appearance pane) after Appearance
 	const datum widget_datum = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_profile_edit_screen_widget_tag);
 	if (widget_datum == NONE)
 	{
@@ -1245,11 +1414,16 @@ void nameplates_apply_patches_on_map_load(void)
 		return;
 	}
 
-	tag_injection_extend_block(&widget->panes, sizeof(s_window_pane_reference), 1);
-	for (int32 pane_index = widget->panes.count - 1; pane_index > k_profile_edit_list_nameplate_item; pane_index--)
+	tag_injection_extend_block(&widget->panes, sizeof(s_window_pane_reference), k_profile_edit_list_custom_item_count);
+	for (int32 pane_index = widget->panes.count - 1; pane_index > k_profile_edit_list_last_custom_item; pane_index--)
 	{
-		*user_interface_widget_pane_get(&widget->panes, pane_index) = *user_interface_widget_pane_get(&widget->panes, pane_index - 1);
+		*user_interface_widget_pane_get(&widget->panes, pane_index) = *user_interface_widget_pane_get(&widget->panes, pane_index - k_profile_edit_list_custom_item_count);
 	}
+
+	// the Rank pane keeps the Appearance picture, with its own copy of the text blocks for its description
+	s_window_pane_reference* rank_pane = user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_rank_item);
+	*rank_pane = *user_interface_widget_pane_get(&widget->panes, 0);
+	tag_injection_extend_block(&rank_pane->text_blocks, sizeof(s_text_block_reference), 0);
 	s_window_pane_reference* nameplate_pane = user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_nameplate_item);
 	*nameplate_pane = *user_interface_widget_pane_get(&widget->panes, 0);
 
@@ -1275,7 +1449,7 @@ void nameplates_apply_patches_on_map_load(void)
 		logo_callout->text_bounds = { 350, -165, 300, 10 };
 	}
 
-	// 4 visible list items
+	// 5 visible list items
 	for (int32 pane_index = 0; pane_index < widget->panes.count; pane_index++)
 	{
 		s_window_pane_reference* pane = user_interface_widget_pane_get(&widget->panes, pane_index);

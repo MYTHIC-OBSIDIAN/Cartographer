@@ -108,7 +108,8 @@ struct s_saved_game_cartographer_player_profile_v4
 	real32 crosshair_scale;
 	real_point3d weapon_offsets[k_weapon_offset_weapon_count];
 	uint8 nameplate;		// index in the Nameplate menu, 0 = Default
-	uint8 pad_0[3];
+	uint8 rank;				// LAN edition: index in the Rank menu, 0 = Rank 1 ... 49 = Rank 50 (was padding, so older v4 profiles read Rank 1)
+	uint8 pad_0[2];
 };
 ASSERT_STRUCT_SIZE(s_saved_game_cartographer_player_profile_v4, 272);
 
@@ -138,6 +139,9 @@ struct s_cartographer_profile_run_time
 
 // LAN edition: entries in the Nameplate menu (s_saved_game_cartographer_player_profile::nameplate)
 constexpr uint8 k_cartographer_profile_nameplate_count = 7;
+
+// LAN edition: entries in the Rank menu (s_saved_game_cartographer_player_profile::rank), ranks 1 to 50
+constexpr uint8 k_cartographer_profile_rank_count = 50;
 
 constexpr e_saved_game_cartographer_player_profile_version k_cartographer_profile_version = _saved_game_cartographer_player_profile_version_4;
 
