@@ -273,9 +273,9 @@ void c_network_squad_list::populate_server_data(
 // LAN edition: Quickmatch search time
 // Quickmatch (Xbox Live menu) opens the matchmaking progress screen (halo2.exe load 0x646CEF, screen 0xD2), which fails straight
 // away on a LAN and shows its "no games" error (0x646A1F, error dialog call at 0x646A75; pressing OK leaves the screen).
-// Hold that error back until the search screen has been up for 3 seconds.
+// Hold that error back until the search screen has been up for 10 seconds.
 
-#define k_quickmatch_minimum_search_milliseconds 3000
+#define k_quickmatch_minimum_search_milliseconds 10000
 
 typedef void*(__cdecl* matchmaking_progress_load_t)(c_screen_parameters* parameters);
 static matchmaking_progress_load_t p_matchmaking_progress_load;
