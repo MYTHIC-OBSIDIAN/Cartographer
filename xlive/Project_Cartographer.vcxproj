@@ -2005,6 +2005,7 @@
     <ClCompile Include="Blam\Engine\widgets\cloth.cpp" />
     <ClCompile Include="Blam\Engine\widgets\liquid.cpp" />
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\AdvancedSettings.cpp" />
+    <ClCompile Include="H2MOD\GUI\ImGui_Integration\ImGui_HomeMenu.cpp" />
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\Console\CommandCollection.cpp" />
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\Console\CommandHandler.cpp" />
     <ClCompile Include="H2MOD\GUI\imgui_integration\Console\ComVar.cpp" />

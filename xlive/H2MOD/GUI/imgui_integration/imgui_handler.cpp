@@ -48,6 +48,7 @@ namespace ImGuiHandler
 		{ k_motd_window_name, ImMOTD::Render, ImMOTD::Open, ImMOTD::Close, (e_im_window_handler_flags)0},
 		{ k_message_box_window_name, ImMessageBox::Render, ImMessageBox::Open, ImMessageBox::Close, (e_im_window_handler_flags)0},
 		{ k_advanced_settings_window_name, ImAdvancedSettings::Render, ImAdvancedSettings::Open, ImAdvancedSettings::Close, (e_im_window_handler_flags)0},
+		{ k_home_menu_window_name, ImHomeMenu::Render, ImHomeMenu::Open, ImHomeMenu::Close, (e_im_window_handler_flags)0},
 #ifdef TERMINAL_ENABLED
 		{ k_cartographer_console_window_name, CartographerConsole::Render, CartographerConsole::Open, CartographerConsole::Close, (e_im_window_handler_flags)0 }
 #endif

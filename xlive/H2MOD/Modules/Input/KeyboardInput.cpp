@@ -12,8 +12,9 @@
 /* enums */
 enum
 {
-	// LAN edition: only the console hotkey; the advanced settings open from Settings > Advanced Settings instead of the Home key
-	k_number_of_global_hotkeys = 1
+	// LAN edition: the console hotkey and the Home key (hotkey_guide), which opens the offline Home menu (achievements);
+	// the advanced settings open from Settings > Advanced Settings
+	k_number_of_global_hotkeys = 2
 };
 
 
@@ -76,8 +77,7 @@ void KeyboardInput::ExecuteHotkey(WPARAM message)
 
 void hotkeyFuncGuide() {
 #ifndef IMGUI_DISABLE
-	ImGuiHandler::ImAdvancedSettings::set_controller_index(_controller0);
-	ImGuiHandler::ToggleWindow(k_advanced_settings_window_name);
+	ImGuiHandler::ToggleWindow(k_home_menu_window_name);
 #endif
 }
 
@@ -98,5 +98,6 @@ void KeyboardInput::Initialize()
 	ToggleKeyboardInput();
 
 	g_keyboard_hotkey_data[0] = { &H2Config_hotkeyIdConsole, hotkeyFuncConsole };
+	g_keyboard_hotkey_data[1] = { &H2Config_hotkeyIdGuide, hotkeyFuncGuide };
 	return;
 }

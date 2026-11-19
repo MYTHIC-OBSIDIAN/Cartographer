@@ -379,3 +379,20 @@ void achievements_popup_pop(void)
 	}
 	return;
 }
+
+e_controller_index achievements_get_player_controller(void)
+{
+	const s_achievements_profile* profile = achievements_profile_get_primary();
+	return profile ? (e_controller_index)(profile - g_achievements_profiles) : k_no_controller;
+}
+
+uint64 achievements_get_unlocked(void)
+{
+	const s_achievements_profile* profile = achievements_profile_get_primary();
+	return profile ? profile->unlocked : g_achievements_unsaved;
+}
+
+const char* achievements_get_string(int32 achievement_index)
+{
+	return VALID_INDEX(achievement_index, k_achievement_type_count) ? k_achievement_strings[achievement_index] : "";
+}

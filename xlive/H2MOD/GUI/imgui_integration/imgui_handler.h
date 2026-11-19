@@ -12,6 +12,7 @@ extern const char* k_weapon_offsets_window_name;
 extern const char* k_motd_window_name;
 extern const char* k_debug_overlay_window_name;
 extern const char* k_message_box_window_name;
+extern const char* k_home_menu_window_name;
 
 /* enums */
 
@@ -28,6 +29,7 @@ enum e_imgui_window_type
 	_imgui_window_motd = 1,
 	_imgui_window_message_box = 2,
 	_imgui_window_advanced_settings = 3,
+	_imgui_window_home_menu = 4,
 #ifdef TERMINAL_ENABLED
 	_imgui_window_console,
 #endif
@@ -86,6 +88,13 @@ namespace ImGuiHandler
 	{
 		void Render(bool* p_open);
 		void SetMessage(const char* message);
+		void Open();
+		void Close();
+	}
+	// LAN edition: offline Home (Guide) menu with the achievements, opened with the Home key
+	namespace ImHomeMenu
+	{
+		void Render(bool* p_open);
 		void Open();
 		void Close();
 	}
