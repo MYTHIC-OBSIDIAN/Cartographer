@@ -124,47 +124,48 @@ void GetAchievements(unsigned long long xuid)
 
 /* constants */
 
-// "title|description", by e_achievement_type
+// "title|description", by e_achievement_type: the names and descriptions from the game's Games for Windows - LIVE
+// title data (the XDBF achievement table embedded in halo2.exe)
 static char const* k_achievement_strings[] =
 {
-	"Cairo Station|Complete Cairo Station.",
-	"Outskirts|Complete Outskirts.",
-	"Metropolis|Complete Metropolis.",
-	"The Arbiter|Complete The Arbiter.",
-	"Oracle|Complete The Oracle.",
-	"Delta Halo|Complete Delta Halo.",
-	"Regret|Complete Regret.",
-	"Sacred Icon|Complete Sacred Icon.",
-	"Quarantine Zone|Complete Quarantine Zone.",
-	"Gravemind|Complete Gravemind.",
-	"Uprising|Complete Uprising.",
-	"High Charity|Complete High Charity.",
-	"The Great Journey|Complete The Great Journey.",
-	"Warrior|Complete the game on Normal.",
-	"Hero|Complete the game on Heroic.",
-	"Legend|Complete the game on Legendary.",
-	"King of the Scarab|Acquire the Scarab Gun.",
-	"Silent But Deadly|Kill 7 opponents from behind.",
-	"Demon|Complete any level without dying.",
-	"Go Ape Shit|Kill an enraged, berserk Brute by melee.",
-	"Stick It|Stick someone!",
+	"Cairo Station|Complete Cairo Station at Normal, Heroic, or Legendary.",
+	"Outskirts|Complete Outskirts at Normal, Heroic, or Legendary.",
+	"Metropolis|Complete Metropolis at Normal, Heroic, or Legendary.",
+	"The Arbiter|Complete The Arbiter at Normal, Heroic, or Legendary.",
+	"Oracle|Complete The Oracle at Normal, Heroic, or Legendary.",
+	"Delta Halo|Complete Delta Halo at Normal, Heroic, or Legendary.",
+	"Regret|Complete Regret at Normal, Heroic, or Legendary.",
+	"Sacred Icon|Complete Sacred Icon at Normal, Heroic, or Legendary.",
+	"Quarantine Zone|Complete Quarantine Zone at Normal, Heroic, or Legendary.",
+	"Gravemind|Complete Gravemind at Normal, Heroic, or Legendary.",
+	"Uprising|Complete Uprising at Normal, Heroic, or Legendary.",
+	"High Charity|Complete High Charity at Normal, Heroic, or Legendary.",
+	"The Great Journey|Complete The Great Journey at Normal, Heroic, or Legendary.",
+	"Warrior|Complete the game on Normal difficulty.",
+	"Hero|Complete the game on Heroic difficulty.",
+	"Legend|Complete the game on Legendary difficulty.",
+	"King of the Scarab|Acquire the Scarab gun on the Metropolis level, any difficulty.",
+	"Silent but Deadly|Kill 7 opponents from behind in a row without being spotted, any level, any difficulty.",
+	"Demon|Complete any campaign level without dying once on Normal, Heroic, or Legendary.",
+	"Go Ape Shiv|Kill an enraged, berserk Brute by melee, any level, any difficulty.",
+	"Stick It|Stick an opponent with a plasma grenade and blow them up.",
 	"Counterpoint|Kill the sword carrier.",
-	"Carjacking|Steal an occupied vehicle.",
-	"Violent Cartographer|Play every default map.",
-	"Rainman|Play every variant with at least 3 people.",
+	"Carjacking|Steal an occupied vehicle from an opponent and take it over.",
+	"Violent Cartographer|Play every available default map and stay in each game until it's over.",
+	"Rainman|Play every available game variant, with at least 3 other players, to the end of each game.",
 	"Double Kill|Kill 2 opponents within 4 seconds.",
 	"Triple Kill|Kill 3 opponents within 4 seconds.",
 	"Killtacular|Kill 4 opponents within 4 seconds.",
-	"Killing Spree|Kill 5 opponents in a row.",
-	"Running Riot|Kill 10 opponents in a row.",
-	"Sniper Kill|Get a sniper kill.",
-	"Roadkill|Run over and kill an opponent.",
-	"Bonecracker|Kill an opponent with a melee.",
+	"Killing Spree|Kill 5 opponents in a row in the same game, without dying.",
+	"Running Riot|Kill 10 opponents in a row in the same game, without dying.",
+	"Sniper Kill|Kill an opponent with the sniper rifle or the beam rifle.",
+	"Roadkill|Run over, hit and kill an opponent with a vehicle.",
+	"Bonecracker|Hit and kill an opponent with a melee attack.",
 	"Assassin|Melee an opponent from behind.",
-	"Skewer Stopper|Kill sword carrier on Spree.",
-	"Vigilante|Stop another player's Killing Spree.",
-	"Air Traffic Controller|Blow up a Banshee.",
-	"Decorated Soldier|Get awarded at least 8 medals in non-team game.",
+	"Skewer Stopper|Kill the sword carrier after they kill 5 or more times in a row with the sword.",
+	"Vigilante|Stop a Killing Spree of another player.",
+	"Air Traffic Control|Blow up the Banshee in flight while manned, with grenades or the rocket launcher.",
+	"Decorated Soldier|Get awarded at least 8 different medals in one non-team game.",
 	"Ninja|In a non-team game, kill 5 people by melee, from behind.",
 	"Flaming Ninja|Kill an opponent that has the Ninja achievement.",
 	"Hired Gun|Kill an opponent who has the Legend achievement."
@@ -179,6 +180,11 @@ enum
 
 static const wchar_t k_achievements_bin_name[] = L"cartographer_achievements";
 static const uint64 k_achievements_all_mask = (1ull << k_achievement_type_count) - 1;
+
+// unlocked for everyone: they need to know other players' achievements (Ninja / Legend), which came from Xbox Live
+static const uint64 k_achievements_default_unlocked_mask =
+	(1ull << _achievement_type_flaming_ninja) |
+	(1ull << _achievement_type_hired_gun);
 
 /* structures */
 
@@ -201,7 +207,7 @@ struct s_achievements_profile
 
 static s_achievements_profile g_achievements_profiles[k_number_of_controllers];
 // unlocked while no profile is signed in: kept until the game closes
-static uint64 g_achievements_unsaved = 0;
+static uint64 g_achievements_unsaved = k_achievements_default_unlocked_mask;
 static std::deque<std::string> g_achievement_popups;
 
 /* private code */
@@ -340,6 +346,7 @@ void achievements_profile_sign_in(e_controller_index controller_index, uint32 en
 				profile->unlocked = save.unlocked & k_achievements_all_mask;
 			}
 		}
+		profile->unlocked |= k_achievements_default_unlocked_mask;
 	}
 
 	achievements_list_refresh();
