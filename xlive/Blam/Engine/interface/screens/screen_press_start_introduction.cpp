@@ -3,8 +3,6 @@
 
 #include "interface/user_interface.h"
 #include "interface/user_interface_memory.h"
-#include "interface/user_interface_widget_text.h"
-#include "interface/user_interface_text.h"
 #include "H2MOD/Modules/Accounts/AccountLogin.h"
 
 // typedef
@@ -20,42 +18,11 @@ c_screen_press_start_introduction::c_screen_press_start_introduction(e_user_inte
 	this->m_has_input_saved = false;
 }
 
-// LAN edition: the start screen prompt "PRESS ANY KEY" (string start_screen_0) reads "PRESS START TO CONTINUE".
-// Setting screen text block 1 only added a small line near the bottom, so replace the text wherever the prompt is shown:
-// every widget on the screen whose text starts with "PRESS ANY KEY"
-#define k_press_start_prompt L"PRESS START TO CONTINUE"
-#define k_press_start_original_prompt L"PRESS ANY KEY"
-
-static void press_start_prompt_replace(c_user_interface_widget* widget, const c_user_interface_widget* skip, int32 depth)
-{
-	for (; widget != NULL && depth < 16; widget = widget->get_next())
-	{
-		if (widget == skip)
-		{
-			continue;
-		}
-
-		c_user_interface_text* text = widget->get_interface();
-		if (text != NULL)
-		{
-			const wchar_t* current = text->get_raw_string();
-			if (current != NULL && _wcsnicmp(current, k_press_start_original_prompt, wcslen(k_press_start_original_prompt)) == 0)
-			{
-				text->set_text(k_press_start_prompt);
-			}
-		}
-		press_start_prompt_replace(widget->get_children(), skip, depth + 1);
-	}
-}
-
 void c_screen_press_start_introduction::update()
 {
+	// LAN edition: the "PRESS START TO CONTINUE" prompt comes from the string lookup (CustomLanguage.cpp H2GetLabel);
+	// (replacing the widget text every update here is the likely reason the first button press was missed)
 	INVOKE_TYPE(0x23F2FD, 0x0, void(__thiscall*)(c_screen_press_start_introduction*), this);
-
-	// the widgets set their text up themselves, so check every update
-	// (screen text block 1 is skipped: it is the hidden copy that showed up as small text near the bottom)
-	const c_user_interface_widget* hidden_copy = (c_user_interface_widget*)this->try_find_screen_text(1);
-	press_start_prompt_replace(this->get_children(), hidden_copy, 0);
 }
 
 bool c_screen_press_start_introduction::handle_event(s_event_record* event)

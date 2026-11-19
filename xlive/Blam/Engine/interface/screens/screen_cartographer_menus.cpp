@@ -1350,14 +1350,16 @@ static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_
 		{
 			description->set_text(L"Display your rank in the lobby.");
 		}
-		// the Appearance callouts don't apply to the rank
-		for (int32 text_index = 1; text_index <= 2; text_index++)
+		// one callout beside the Marathon symbol (placed like the Nameplate logo callout), the second one is unused
+		c_text_widget* symbol_callout = screen->try_find_screen_text(1);
+		if (symbol_callout != nullptr)
 		{
-			c_text_widget* callout = screen->try_find_screen_text(text_index);
-			if (callout != nullptr)
-			{
-				callout->set_text(L"");
-			}
+			symbol_callout->set_text(L"Somewhere in the heavens...");
+		}
+		c_text_widget* unused_callout = screen->try_find_screen_text(2);
+		if (unused_callout != nullptr)
+		{
+			unused_callout->set_text(L"");
 		}
 	}
 }
@@ -1425,10 +1427,26 @@ void nameplates_apply_patches_on_map_load(void)
 		*user_interface_widget_pane_get(&widget->panes, pane_index) = *user_interface_widget_pane_get(&widget->panes, pane_index - k_profile_edit_list_custom_item_count);
 	}
 
-	// the Rank pane keeps the Appearance picture, with its own copy of the text blocks for its description
+	// the Rank pane is a copy of the Appearance pane with its own text blocks; its picture is the Marathon symbol added to
+	// the LAN edition mainmenu.map (multiplayer49 extra bitmap 9, a 440x414 picture with the symbol in the 292x302 at the
+	// top left, appended by digsite_apply_patches_on_map_load) in place of the helmet, with one callout placed like the
+	// Nameplate logo's
 	s_window_pane_reference* rank_pane = user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_rank_item);
 	*rank_pane = *user_interface_widget_pane_get(&widget->panes, 0);
 	tag_injection_extend_block(&rank_pane->text_blocks, sizeof(s_text_block_reference), 0);
+	if (rank_pane->text_blocks.count > 1)
+	{
+		TAG_BLOCK_GET_ELEMENT(&rank_pane->text_blocks, 1, s_text_block_reference)->text_bounds = { 350, -165, 300, 10 };
+	}
+	const datum rank_picture_bitmap = tag_loaded(_tag_group_bitmap, "ui\\code_global_bitmaps\\multiplayer49");
+	if (rank_picture_bitmap != NONE && rank_pane->bitmap_blocks.count > 4)
+	{
+		tag_injection_extend_block(&rank_pane->bitmap_blocks, sizeof(s_bitmap_block_reference), 0);
+		s_bitmap_block_reference* picture = TAG_BLOCK_GET_ELEMENT(&rank_pane->bitmap_blocks, 4, s_bitmap_block_reference);
+		picture->bitmap_tag.group = _tag_group_bitmap;
+		picture->bitmap_tag.index = rank_picture_bitmap;
+		picture->initial_sprite_frame = 9;
+	}
 	s_window_pane_reference* nameplate_pane = user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_nameplate_item);
 	*nameplate_pane = *user_interface_widget_pane_get(&widget->panes, 0);
 
