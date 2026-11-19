@@ -98,7 +98,7 @@ void c_screen_bungie_news::apply_patches_on_map_load(void)
 		s_window_pane_reference* pane = user_interface_widget_pane_get(&widget->panes, pane_index);
 
 		bool text_done = false;
-		for (int32 i = 0; i < pane_index; i++) { text_done |= done_text_blocks[i] == pane->text_blocks.data; }
+		for (int32 i = 0; i < pane_index; i++) { text_done |= done_text_blocks[i] == (void*)pane->text_blocks.data; }
 		done_text_blocks[pane_index] = (void*)pane->text_blocks.data;
 		if (!text_done && pane->text_blocks.count >= k_bungie_news_text_count)
 		{
