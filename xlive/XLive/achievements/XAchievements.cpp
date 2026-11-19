@@ -3,53 +3,6 @@
 
 #include "H2MOD/Modules/Achievements/Achievements.h"
 
-/* constants */
-
-static char const* k_achievement_strings[] =
-{
-	"Cairo Station|Complete Cairo Station.",
-	"Outskirts|Complete Outskirts.",
-	"Metropolis|Complete Metropolis.",
-	"The Arbiter|Complete The Arbiter.",
-	"Oracle|Complete The Oracle.",
-	"Delta Halo|Complete Delta Halo.",
-	"Regret|Complete Regret.",
-	"Sacred Icon|Complete Sacred Icon.",
-	"Quarantine Zone|Complete Quarantine Zone.",
-	"Gravemind|Complete Gravemind.",
-	"Uprising|Complete Uprising.",
-	"High Charity|Complete High Charity.",
-	"The Great Journey|Complete The Great Journey.",
-	"Warrior|Complete the game on Normal.",
-	"Hero|Complete the game on Heroic.",
-	"Legend|Complete the game on Legendary.",
-	"King of the Scarab|Acquire the Scarab Gun.",
-	"Silent But Deadly|Kill 7 opponents from behind.",
-	"Demon|Complete any level without dying.",
-	"Go Ape Shit|Kill an enraged, berserk Brute by melee.",
-	"Stick It|Stick someone!",
-	"Counterpoint|Kill the sword carrier.",
-	"Carjacking|Steal an occupied vehicle.",
-	"Violent Cartographer|Play every default map.",
-	"Rainman|Play every variant with at least 3 people.",
-	"Double Kill|Kill 2 opponents within 4 seconds.",
-	"Triple Kill|Kill 3 opponents within 4 seconds.",
-	"Killtacular|Kill 4 opponents within 4 seconds.",
-	"Killing Spree|Kill 5 opponents in a row.",
-	"Running Riot|Kill 10 opponents in a row.",
-	"Sniper Kill|Get a sniper kill.",
-	"Roadkill|Run over and kill an opponent.",
-	"Bonecracker|Kill an opponent with a melee.",
-	"Assassin|Melee an opponent from behind.",
-	"Skewer Stopper|Kill sword carrier on Spree.",
-	"Vigilante|Stop another player's Killing Spree.",
-	"Air Traffic Controller|Blow up a Banshee.",
-	"Decorated Soldier|Get awarded at least 8 medals in non-team game.",
-	"Ninja|In a non-team game, kill 5 people by melee, from behind.",
-	"Flaming Ninja|Kill an opponent that has the Ninja achievement.",
-	"Hired Gun|Kill an opponent who has the Legend achievement."
-};
-
 /* globals */
 
 static DWORD achievementCount = 0;

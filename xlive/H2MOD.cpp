@@ -99,6 +99,7 @@
 #ifdef TERMINAL_ENABLED
 #include "H2MOD/GUI/ImGui_Integration/Console/CommandCollection.h"
 #endif
+#include "H2MOD/Modules/Achievements/Achievements.h"
 #include "H2MOD/Modules/Accounts/AccountLogin.h"
 #include "H2MOD/Modules/DirectorHooks/DirectorHooks.h"
 #include "H2MOD/Modules/EventHandler/EventHandler.hpp"
@@ -662,6 +663,7 @@ static void h2mod_apply_hooks(void)
 		hud_messaging_apply_hooks();
 		font_group_apply_hooks();
 		screens_apply_patches();
+		achievements_apply_patches();
 		aim_assist_apply_patches();
 
 		levels_apply_patches();

@@ -21,6 +21,7 @@
 #include "sound/sound_manager.h"
 
 #include "text/unicode.h"
+#include "H2MOD/Modules/Achievements/Achievements.h"
 
 /* typedefs */
 
@@ -254,7 +255,10 @@ bool __cdecl user_interface_controller_sign_in(e_controller_index controller_ind
 {
 	bool result = p_user_interface_controller_sign_in(controller_index, profile, enumerated_file_index);
 	if (result)
+	{
 		cartographer_player_profile_sign_in(controller_index, enumerated_file_index);
+		achievements_profile_sign_in(controller_index, enumerated_file_index);
+	}
 
 	return result;
 }
@@ -263,6 +267,7 @@ void __cdecl user_interface_controller_sign_out(e_controller_index controller_in
 {
 	p_user_interface_controller_sign_out(controller_index);
 	cartographer_player_profile_sign_out(controller_index);
+	achievements_profile_sign_out(controller_index);
 	return;
 }
 

@@ -85,8 +85,13 @@ void render_cartographer_ingame_ui(void)
 #endif
 
 	rasterizer_dx9_perf_event_begin("render cartographer ingame ui", NULL);
-	// LAN edition: Cartographer build text / status bar, updater message,
-	// achievement pop-ups and test build info removed
+	// LAN edition: Cartographer build text / status bar, updater message and test build info removed
+	// achievement pop-ups: one at a time, oldest first, each shown for 5 seconds
+	const char* achievement_popup = achievements_popup_get_current();
+	if (achievement_popup != NULL && !render_cartographer_achievement_message(achievement_popup))
+	{
+		achievements_popup_pop();
+	}
 	render_netdebug_text();
 	render_main_game_time_debug();
 
