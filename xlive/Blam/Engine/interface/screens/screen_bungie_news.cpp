@@ -113,8 +113,8 @@ void c_screen_bungie_news::apply_patches_on_map_load(void)
 			// "Latest news:" beside the bungie.net logo, at the top of the right column
 			TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, _bungie_news_text_panel_header, s_text_block_reference)->text_bounds = { -60, 270, -100, 560 };
 
-			// the news message under them
-			TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, _bungie_news_text_guide_help, s_text_block_reference)->text_bounds = { -115, -10, -380, 560 };
+			// the news message under them, wrapping well inside the panel's right edge (five lines)
+			TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, _bungie_news_text_guide_help, s_text_block_reference)->text_bounds = { -115, -10, -380, 490 };
 		}
 
 		if (logo_bitmap != NONE && pane->bitmap_blocks.count > 0)

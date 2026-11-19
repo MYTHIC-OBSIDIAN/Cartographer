@@ -406,14 +406,6 @@ char* __stdcall H2GetLabel(int a1, int label_id, int a3, int a4) { //sub_3defd
 	if (label)
 		return label;
 	label = pH2GetLabel(a1, label_id, a3, a4);
-
-	// LAN edition: the start screen prompt (string start_screen_0, English "PRESS ANY KEY") reads "PRESS START TO CONTINUE"
-	// (only the English text is replaced; other languages keep their own prompt)
-	if (label_id == 0xE001A80 && label != NULL && strcmp(label, "PRESS ANY KEY") == 0)
-	{
-		static char press_start_prompt[] = "PRESS START TO CONTINUE";
-		return press_start_prompt;
-	}
 	//if (strstr(label, "PROFILE NAME") == 0) {
 	//	return label;//in order to breakpoint and get label_id's.
 	//}
