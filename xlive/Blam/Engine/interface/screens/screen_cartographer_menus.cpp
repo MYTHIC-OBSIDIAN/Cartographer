@@ -1439,7 +1439,8 @@ void nameplates_apply_patches_on_map_load(void)
 	{
 		// the symbol is drawn from (-480, 370), about 336x347 (292x302 at 1.15 scale)
 		TAG_BLOCK_GET_ELEMENT(&rank_pane->text_blocks, 1, s_text_block_reference)->text_bounds = { 335, -140, 285, 35 };
-		TAG_BLOCK_GET_ELEMENT(&rank_pane->text_blocks, 2, s_text_block_reference)->text_bounds = { 5, -300, -35, -100 };
+		// the second sits on the red line at the symbol's lower right (screen x 1062-1130 of 2576, y 655 of 1449)
+		TAG_BLOCK_GET_ELEMENT(&rank_pane->text_blocks, 2, s_text_block_reference)->text_bounds = { 70, -187, 30, 13 };
 	}
 	const datum rank_picture_bitmap = tag_loaded(_tag_group_bitmap, "ui\\code_global_bitmaps\\multiplayer49");
 	if (rank_picture_bitmap != NONE && rank_pane->bitmap_blocks.count > 4)
