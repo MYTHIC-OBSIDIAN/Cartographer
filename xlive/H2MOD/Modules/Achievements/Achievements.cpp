@@ -13,6 +13,7 @@
 #include "rapidjson/writer.h"
 
 #include <deque>
+#include <intrin.h>
 
 /* constants */
 
@@ -283,20 +284,53 @@ static void achievements_unlock(int32 achievement_index)
 	return;
 }
 
-// halo2.exe 0x48C726 c_achievement_live_interface::queue_achievement: called (from 0x44A66E) when an achievement's
-// conditions are met; the original only queues an Xbox Live upload, and only when signed in to Live
-static void __fastcall achievement_live_interface_queue_achievement_hook(void* live_interface, void*, int32 achievement_index)
-{
-	(void)live_interface;
-	achievements_unlock(achievement_index);
-	return;
-}
+// The achievement code in halo2.exe (manager 0x44A619-0x44B553, Live upload 0x48C6A5-0x48C99D, trackers
+// 0x4C11B4-0x4C1883) is tamper protected: the game doesn't start when it is patched. So instead of patching it, this
+// hooks the guide state manager getter it calls (halo2.exe 0x609674, not protected) and answers by caller:
+// - from the Live check 0x48C6A5 called by the achievement manager's game start functions: a guide state that reads
+//   "signed in to Live", so achievements are earned (and their progress saved in checkpoints) for an offline user
+// - from 0x48C726 (queue an achievement for the Live upload, called when an achievement's conditions are met): unlock it
+//   locally; the real guide state is returned, so nothing is queued for upload
 
-// halo2.exe 0x48C6A5, used by the achievement manager when a game starts to decide whether achievements are earned
-// (and their progress saved in checkpoints): signed in to Live on Xbox / Games for Windows; here any signed in user
-static bool __cdecl achievements_user_signed_in(void)
+typedef void* (__cdecl* t_user_interface_guide_state_manager_get)(void);
+static t_user_interface_guide_state_manager_get p_user_interface_guide_state_manager_get = NULL;
+
+// enough of a c_user_interface_guide_state_manager for the Live check (m_sign_in_state at +8)
+static uint32 g_achievements_live_guide_state[4] = { 0, 0, eXUserSigninState_SignedInToLive, 0 };
+
+static uintptr_t g_live_check_return = 0;				// in 0x48C6A5, after its call to 0x609674
+static uintptr_t g_live_check_callers[3] = {};			// manager game start functions, after their calls to 0x48C6A5
+static uintptr_t g_queue_achievement_return = 0;		// in 0x48C726, after its call to 0x609674
+static uintptr_t g_queue_achievement_caller = 0;		// in the manager's update 0x44A66E, after its call to 0x48C726
+
+static void* __cdecl achievements_guide_state_manager_get_hook(void)
 {
-	return user_interface_guide_state_manager_get()->m_sign_in_state != eXUserSigninState_NotSignedIn;
+	// stack at entry: [0] our return address, [1...] the caller's stack
+	const uintptr_t* stack = (const uintptr_t*)_AddressOfReturnAddress();
+
+	if (stack[0] == g_live_check_return)
+	{
+		// 0x48C6A5 pushes nothing before the call: [1] is its return address
+		for (uint32 index = 0; index < NUMBEROF(g_live_check_callers); index++)
+		{
+			if (stack[1] == g_live_check_callers[index])
+			{
+				c_user_interface_guide_state_manager* guide = (c_user_interface_guide_state_manager*)p_user_interface_guide_state_manager_get();
+				if (guide->m_sign_in_state != eXUserSigninState_NotSignedIn)
+				{
+					return g_achievements_live_guide_state;
+				}
+				break;
+			}
+		}
+	}
+	else if (stack[0] == g_queue_achievement_return && stack[2] == g_queue_achievement_caller)
+	{
+		// 0x48C726 pushes esi before the call: [1] esi, [2] its return address, [3] the achievement index
+		achievements_unlock((int32)stack[3]);
+	}
+
+	return p_user_interface_guide_state_manager_get();
 }
 
 /* public code */
@@ -309,16 +343,15 @@ void achievements_apply_patches(void)
 		g_achievements_profiles[index].unlocked = 0;
 	}
 
-	// the achievement manager's game start functions (campaign level chosen, game start, saved game resumed)
-	PatchCall(Memory::GetAddress(0x4B1E2), achievements_user_signed_in);
-	PatchCall(Memory::GetAddress(0x4B22E), achievements_user_signed_in);
-	PatchCall(Memory::GetAddress(0x4B44D), achievements_user_signed_in);
+	g_live_check_return = Memory::GetAddressRelative(0x48C6B4);
+	g_live_check_callers[0] = Memory::GetAddressRelative(0x44B1E7);	// campaign level chosen
+	g_live_check_callers[1] = Memory::GetAddressRelative(0x44B233);	// game start (with eligibility)
+	g_live_check_callers[2] = Memory::GetAddressRelative(0x44B452);	// game start
+	g_queue_achievement_return = Memory::GetAddressRelative(0x48C738);
+	g_queue_achievement_caller = Memory::GetAddressRelative(0x44A6B4);
 
-	// multiplayer achievements are only enabled for Gold members (guide state manager check): enable them for everyone
-	NopFill(Memory::GetAddress(0x4A73F), 2);
-
-	// achievement earned
-	PatchCall(Memory::GetAddress(0x4A6AF), achievement_live_interface_queue_achievement_hook);
+	// (runs inside H2MOD::Initialize's detour transaction)
+	DETOUR_ATTACH(p_user_interface_guide_state_manager_get, Memory::GetAddress<t_user_interface_guide_state_manager_get>(0x209674), achievements_guide_state_manager_get_hook);
 	return;
 }
 
