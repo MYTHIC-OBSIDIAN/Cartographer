@@ -39,11 +39,17 @@ static __declspec(naked) void jmp_populate_servers(void)
 }
 
 static void screen_network_squad_browser_increase_server_limit_apply_patches(void);
+static void screen_network_squad_browser_minimum_search_time_apply_patches(void);
 
 /* globals */
 
 static load_network_browser_t p_load_network_browser;
 static load_network_browser_t p_load_live_browser;
+
+// LAN edition: when the game list opens, show "searching" for at least this long before "no games"
+#define k_squad_browser_minimum_search_milliseconds 3000
+static uint32 g_squad_browser_search_start_time = 0;
+static void* g_squad_browser_empty_text_return = NULL;
 
 /* public code */
 
@@ -55,6 +61,7 @@ void c_screen_network_squad_browser::apply_patches(void)
 	DETOUR_ATTACH(p_load_live_browser, Memory::GetAddress<load_network_browser_t>(0x21A2E4), c_screen_network_squad_browser::load_live_browser);
 	
 	screen_network_squad_browser_increase_server_limit_apply_patches();
+	screen_network_squad_browser_minimum_search_time_apply_patches();
 	return;
 }
 
@@ -69,12 +76,14 @@ void c_network_squad_list::sort_event(
 c_screen_network_squad_browser* c_screen_network_squad_browser::load_network_browser(
 	c_screen_parameters* parameters)
 {
+	g_squad_browser_search_start_time = GetTickCount();
 	return p_load_network_browser(parameters);
 }
 
 c_screen_network_squad_browser* c_screen_network_squad_browser::load_live_browser(
 	c_screen_parameters* parameters)
 {
+	g_squad_browser_search_start_time = GetTickCount();
 	c_screen_network_squad_browser* screen = p_load_live_browser(parameters);
 
 	screen->m_selected_column_index = _screen_network_squad_browser_column_players;
@@ -263,5 +272,50 @@ void c_network_squad_list::populate_server_data(
 		sort_field_index,
 		use_live_squad_list
 	);
+	return;
+}
+
+// LAN edition: minimum search time
+// The game list screen update (halo2.exe 0x6193F4) shows "no games" straight away when the list is empty, unless it is the
+// Live list and its search is still running (0x614F96), in which case it shows "search in progress".
+// Show "search in progress" for at least 3 seconds after the list opens, then the original behaviour.
+static bool __cdecl squad_browser_search_in_progress(uint8* screen)
+{
+	const uint32 elapsed = GetTickCount() - g_squad_browser_search_start_time;
+	if ((int32)elapsed < k_squad_browser_minimum_search_milliseconds)
+	{
+		return true;
+	}
+
+	// original check: Live list with its search still running
+	if (screen[0x1F00] != 0)
+	{
+		return INVOKE_TYPE(0x214F96, 0x0, bool(__cdecl*)(void));
+	}
+	return false;
+}
+
+// replaces 0x619409 - 0x61942A, picks the empty list text at [esp+0x14]
+static __declspec(naked) void squad_browser_empty_list_text(void)
+{
+	__asm
+	{
+		push esi
+		call squad_browser_search_in_progress
+		add esp, 4
+		test al, al
+		jz no_games
+		mov dword ptr[esp + 0x14], 0x12000973		// search_in_progress
+		jmp dword ptr[g_squad_browser_empty_text_return]
+	no_games:
+		mov dword ptr[esp + 0x14], 0x8000235		// no_games
+		jmp dword ptr[g_squad_browser_empty_text_return]
+	}
+}
+
+static void screen_network_squad_browser_minimum_search_time_apply_patches(void)
+{
+	g_squad_browser_empty_text_return = Memory::GetAddressRelative<void*>(0x61942B);
+	WriteJmpTo(Memory::GetAddressRelative(0x619409), squad_browser_empty_list_text);
 	return;
 }
