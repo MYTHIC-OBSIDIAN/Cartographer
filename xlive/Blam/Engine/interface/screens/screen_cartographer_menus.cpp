@@ -1350,16 +1350,17 @@ static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_
 		{
 			description->set_text(L"Display your rank in the lobby.");
 		}
-		// one callout beside the Marathon symbol (placed like the Nameplate logo callout), the second one is unused
+		// two callouts: one at the top right of the Marathon symbol, the other under it on the right
+		// (bounds set in nameplates_apply_patches_on_map_load)
 		c_text_widget* symbol_callout = screen->try_find_screen_text(1);
 		if (symbol_callout != nullptr)
 		{
 			symbol_callout->set_text(L"Somewhere in the heavens...");
 		}
-		c_text_widget* unused_callout = screen->try_find_screen_text(2);
-		if (unused_callout != nullptr)
+		c_text_widget* second_callout = screen->try_find_screen_text(2);
+		if (second_callout != nullptr)
 		{
-			unused_callout->set_text(L"");
+			second_callout->set_text(L"they are waiting.");
 		}
 	}
 }
@@ -1434,9 +1435,11 @@ void nameplates_apply_patches_on_map_load(void)
 	s_window_pane_reference* rank_pane = user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_rank_item);
 	*rank_pane = *user_interface_widget_pane_get(&widget->panes, 0);
 	tag_injection_extend_block(&rank_pane->text_blocks, sizeof(s_text_block_reference), 0);
-	if (rank_pane->text_blocks.count > 1)
+	if (rank_pane->text_blocks.count > 2)
 	{
-		TAG_BLOCK_GET_ELEMENT(&rank_pane->text_blocks, 1, s_text_block_reference)->text_bounds = { 350, -165, 300, 10 };
+		// the symbol is drawn from (-480, 370), about 336x347 (292x302 at 1.15 scale)
+		TAG_BLOCK_GET_ELEMENT(&rank_pane->text_blocks, 1, s_text_block_reference)->text_bounds = { 335, -140, 285, 35 };
+		TAG_BLOCK_GET_ELEMENT(&rank_pane->text_blocks, 2, s_text_block_reference)->text_bounds = { 5, -300, -35, -100 };
 	}
 	const datum rank_picture_bitmap = tag_loaded(_tag_group_bitmap, "ui\\code_global_bitmaps\\multiplayer49");
 	if (rank_picture_bitmap != NONE && rank_pane->bitmap_blocks.count > 4)
