@@ -5,6 +5,7 @@
 #include "networking/network_event.h"
 
 #include "achievements/achievement_list.h"
+#include "achievements/achievement_manager.h"
 #include "interface/user_interface_guide.h"
 #include "saved_games/saved_game_files.h"
 #include "saved_games/saved_game_files_async_windows.h"
@@ -303,10 +304,15 @@ static uintptr_t g_live_check_callers[3] = {};			// manager game start functions
 static uintptr_t g_queue_achievement_return = 0;		// in 0x48C726, after its call to 0x609674
 static uintptr_t g_queue_achievement_caller = 0;		// in the manager's update 0x44A66E, after its call to 0x48C726
 
+// what the hooks have seen, shown under Diagnostics in the Home menu
+static uint32 g_achievements_live_checks[3] = {};		// game start Live checks answered "signed in", by caller
+static uint32 g_achievements_queued = 0;				// achievements the game reported as earned
+static uint32 g_achievements_multiplayer_enabled = 0;	// multiplayer trackers enabled after the Gold check
+
 static void* __cdecl achievements_guide_state_manager_get_hook(void)
 {
 	// stack at entry: [0] our return address, [1...] the caller's stack
-	const uintptr_t* stack = (const uintptr_t*)_AddressOfReturnAddress();
+	uintptr_t* stack = (uintptr_t*)_AddressOfReturnAddress();
 
 	if (stack[0] == g_live_check_return)
 	{
@@ -318,6 +324,14 @@ static void* __cdecl achievements_guide_state_manager_get_hook(void)
 				c_user_interface_guide_state_manager* guide = (c_user_interface_guide_state_manager*)p_user_interface_guide_state_manager_get();
 				if (guide->m_sign_in_state != eXUserSigninState_NotSignedIn)
 				{
+					g_achievements_live_checks[index]++;
+					if (index == 1)
+					{
+						// saved game resumed (0x44B220, pushes ebx and esi before the call: [2] esi, [3] ebx, [4] its
+						// return address, [5] its argument): the argument says whether achievements were on when the game
+						// was saved; saves from before the LAN edition had achievements always say no, so say yes
+						*(uint8*)&stack[5] = 1;
+					}
 					return g_achievements_live_guide_state;
 				}
 				break;
@@ -327,10 +341,71 @@ static void* __cdecl achievements_guide_state_manager_get_hook(void)
 	else if (stack[0] == g_queue_achievement_return && stack[2] == g_queue_achievement_caller)
 	{
 		// 0x48C726 pushes esi before the call: [1] esi, [2] its return address, [3] the achievement index
+		g_achievements_queued++;
 		achievements_unlock((int32)stack[3]);
 	}
 
 	return p_user_interface_guide_state_manager_get();
+}
+
+// achievement manager layout (halo2.exe): +1 earning achievements, +4 "signed in to Live", +8 the 41 trackers,
+// +0xB0 a flag passed to the trackers when they are enabled
+// tracker: +0 vtable (slot 0: enable(arg, flag)), +4 enabled, +5 achieved, +6 multiplayer (needs Gold)
+enum
+{
+	k_achievement_manager_earning_offset = 0x1,
+	k_achievement_manager_signed_in_offset = 0x4,
+	k_achievement_manager_trackers_offset = 0x8,
+	k_achievement_manager_enable_flag_offset = 0xB0,
+
+	k_achievement_tracker_enabled_offset = 0x4,
+	k_achievement_tracker_achieved_offset = 0x5,
+	k_achievement_tracker_multiplayer_offset = 0x6,
+};
+
+typedef void(__thiscall* t_achievement_tracker_enable)(void* tracker, uint32 arg, uint32 flag);
+
+static uint8* achievements_manager_data(void)
+{
+	return (uint8*)achievement_manager_get();
+}
+
+static uint8* achievements_manager_tracker(uint8* manager, int32 index)
+{
+	return ((uint8**)(manager + k_achievement_manager_trackers_offset))[index];
+}
+
+// halo2.exe 0x47BFD1, called by the achievement manager's enable function (0x44A6F9) right after it enables the
+// trackers. Multiplayer trackers are only enabled there for Gold members (an encrypted guide state check, 0x61A995):
+// enable the ones it left off, the same way it enables the others
+typedef int32(__cdecl* t_achievements_post_enable)(void);
+static t_achievements_post_enable p_achievements_post_enable = NULL;
+static uintptr_t g_achievements_post_enable_return = 0;		// in 0x44A6F9, after its call to 0x47BFD1
+
+static int32 __cdecl achievements_post_enable_hook(void)
+{
+	// stack at entry: [0] return address, [1] esi, [2] ebp, [3] ebx, [4] edi (pushed by 0x44A6F9), [5] its return
+	// address, [6] its argument
+	const uintptr_t* stack = (const uintptr_t*)_AddressOfReturnAddress();
+	if (stack[0] == g_achievements_post_enable_return)
+	{
+		uint8* manager = achievements_manager_data();
+		if (manager != NULL && manager[k_achievement_manager_earning_offset] != 0)
+		{
+			for (int32 index = 0; index < k_achievement_type_count; index++)
+			{
+				uint8* tracker = achievements_manager_tracker(manager, index);
+				if (tracker != NULL && tracker[k_achievement_tracker_multiplayer_offset] != 0 && tracker[k_achievement_tracker_enabled_offset] == 0)
+				{
+					const t_achievement_tracker_enable enable = (t_achievement_tracker_enable)(*(void***)tracker)[0];
+					enable(tracker, (uint32)stack[6], manager[k_achievement_manager_enable_flag_offset]);
+					tracker[k_achievement_tracker_achieved_offset] = 0;
+					g_achievements_multiplayer_enabled++;
+				}
+			}
+		}
+	}
+	return p_achievements_post_enable();
 }
 
 /* public code */
@@ -350,8 +425,11 @@ void achievements_apply_patches(void)
 	g_queue_achievement_return = Memory::GetAddressRelative(0x48C738);
 	g_queue_achievement_caller = Memory::GetAddressRelative(0x44A6B4);
 
+	g_achievements_post_enable_return = Memory::GetAddressRelative(0x44A782);
+
 	// (runs inside H2MOD::Initialize's detour transaction)
 	DETOUR_ATTACH(p_user_interface_guide_state_manager_get, Memory::GetAddress<t_user_interface_guide_state_manager_get>(0x209674), achievements_guide_state_manager_get_hook);
+	DETOUR_ATTACH(p_achievements_post_enable, Memory::GetAddress<t_achievements_post_enable>(0x7BFD1), achievements_post_enable_hook);
 	return;
 }
 
@@ -428,4 +506,45 @@ uint64 achievements_get_unlocked(void)
 const char* achievements_get_string(int32 achievement_index)
 {
 	return VALID_INDEX(achievement_index, k_achievement_type_count) ? k_achievement_strings[achievement_index] : "";
+}
+
+void achievements_get_diagnostics(char* buffer, uint32 buffer_size)
+{
+	uint8* manager = achievements_manager_data();
+	int32 enabled = 0;
+	int32 multiplayer = 0;
+	int32 multiplayer_enabled = 0;
+	int32 achieved = 0;
+	if (manager != NULL)
+	{
+		for (int32 index = 0; index < k_achievement_type_count; index++)
+		{
+			const uint8* tracker = achievements_manager_tracker(manager, index);
+			if (tracker == NULL)
+			{
+				continue;
+			}
+			const bool tracker_enabled = tracker[k_achievement_tracker_enabled_offset] != 0;
+			enabled += tracker_enabled ? 1 : 0;
+			achieved += tracker[k_achievement_tracker_achieved_offset] != 0 ? 1 : 0;
+			if (tracker[k_achievement_tracker_multiplayer_offset] != 0)
+			{
+				multiplayer++;
+				multiplayer_enabled += tracker_enabled ? 1 : 0;
+			}
+		}
+	}
+
+	_snprintf_s(buffer, buffer_size, _TRUNCATE,
+		"manager %s, earning %d, signed in %d\n"
+		"trackers enabled %d of %d, multiplayer enabled %d of %d, completed %d\n"
+		"checks: level chosen %u, saved game %u, game start %u\n"
+		"earned reports %u, multiplayer enabled by fix %u",
+		manager ? "found" : "missing",
+		manager ? manager[k_achievement_manager_earning_offset] : -1,
+		manager ? manager[k_achievement_manager_signed_in_offset] : -1,
+		enabled, (int32)k_achievement_type_count, multiplayer_enabled, multiplayer, achieved,
+		g_achievements_live_checks[0], g_achievements_live_checks[1], g_achievements_live_checks[2],
+		g_achievements_queued, g_achievements_multiplayer_enabled);
+	return;
 }

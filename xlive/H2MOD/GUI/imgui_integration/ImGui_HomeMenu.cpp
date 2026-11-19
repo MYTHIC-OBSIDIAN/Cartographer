@@ -365,6 +365,13 @@ namespace ImGuiHandler
 					ImGui::TextDisabled("Sign in to a profile to save achievements.");
 				}
 
+				if (ImGui::CollapsingHeader("Diagnostics"))
+				{
+					char diagnostics[512];
+					achievements_get_diagnostics(diagnostics, sizeof(diagnostics));
+					ImGui::TextUnformatted(diagnostics);
+				}
+
 				ImGui::Separator();
 				ImGui::RadioButton("All", &g_home_menu_filter, 0);
 				ImGui::SameLine();
