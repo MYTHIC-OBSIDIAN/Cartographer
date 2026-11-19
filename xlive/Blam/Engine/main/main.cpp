@@ -31,6 +31,7 @@
 #include "input/input_windows.h"
 #include "interface/terminal.h"
 #include "interface/user_interface.h"
+#include "interface/screens/screen_network_squad_browser.h"
 #include "networking/logic/life_cycle_manager.h"
 #include "networking/logic/network_search.h"
 #include "networking/panorama/panorama_presence.h"
@@ -370,6 +371,7 @@ void main_loop_body(void)
 				user_interface_update(dt);
 				wmv_update();
 				wmv_afk_movie_update();
+				quickmatch_search_delay_update();
 			}
 
 			network_receive();

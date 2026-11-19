@@ -1279,6 +1279,7 @@ static void __fastcall profile_edit_list_handle_item_pressed(void* list, void* e
 #define k_profile_edit_screen_size 0xCB8
 #define k_profile_edit_list_offset 0xA60
 #define k_profile_edit_list_item_count 5
+#define k_profile_edit_list_item_spacing 46
 #define k_list_item_widget_size 0x84
 
 static void* profile_edit_list_get_extra_item_widgets(void* list)
@@ -1392,6 +1393,10 @@ void nameplates_apply_patches(void)
 	WritePointer(Memory::GetAddressRelative(0x7D894C) + 22 * sizeof(void*), (void*)profile_edit_list_get_list_items);
 	WritePointer(Memory::GetAddressRelative(0x7D894C) + 23 * sizeof(void*), (void*)profile_edit_list_get_list_items_count);
 
+	// the session interface update (halo2.exe 0x5B2C20 loop) sets every local user's displayed and overall skill to -1
+	// (they came from Xbox Live stats), which hid the rank chosen in the Rank menu: keep the skill from the player details
+	NopFill(Memory::GetAddressRelative(0x5B2C29), 7);
+
 	PatchCall(Memory::GetAddressRelative(0x606AD3), user_interface_controller_get_user_properties_nameplate);
 	PatchCall(Memory::GetAddressRelative(0x61D3FB), user_interface_controller_get_user_properties_nameplate);
 
@@ -1449,13 +1454,29 @@ void nameplates_apply_patches_on_map_load(void)
 		logo_callout->text_bounds = { 350, -165, 300, 10 };
 	}
 
-	// 5 visible list items
+	// 5 visible list items, and the list moved up by one item so the last item (Keyboard/Mouse) sits where the 4th did
+	// (default list skin items are 46 units apart: text bounds 38 to -8; y is up)
+	// the panes are copies of each other and share their list blocks, so move each list reference once
+	s_list_reference* moved_lists[16];
+	int32 moved_list_count = 0;
 	for (int32 pane_index = 0; pane_index < widget->panes.count; pane_index++)
 	{
 		s_window_pane_reference* pane = user_interface_widget_pane_get(&widget->panes, pane_index);
 		for (int32 list_index = 0; list_index < pane->list_block.count; list_index++)
 		{
-			TAG_BLOCK_GET_ELEMENT(&pane->list_block, list_index, s_list_reference)->num_visible_items = k_profile_edit_list_item_count;
+			s_list_reference* list = TAG_BLOCK_GET_ELEMENT(&pane->list_block, list_index, s_list_reference);
+			list->num_visible_items = k_profile_edit_list_item_count;
+
+			bool already_moved = false;
+			for (int32 i = 0; i < moved_list_count; i++)
+			{
+				already_moved |= moved_lists[i] == list;
+			}
+			if (!already_moved && moved_list_count < (int32)NUMBEROF(moved_lists))
+			{
+				list->bottom_left.y = (int16)(list->bottom_left.y + k_profile_edit_list_item_spacing);
+				moved_lists[moved_list_count++] = list;
+			}
 		}
 	}
 }

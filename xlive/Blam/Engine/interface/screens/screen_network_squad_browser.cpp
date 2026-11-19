@@ -3,6 +3,8 @@
 
 #include "interface/user_interface.h"
 #include "interface/user_interface_network_search.h"
+#include "interface/user_interface_errors.h"
+#include "interface/user_interface_widget_window.h"
 #include "memory/data.h"
 #include "networking/logic/network_logic.h"
 #include "networking/transport/transport_security.h"
@@ -39,17 +41,12 @@ static __declspec(naked) void jmp_populate_servers(void)
 }
 
 static void screen_network_squad_browser_increase_server_limit_apply_patches(void);
-static void screen_network_squad_browser_minimum_search_time_apply_patches(void);
+static void quickmatch_search_delay_apply_patches(void);
 
 /* globals */
 
 static load_network_browser_t p_load_network_browser;
 static load_network_browser_t p_load_live_browser;
-
-// LAN edition: when the game list opens, show "searching" for at least this long before "no games"
-#define k_squad_browser_minimum_search_milliseconds 3000
-static uint32 g_squad_browser_search_start_time = 0;
-static void* g_squad_browser_empty_text_return = NULL;
 
 /* public code */
 
@@ -61,7 +58,7 @@ void c_screen_network_squad_browser::apply_patches(void)
 	DETOUR_ATTACH(p_load_live_browser, Memory::GetAddress<load_network_browser_t>(0x21A2E4), c_screen_network_squad_browser::load_live_browser);
 	
 	screen_network_squad_browser_increase_server_limit_apply_patches();
-	screen_network_squad_browser_minimum_search_time_apply_patches();
+	quickmatch_search_delay_apply_patches();
 	return;
 }
 
@@ -76,14 +73,12 @@ void c_network_squad_list::sort_event(
 c_screen_network_squad_browser* c_screen_network_squad_browser::load_network_browser(
 	c_screen_parameters* parameters)
 {
-	g_squad_browser_search_start_time = GetTickCount();
 	return p_load_network_browser(parameters);
 }
 
 c_screen_network_squad_browser* c_screen_network_squad_browser::load_live_browser(
 	c_screen_parameters* parameters)
 {
-	g_squad_browser_search_start_time = GetTickCount();
 	c_screen_network_squad_browser* screen = p_load_live_browser(parameters);
 
 	screen->m_selected_column_index = _screen_network_squad_browser_column_players;
@@ -275,47 +270,95 @@ void c_network_squad_list::populate_server_data(
 	return;
 }
 
-// LAN edition: minimum search time
-// The game list screen update (halo2.exe 0x6193F4) shows "no games" straight away when the list is empty, unless it is the
-// Live list and its search is still running (0x614F96), in which case it shows "search in progress".
-// Show "search in progress" for at least 3 seconds after the list opens, then the original behaviour.
-static bool __cdecl squad_browser_search_in_progress(uint8* screen)
-{
-	const uint32 elapsed = GetTickCount() - g_squad_browser_search_start_time;
-	if ((int32)elapsed < k_squad_browser_minimum_search_milliseconds)
-	{
-		return true;
-	}
+// LAN edition: Quickmatch search time
+// Quickmatch (Xbox Live menu) opens the matchmaking progress screen (halo2.exe load 0x646CEF, screen 0xD2), which fails straight
+// away on a LAN and shows its "no games" error (0x646A1F, error dialog call at 0x646A75; pressing OK leaves the screen).
+// Hold that error back until the search screen has been up for 3 seconds.
 
-	// original check: Live list with its search still running
-	if (screen[0x1F00] != 0)
+#define k_quickmatch_minimum_search_milliseconds 3000
+
+typedef void*(__cdecl* matchmaking_progress_load_t)(c_screen_parameters* parameters);
+static matchmaking_progress_load_t p_matchmaking_progress_load;
+
+static uint32 g_quickmatch_search_start_time = 0;
+
+struct s_quickmatch_deferred_error
+{
+	bool pending;
+	e_user_interface_channel_type channel_type;
+	e_ui_error_types ui_error_index;
+	e_user_interface_render_window window_index;
+	int16 user_flags;
+	void* ok_callback;
+	void* fallback;
+};
+static s_quickmatch_deferred_error g_quickmatch_deferred_error = {};
+
+static void* __cdecl matchmaking_progress_load_hook(c_screen_parameters* parameters)
+{
+	g_quickmatch_search_start_time = GetTickCount();
+	g_quickmatch_deferred_error.pending = false;
+	return p_matchmaking_progress_load(parameters);
+}
+
+static void __cdecl quickmatch_search_failed_error_show(
+	e_user_interface_channel_type channel_type,
+	e_ui_error_types ui_error_index,
+	e_user_interface_render_window window_index,
+	int16 user_flags,
+	void* ok_callback,
+	void* fallback)
+{
+	const uint32 elapsed = GetTickCount() - g_quickmatch_search_start_time;
+	if ((int32)elapsed < k_quickmatch_minimum_search_milliseconds)
 	{
-		return INVOKE_TYPE(0x214F96, 0x0, bool(__cdecl*)(void));
+		g_quickmatch_deferred_error = { true, channel_type, ui_error_index, window_index, user_flags, ok_callback, fallback };
+		return;
+	}
+	g_quickmatch_deferred_error.pending = false;
+	screen_error_ok_dialog_show(channel_type, ui_error_index, window_index, user_flags, ok_callback, fallback);
+}
+
+static bool quickmatch_search_screen_active(void)
+{
+	for (int32 channel = 0; channel < k_number_of_user_interface_channels; channel++)
+	{
+		if (user_interface_in_screen((e_user_interface_channel_type)channel, _window_4, _screen_matchmaking_progress))
+		{
+			return true;
+		}
 	}
 	return false;
 }
 
-// replaces 0x619409 - 0x61942A, picks the empty list text at [esp+0x14]
-static __declspec(naked) void squad_browser_empty_list_text(void)
+void quickmatch_search_delay_update(void)
 {
-	__asm
+	if (!g_quickmatch_deferred_error.pending)
 	{
-		push esi
-		call squad_browser_search_in_progress
-		add esp, 4
-		test al, al
-		jz no_games
-		mov dword ptr[esp + 0x14], 0x12000973		// search_in_progress
-		jmp dword ptr[g_squad_browser_empty_text_return]
-	no_games:
-		mov dword ptr[esp + 0x14], 0x8000235		// no_games
-		jmp dword ptr[g_squad_browser_empty_text_return]
+		return;
 	}
+
+	// the player backed out of the search screen: nothing left to report
+	if (!quickmatch_search_screen_active())
+	{
+		g_quickmatch_deferred_error.pending = false;
+		return;
+	}
+
+	const uint32 elapsed = GetTickCount() - g_quickmatch_search_start_time;
+	if ((int32)elapsed < k_quickmatch_minimum_search_milliseconds)
+	{
+		return;
+	}
+
+	g_quickmatch_deferred_error.pending = false;
+	const s_quickmatch_deferred_error error = g_quickmatch_deferred_error;
+	screen_error_ok_dialog_show(error.channel_type, error.ui_error_index, error.window_index, error.user_flags, error.ok_callback, error.fallback);
 }
 
-static void screen_network_squad_browser_minimum_search_time_apply_patches(void)
+static void quickmatch_search_delay_apply_patches(void)
 {
-	g_squad_browser_empty_text_return = Memory::GetAddressRelative<void*>(0x61942B);
-	WriteJmpTo(Memory::GetAddressRelative(0x619409), squad_browser_empty_list_text);
+	DETOUR_ATTACH(p_matchmaking_progress_load, Memory::GetAddressRelative<matchmaking_progress_load_t>(0x646CEF), matchmaking_progress_load_hook);
+	PatchCall(Memory::GetAddressRelative(0x646A75), quickmatch_search_failed_error_show);
 	return;
 }

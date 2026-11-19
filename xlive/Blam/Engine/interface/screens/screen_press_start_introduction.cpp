@@ -3,6 +3,7 @@
 
 #include "interface/user_interface.h"
 #include "interface/user_interface_memory.h"
+#include "interface/user_interface_widget_text.h"
 #include "H2MOD/Modules/Accounts/AccountLogin.h"
 
 // typedef
@@ -18,9 +19,24 @@ c_screen_press_start_introduction::c_screen_press_start_introduction(e_user_inte
 	this->m_has_input_saved = false;
 }
 
+// LAN edition: the start screen prompt (text block 1, string start_screen_0 "PRESS ANY KEY") reads "PRESS START TO CONTINUE"
+#define k_press_start_prompt_text_index 1
+static const c_screen_press_start_introduction* g_press_start_prompt_set_for = NULL;
+
 void c_screen_press_start_introduction::update()
 {
 	INVOKE_TYPE(0x23F2FD, 0x0, void(__thiscall*)(c_screen_press_start_introduction*), this);
+
+	// set once the screen's text widgets exist (after the original initialize / first update)
+	if (g_press_start_prompt_set_for != this)
+	{
+		c_text_widget* prompt = this->try_find_screen_text(k_press_start_prompt_text_index);
+		if (prompt)
+		{
+			prompt->set_text(L"PRESS START TO CONTINUE");
+			g_press_start_prompt_set_for = this;
+		}
+	}
 }
 
 bool c_screen_press_start_introduction::handle_event(s_event_record* event)
@@ -36,6 +52,8 @@ void c_screen_press_start_introduction::initialize(c_screen_parameters* paramete
 		UpdateMasterLoginStatus();
 	}
 	
+	g_press_start_prompt_set_for = NULL;
+
 	//orignal c_screen_press_start_introduction::initialize
 	INVOKE_TYPE(0x23F180, 0x0, void(__thiscall*)(c_screen_press_start_introduction*, c_screen_parameters*), this, parameters);
 }
