@@ -102,5 +102,5 @@ public:
 };
 ASSERT_STRUCT_SIZE(c_screen_network_squad_browser, 0x1F0C);
 
-// LAN edition: Quickmatch shows its search screen for at least 10 seconds before the "no games" error (call every UI frame)
+// LAN edition: Quickmatch shows its search screen for 30 seconds (its three stages) before the "no games" error (call every UI frame)
 void quickmatch_search_delay_update(void);

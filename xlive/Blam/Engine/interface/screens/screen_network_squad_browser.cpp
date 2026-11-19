@@ -271,16 +271,23 @@ void c_network_squad_list::populate_server_data(
 }
 
 // LAN edition: Quickmatch search time
-// Quickmatch (Xbox Live menu) opens the matchmaking progress screen (halo2.exe load 0x646CEF, screen 0xD2), which fails straight
-// away on a LAN and shows its "no games" error (0x646A1F, error dialog call at 0x646A75; pressing OK leaves the screen).
-// Hold that error back until the search screen has been up for 10 seconds.
+// Quickmatch (Xbox Live menu) opens the matchmaking progress screen (halo2.exe load 0x646CEF, screen 0xD2). On a LAN the
+// matchmaking fails straight away and the screen shows its "no games" error (0x646A1F, error dialog call at 0x646A75;
+// pressing OK leaves the screen).
+// Instead the screen runs through its three stages for 30 seconds before the error:
+//   0-10 s "searching for games" (pane 0), 10-20 s "gathering game" (pane 1), 20-30 s "joining game" (pane 2)
+// by reporting a matchmaking state to the screen's update (in progress check 0x646BE2, pane 0x646A85, stage text 0x64692B)
+// while the real matchmaking has already stopped.
 
-#define k_quickmatch_minimum_search_milliseconds 10000
+#define k_quickmatch_minimum_search_milliseconds 30000
+#define k_quickmatch_stage_milliseconds 10000
 
 typedef void*(__cdecl* matchmaking_progress_load_t)(c_screen_parameters* parameters);
 static matchmaking_progress_load_t p_matchmaking_progress_load;
 
 static uint32 g_quickmatch_search_start_time = 0;
+static bool g_quickmatch_search_active = false;
+static bool g_quickmatch_error_shown = false;
 
 struct s_quickmatch_deferred_error
 {
@@ -294,11 +301,58 @@ struct s_quickmatch_deferred_error
 };
 static s_quickmatch_deferred_error g_quickmatch_deferred_error = {};
 
+static bool quickmatch_search_in_minimum_time(void)
+{
+	if (!g_quickmatch_search_active)
+	{
+		return false;
+	}
+	const uint32 elapsed = GetTickCount() - g_quickmatch_search_start_time;
+	return (int32)elapsed < k_quickmatch_minimum_search_milliseconds;
+}
+
 static void* __cdecl matchmaking_progress_load_hook(c_screen_parameters* parameters)
 {
 	g_quickmatch_search_start_time = GetTickCount();
+	g_quickmatch_search_active = true;
+	g_quickmatch_error_shown = false;
 	g_quickmatch_deferred_error.pending = false;
 	return p_matchmaking_progress_load(parameters);
+}
+
+// matchmaking life cycle helpers used by the screen
+static bool matchmaking_in_progress(void)
+{
+	return INVOKE_TYPE(0x2151FB, 0x0, bool(__cdecl*)(void));
+}
+
+static int32 matchmaking_state(void)
+{
+	return INVOKE_TYPE(0x2151F6, 0x0, int32(__cdecl*)(void));
+}
+
+// the screen's "is matchmaking running" check: keep it running for the minimum time
+static bool __cdecl quickmatch_screen_in_progress(void)
+{
+	return matchmaking_in_progress() || quickmatch_search_in_minimum_time();
+}
+
+// the screen's matchmaking state (pane and stage text): step through the three stages for the minimum time
+static int32 __cdecl quickmatch_screen_state(void)
+{
+	if (matchmaking_in_progress() || !quickmatch_search_in_minimum_time())
+	{
+		return matchmaking_state();
+	}
+
+	const uint32 elapsed = GetTickCount() - g_quickmatch_search_start_time;
+	const int32 stage = (int32)(elapsed / k_quickmatch_stage_milliseconds);
+	switch (stage)
+	{
+	case 0: return 2;	// searching for games
+	case 1: return 4;	// gathering game
+	default: return 6;	// joining game
+	}
 }
 
 static void __cdecl quickmatch_search_failed_error_show(
@@ -309,13 +363,20 @@ static void __cdecl quickmatch_search_failed_error_show(
 	void* ok_callback,
 	void* fallback)
 {
-	const uint32 elapsed = GetTickCount() - g_quickmatch_search_start_time;
-	if ((int32)elapsed < k_quickmatch_minimum_search_milliseconds)
+	// the screen asks again every frame until the dialog is up: show it once per search
+	if (g_quickmatch_error_shown)
+	{
+		return;
+	}
+
+	if (quickmatch_search_in_minimum_time())
 	{
 		g_quickmatch_deferred_error = { true, channel_type, ui_error_index, window_index, user_flags, ok_callback, fallback };
 		return;
 	}
+
 	g_quickmatch_deferred_error.pending = false;
+	g_quickmatch_error_shown = true;
 	screen_error_ok_dialog_show(channel_type, ui_error_index, window_index, user_flags, ok_callback, fallback);
 }
 
@@ -333,7 +394,7 @@ static bool quickmatch_search_screen_active(void)
 
 void quickmatch_search_delay_update(void)
 {
-	if (!g_quickmatch_deferred_error.pending)
+	if (!g_quickmatch_search_active)
 	{
 		return;
 	}
@@ -341,24 +402,28 @@ void quickmatch_search_delay_update(void)
 	// the player backed out of the search screen: nothing left to report
 	if (!quickmatch_search_screen_active())
 	{
+		g_quickmatch_search_active = false;
 		g_quickmatch_deferred_error.pending = false;
 		return;
 	}
 
-	const uint32 elapsed = GetTickCount() - g_quickmatch_search_start_time;
-	if ((int32)elapsed < k_quickmatch_minimum_search_milliseconds)
+	if (!g_quickmatch_deferred_error.pending || quickmatch_search_in_minimum_time() || g_quickmatch_error_shown)
 	{
 		return;
 	}
 
-	g_quickmatch_deferred_error.pending = false;
 	const s_quickmatch_deferred_error error = g_quickmatch_deferred_error;
+	g_quickmatch_deferred_error.pending = false;
+	g_quickmatch_error_shown = true;
 	screen_error_ok_dialog_show(error.channel_type, error.ui_error_index, error.window_index, error.user_flags, error.ok_callback, error.fallback);
 }
 
 static void quickmatch_search_delay_apply_patches(void)
 {
 	DETOUR_ATTACH(p_matchmaking_progress_load, Memory::GetAddressRelative<matchmaking_progress_load_t>(0x646CEF), matchmaking_progress_load_hook);
+	PatchCall(Memory::GetAddressRelative(0x646BE2), quickmatch_screen_in_progress);
+	PatchCall(Memory::GetAddressRelative(0x646A85), quickmatch_screen_state);
+	PatchCall(Memory::GetAddressRelative(0x64692B), quickmatch_screen_state);
 	PatchCall(Memory::GetAddressRelative(0x646A75), quickmatch_search_failed_error_show);
 	return;
 }
