@@ -206,6 +206,7 @@ static void __fastcall bungie_news_update_hook(c_screen_widget* screen, void*)
 
 	// the collapsed Y menu's tab (bottom left): its text comes from the Y menu's strings
 	const int32 y_menu_text_index = c_screen_y_menu::collapsed_tab_text_index(c_screen_widget_pane_access::pane_index(screen));
+	c_screen_y_menu::scale_collapsed_tab(screen, c_screen_widget_pane_access::pane_index(screen));
 	if (y_menu_text_index != NONE)
 	{
 		bungie_news_set_text(screen->try_find_screen_text(y_menu_text_index), c_screen_y_menu::collapsed_tab_text());

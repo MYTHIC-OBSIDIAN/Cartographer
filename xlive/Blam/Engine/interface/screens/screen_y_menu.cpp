@@ -3,6 +3,9 @@
 
 #include "cache/cache_files.h"
 #include "interface/user_interface.h"
+#include "interface/user_interface_bitmap_block.h"
+#include "interface/user_interface_widget_text.h"
+#include "input/controllers.h"
 #include "interface/user_interface_controller.h"
 #include "interface/user_interface_memory.h"
 #include "interface/user_interface_screen_widget_definition.h"
@@ -23,7 +26,21 @@ enum
 	k_y_menu_pane_count = 3,
 	k_y_menu_maximum_panes = 6,
 	k_keyboard_component_letter_y = 0x59,
+
+	// Xbox (640x480) tags to Halo 2 Vista's screen
+	k_y_menu_scale = 2,
+	k_y_menu_xbox_background_left = -319,		// online_y_menu pane 0 bitmap 0 (y_menu_bkd) before scaling
+
+	// the collapsed tab on the Xbox Live menu (1 unit = 1.21 pixels at 2576x1447: the screen's left edge is at -1064, and
+	// the menu's bottom bar line at -527)
+	k_y_menu_collapsed_tab_left = -1064,
+	k_y_menu_collapsed_tab_top = -467,
+
+	// online_y_menu panes: the "<gamertag>'s Friends" style header
+	k_y_menu_header_text_index = 2,
+	k_y_menu_maximum_bitmaps = 16,
 };
+static const real_vector2d k_y_menu_bitmap_scale = { 2.f, 2.f };
 
 /* globals */
 
@@ -31,6 +48,7 @@ static string_id g_y_menu_collapsed_string = _string_id_invalid;
 static bool g_y_menu_collapsed_text_loaded = false;
 static wchar_t g_y_menu_collapsed_text[128] = L"";
 static int32 g_y_menu_collapsed_text_index[16];			// per Xbox Live menu pane: the tab text's block index
+static int32 g_y_menu_collapsed_bitmap_index[16];		// per Xbox Live menu pane: the tab bitmap's block index
 
 /* public code */
 
@@ -74,6 +92,7 @@ bool c_screen_y_menu::handle_event(s_event_record* event)
 		int32 pane_index = this->m_pane_index + (event->type == _user_interface_event_type_tab_right ? 1 : -1);
 		pane_index = (pane_index + k_y_menu_pane_count) % k_y_menu_pane_count;
 		this->switch_panes(&pane_index);
+		this->update_pane_widgets();
 		return true;
 	}
 
@@ -115,6 +134,70 @@ void c_screen_y_menu::initialize(c_screen_parameters* parameters)
 
 	int32 first_pane = 0;
 	this->switch_panes(&first_pane);
+	this->update_pane_widgets();
+	return;
+}
+
+void c_screen_y_menu::update_pane_widgets(void)
+{
+	// the Xbox bitmaps are half the resolution of Halo 2 Vista's: drawn at twice their size
+	for (int32 index = 0; index < k_y_menu_maximum_bitmaps; index++)
+	{
+		c_bitmap_widget* bitmap = this->try_find_bitmap_widget(index);
+		if (bitmap != NULL)
+		{
+			bitmap->set_render_scale(&k_y_menu_bitmap_scale);
+		}
+	}
+
+	// the header's gamertag placeholder ("<gamertag>'s Friends"): the signed-in profile's name
+	c_text_widget* header = this->try_find_screen_text(k_y_menu_header_text_index);
+	if (header != NULL)
+	{
+		const wchar_t* current = header->get_interface()->get_raw_string();
+		const wchar_t* name = user_interface_controller_get_player_profile_name(first_controller());
+		if (current != NULL && name != NULL)
+		{
+			wchar_t replaced[256];
+			int32 length = 0;
+			bool changed = false;
+			for (const wchar_t* character = current; *character != L'\0' && length < (int32)NUMBEROF(replaced) - 1; character++)
+			{
+				const bool placeholder = *character < L' ' || (*character >= 0xE000 && *character <= 0xF8FF);
+				if (placeholder && !changed)
+				{
+					for (const wchar_t* letter = name; *letter != L'\0' && length < (int32)NUMBEROF(replaced) - 1; letter++)
+					{
+						replaced[length++] = *letter;
+					}
+					changed = true;
+				}
+				else if (!placeholder)
+				{
+					replaced[length++] = *character;
+				}
+			}
+			replaced[length] = L'\0';
+			if (changed)
+			{
+				header->set_text(replaced);
+			}
+		}
+	}
+	return;
+}
+
+void c_screen_y_menu::scale_collapsed_tab(c_screen_widget* xbox_live_menu, int32 pane_index)
+{
+	if (!VALID_INDEX(pane_index, (int32)NUMBEROF(g_y_menu_collapsed_bitmap_index)) || g_y_menu_collapsed_bitmap_index[pane_index] == NONE)
+	{
+		return;
+	}
+	c_bitmap_widget* bitmap = xbox_live_menu->try_find_bitmap_widget(g_y_menu_collapsed_bitmap_index[pane_index]);
+	if (bitmap != NULL)
+	{
+		bitmap->set_render_scale(&k_y_menu_bitmap_scale);
+	}
 	return;
 }
 
@@ -152,18 +235,72 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 	for (int32 index = 0; index < (int32)NUMBEROF(g_y_menu_collapsed_text_index); index++)
 	{
 		g_y_menu_collapsed_text_index[index] = NONE;
+		g_y_menu_collapsed_bitmap_index[index] = NONE;
 	}
 
-	// the Y menu: its lists would need Xbox Live players, so its panes keep only their texts and bitmaps
+	// the Y menu: its lists would need Xbox Live players, so its panes keep only their texts and bitmaps; it was made for
+	// the Xbox's 640x480 screen, so like the 4-way sign-in its positions are doubled for Halo 2 Vista's screen (and its
+	// bitmaps drawn at twice their size, see y_menu_scale_bitmaps)
 	const datum y_menu_datum = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_y_menu_widget_tag);
 	if (y_menu_datum != NONE)
 	{
 		s_user_interface_screen_widget_definition* y_menu = user_interface_screen_widget_definition_get(y_menu_datum);
+		// panes can share blocks: each is scaled once (and only the original Xbox tag, so never twice)
+		const void* scaled_blocks[3 * k_y_menu_maximum_panes] = {};
+		int32 scaled_count = 0;
+		auto first_time = [&](const void* block) -> bool
+		{
+			for (int32 index = 0; index < scaled_count; index++)
+			{
+				if (scaled_blocks[index] == block)
+				{
+					return false;
+				}
+			}
+			if (scaled_count < (int32)NUMBEROF(scaled_blocks))
+			{
+				scaled_blocks[scaled_count++] = block;
+			}
+			return true;
+		};
+
+		const bool original = y_menu->panes.count > 0
+			&& user_interface_widget_pane_get(&y_menu->panes, 0)->bitmap_blocks.count > 0
+			&& TAG_BLOCK_GET_ELEMENT(&user_interface_widget_pane_get(&y_menu->panes, 0)->bitmap_blocks, 0, s_bitmap_block_reference)->topleft.x == k_y_menu_xbox_background_left;
 		for (int32 pane_index = 0; pane_index < y_menu->panes.count; pane_index++)
 		{
 			s_window_pane_reference* pane = user_interface_widget_pane_get(&y_menu->panes, pane_index);
 			pane->list_block.count = 0;
 			pane->buttons.count = 0;
+			if (!original)
+			{
+				continue;
+			}
+
+			if (first_time(pane->text_blocks.data))
+			{
+				for (int32 index = 0; index < pane->text_blocks.count; index++)
+				{
+					rectangle2d_scale(&TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, index, s_text_block_reference)->text_bounds, k_y_menu_scale);
+				}
+			}
+			if (first_time(pane->bitmap_blocks.data))
+			{
+				for (int32 index = 0; index < pane->bitmap_blocks.count; index++)
+				{
+					point2d_scale(&TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, index, s_bitmap_block_reference)->topleft, k_y_menu_scale);
+				}
+			}
+			if (first_time(pane->player_blocks.data))
+			{
+				for (int32 index = 0; index < pane->player_blocks.count; index++)
+				{
+					s_player_block_reference* players = TAG_BLOCK_GET_ELEMENT(&pane->player_blocks, index, s_player_block_reference);
+					point2d_scale(&players->bottomleft, k_y_menu_scale);
+					players->row_height = (int16)(players->row_height * k_y_menu_scale);
+					players->column_width = (int16)(players->column_width * k_y_menu_scale);
+				}
+			}
 		}
 	}
 
@@ -184,9 +321,19 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 	{
 		return;
 	}
-	const s_bitmap_block_reference tab = *TAG_BLOCK_GET_ELEMENT(&collapsed_pane->bitmap_blocks, 0, s_bitmap_block_reference);
-	const s_text_block_reference tab_text = *TAG_BLOCK_GET_ELEMENT(&collapsed_pane->text_blocks, 0, s_text_block_reference);
+	// the Xbox tab sat in the bottom left corner of the 640x480 screen: here at the left edge of a 16:9 screen, its bottom
+	// line along the Xbox Live menu's bottom bar, its text placed as on the Xbox (doubled)
+	s_bitmap_block_reference tab = *TAG_BLOCK_GET_ELEMENT(&collapsed_pane->bitmap_blocks, 0, s_bitmap_block_reference);
+	s_text_block_reference tab_text = *TAG_BLOCK_GET_ELEMENT(&collapsed_pane->text_blocks, 0, s_text_block_reference);
 	g_y_menu_collapsed_string = tab_text.string;
+	const point2d xbox_tab = tab.topleft;
+	const rectangle2d xbox_text = tab_text.text_bounds;
+	tab.topleft.x = k_y_menu_collapsed_tab_left;
+	tab.topleft.y = k_y_menu_collapsed_tab_top;
+	tab_text.text_bounds.top = (int16)(k_y_menu_collapsed_tab_top + (xbox_text.top - xbox_tab.y) * k_y_menu_scale);
+	tab_text.text_bounds.bottom = (int16)(k_y_menu_collapsed_tab_top + (xbox_text.bottom - xbox_tab.y) * k_y_menu_scale);
+	tab_text.text_bounds.left = (int16)(k_y_menu_collapsed_tab_left + (xbox_text.left - xbox_tab.x) * k_y_menu_scale);
+	tab_text.text_bounds.right = (int16)(k_y_menu_collapsed_tab_left + (xbox_text.right - xbox_tab.x) * k_y_menu_scale);
 
 	s_user_interface_screen_widget_definition* bungie_news = user_interface_screen_widget_definition_get(bungie_news_datum);
 	for (int32 pane_index = 0; pane_index < bungie_news->panes.count; pane_index++)
@@ -197,6 +344,10 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 		const int32 bitmap_index = pane->bitmap_blocks.count;
 		tag_injection_extend_block(&pane->bitmap_blocks, sizeof(s_bitmap_block_reference), 1);
 		*TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, bitmap_index, s_bitmap_block_reference) = tab;
+		if (pane_index < (int32)NUMBEROF(g_y_menu_collapsed_bitmap_index))
+		{
+			g_y_menu_collapsed_bitmap_index[pane_index] = bitmap_index;
+		}
 
 		const int32 text_index = pane->text_blocks.count;
 		tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 1);

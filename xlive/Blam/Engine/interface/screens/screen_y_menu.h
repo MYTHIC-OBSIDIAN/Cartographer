@@ -28,10 +28,17 @@ public:
 	// the collapsed tab's text block index in an Xbox Live menu pane, NONE when it wasn't added
 	static int32 collapsed_tab_text_index(int32 pane_index);
 
+	// the collapsed tab's bitmap at twice its size (the Xbox bitmap is half Halo 2 Vista's resolution)
+	static void scale_collapsed_tab(c_screen_widget* xbox_live_menu, int32 pane_index);
+
 	c_screen_y_menu(e_user_interface_channel_type channel_type, e_user_interface_render_window window_index, uint16 user_flags);
 
 	virtual ~c_screen_y_menu() = default;
 	virtual bool handle_event(s_event_record* event) override;
 	virtual void initialize(c_screen_parameters* parameters) override;
 	virtual const void* load_proc(void) const override;
+
+private:
+	// after a tab loads: its bitmaps at twice their size, the gamertag in its header
+	void update_pane_widgets(void);
 };
