@@ -516,7 +516,7 @@ static void guide_draw_list(float scene_y, const s_guide_input* input)
 	const ImVec2 mouse = ImGui::GetIO().MousePos;
 	const bool sort_hovered = guide_point_inside(mouse, x + 652.f, scene_y + 94.f, 255.f, 34.f);
 	guide_nine_grid("SKIN", sort_hovered ? L"btn_list_header_posE_focus.png" : L"btn_list_header_posE_normal.png", x + 652.f, scene_y + 94.f, 255.f, 34.f, 5.f);
-	guide_image_stretched("SKIN", sort_hovered ? L"Ybutton_Focus.png" : L"Ybutton_Normal.png", x + 652.f + 3.f, scene_y + 94.f + 3.f, 28.f, 28.f);
+	guide_image("SKIN", sort_hovered ? L"Ybutton_Focus.png" : L"Ybutton_Normal.png", x + 652.f + 3.f, scene_y + 94.f + 3.f, 28.f, 28.f);
 	guide_text("Change Sort Order", x + 652.f + 36.f, scene_y + 94.f, 210.f, 34.f, 10.f, k_guide_text_blue);
 
 	// rows (ListAchievements / btn_Achievements): 870x42, 43 apart, from (2, 2) in the 874x351 list at (17, 129)
@@ -772,7 +772,7 @@ namespace ImGuiHandler
 
 			// top bar: frame, Games for Windows LIVE logo, clock and close button
 			guide_image("XAM", L"header_frame.png", 0.f, bar_y, 1024.f, 64.f);
-			guide_image_stretched("XAM", L"header_logo.png", 421.f, bar_y + 2.f, 176.f, 43.f);
+			guide_image("XAM", L"header_logo.png", 421.f, bar_y + 2.f, 176.f, 43.f);
 			guide_image("XAM", L"screen_time.png", 822.f, bar_y, 128.f, 32.f);
 			wchar_t time_wide[32];
 			char time_text[64];

@@ -20,6 +20,7 @@ protected:
 	void handle_item_xbox_live(s_event_record* const& event);
 	void handle_item_splitscreen(s_event_record* const& event);
 	void handle_item_system_link(s_event_record* const& event);
+	void handle_item_achievements(s_event_record* const& event);
 	void handle_item_settings(s_event_record* const& event);
 	//void handle_item_guide(s_event_record* const& event);
 	void handle_item_quit(s_event_record* const& event);

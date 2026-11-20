@@ -20,6 +20,8 @@
 
 #include "shell/shell.h"
 
+#include "H2MOD/GUI/imgui_integration/imgui_handler.h"
+
 /* enums */
 
 enum e_main_menu_list_items : uint16
@@ -40,11 +42,12 @@ enum e_main_menu_list_items : uint16
 	//_item_settings,
 	//_item_quit,
 
-	// LAN edition: Guide removed, Split-screen added
+	// LAN edition: Guide removed, Split-screen and Achievements (the Home menu) added
 	_item_campaign = 0,
 	_item_xbox_live,
 	_item_splitscreen,
 	_item_system_link,
+	_item_achievements,
 	_item_settings,
 	_item_quit,
 
@@ -176,6 +179,9 @@ void c_main_menu_list::update_list_items(c_list_item_widget* item, int32 skin_in
 			// LAN edition: fixed label (the map's string reads "Network")
 			item_text->set_text(L"SYSTEM LINK");
 			break;
+		case _item_achievements:
+			item_text->set_text(L"ACHIEVEMENTS");
+			break;
 		case _item_settings:
 			item_text->set_text_from_string_id(_string_id_settings);
 			break;
@@ -225,6 +231,9 @@ void c_main_menu_list::handle_item_pressed_event(s_event_record* const& event, d
 		break;
 	case _item_system_link:
 		handle_item_system_link(event);
+		break;
+	case _item_achievements:
+		handle_item_achievements(event);
 		break;
 	case _item_settings:
 		handle_item_settings(event);
@@ -348,6 +357,20 @@ void c_main_menu_list::handle_item_settings(s_event_record* const& event)
 	params.initialize_default_user(FLAG(event->controller), _user_interface_channel_type_gameshell_screen, _window_4, c_screen_settings::load);
 	params.execute_load_function();
 
+	return;
+}
+
+// LAN edition: the achievements (the Home menu: the original Games for Windows - LIVE Guide's achievement screens when
+// the player's xlive.dll is there)
+void c_main_menu_list::handle_item_achievements(s_event_record* const& event)
+{
+	(void)event;
+#ifndef IMGUI_DISABLE
+	if (!ImGuiHandler::IsWindowActive(k_home_menu_window_name))
+	{
+		ImGuiHandler::ImHomeMenu::Toggle();
+	}
+#endif
 	return;
 }
 
