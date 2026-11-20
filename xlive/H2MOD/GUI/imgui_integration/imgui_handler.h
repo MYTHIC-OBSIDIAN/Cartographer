@@ -3,6 +3,8 @@
 #ifndef IMGUI_DISABLE
 
 #include "input/controllers.h"
+
+struct ImFont;
 #include "saved_games/cartographer_player_profile/cartographer_player_profile.h"
 
 /* constants */
@@ -97,7 +99,17 @@ namespace ImGuiHandler
 		void Render(bool* p_open);
 		void Open();
 		void Close();
+		// from the game's title data (halo2.exe SPAFILE), 0 when it can't be read
+		uint32 GetAchievementGamerscore(int32 achievement_index);
+		void ReleaseTextures();
 	}
+	// LAN edition: the original Games for Windows - LIVE achievement pop-up (drawn every frame while one is queued)
+	namespace ImAchievementToast
+	{
+		void Render();
+	}
+	// Segoe UI (the Games for Windows - LIVE interface font) when Windows has it, else the default font
+	ImFont* GetGfwlFont();
 	namespace WeaponOffsets
 	{
 		void Render(bool* p_open);

@@ -15,6 +15,7 @@ void achievements_profile_sign_out(e_controller_index controller_index);
 
 // pop-up queue, oldest first: "title|description", or NULL when empty
 const char* achievements_popup_get_current(void);
+int32 achievements_popup_get_current_index(void);		// NONE when empty
 void achievements_popup_pop(void);
 
 // for the Home menu: the achievement player's controller (k_no_controller when no profile is signed in), their unlocked

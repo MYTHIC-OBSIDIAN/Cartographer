@@ -67,6 +67,7 @@ namespace ImGuiHandler
 	int						g_network_stats_overlay = _network_stats_display_none;
 
 	ImFont*					g_im_font_ProdigyClean = NULL;
+	ImFont*					g_im_font_gfwl = NULL;		// Segoe UI
 
 	bool ImGuiShouldHandleInput()
 	{
@@ -116,9 +117,17 @@ namespace ImGuiHandler
 
 		ImGui::PopFont();
 
+		// LAN edition: the original achievement pop-up, over everything
+		ImAchievementToast::Render();
+
 		// Rendering
 		ImGui::Render();
 		ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
+	}
+
+	ImFont* GetGfwlFont()
+	{
+		return g_im_font_gfwl ? g_im_font_gfwl : g_im_font_ProdigyClean;
 	}
 
 	void ToggleWindow(const char* name)
@@ -188,6 +197,22 @@ namespace ImGuiHandler
 			proggy_clean_ttf_compressed_data_base85,
 			fontConfig.SizePixels,
 			&fontConfig);
+
+		// LAN edition: Segoe UI for the Games for Windows - LIVE pop-up and Home menu (drawn scaled from 32 pixels)
+		wchar_t windows_directory[MAX_PATH] = {};
+		if (GetWindowsDirectoryW(windows_directory, MAX_PATH) != 0)
+		{
+			wchar_t font_path_wide[MAX_PATH];
+			swprintf_s(font_path_wide, L"%s\\Fonts\\segoeui.ttf", windows_directory);
+			char font_path[MAX_PATH * 3];
+			if (GetFileAttributesW(font_path_wide) != INVALID_FILE_ATTRIBUTES
+				&& WideCharToMultiByte(CP_UTF8, 0, font_path_wide, -1, font_path, sizeof(font_path), NULL, NULL) != 0)
+			{
+				ImFontConfig gfwl_font_config;
+				gfwl_font_config.OversampleH = 2;
+				g_im_font_gfwl = io.Fonts->AddFontFromFileTTF(font_path, 32.f, &gfwl_font_config);
+			}
+		}
 
 		ImGui_ImplDX9_Init(rasterizer_dx9_device_get_interface());
 

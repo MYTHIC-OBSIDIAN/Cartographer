@@ -210,7 +210,7 @@ struct s_achievements_profile
 static s_achievements_profile g_achievements_profiles[k_number_of_controllers];
 // unlocked while no profile is signed in: kept until the game closes
 static uint64 g_achievements_unsaved = k_achievements_default_unlocked_mask;
-static std::deque<std::string> g_achievement_popups;
+static std::deque<int32> g_achievement_popups;				// achievement indices, oldest first
 
 /* private code */
 
@@ -280,7 +280,7 @@ static void achievements_unlock(int32 achievement_index)
 	}
 	achievements_list_refresh();
 
-	g_achievement_popups.push_back(k_achievement_strings[achievement_index]);
+	g_achievement_popups.push_back(achievement_index);
 	event(_event_status, "achievements: unlocked %d (%s)", achievement_index + 1, k_achievement_strings[achievement_index]);
 	return;
 }
@@ -479,7 +479,12 @@ void achievements_profile_sign_out(e_controller_index controller_index)
 
 const char* achievements_popup_get_current(void)
 {
-	return g_achievement_popups.empty() ? NULL : g_achievement_popups.front().c_str();
+	return g_achievement_popups.empty() ? NULL : k_achievement_strings[g_achievement_popups.front()];
+}
+
+int32 achievements_popup_get_current_index(void)
+{
+	return g_achievement_popups.empty() ? NONE : g_achievement_popups.front();
 }
 
 void achievements_popup_pop(void)

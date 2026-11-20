@@ -20,6 +20,7 @@
 #include "text/unicode.h"
 
 #include "H2MOD/GUI/imgui_integration/imgui_handler.h"
+#include "H2MOD/GUI/imgui_integration/gfwl_assets.h"
 #include "H2MOD/Modules/Accounts/AccountLogin.h"
 #include "H2MOD/Modules/Achievements/Achievements.h"
 #include "H2MOD/Modules/Updater/Updater.h"
@@ -86,11 +87,17 @@ void render_cartographer_ingame_ui(void)
 
 	rasterizer_dx9_perf_event_begin("render cartographer ingame ui", NULL);
 	// LAN edition: Cartographer build text / status bar, updater message and test build info removed
-	// achievement pop-ups: one at a time, oldest first, each shown for 5 seconds
-	const char* achievement_popup = achievements_popup_get_current();
-	if (achievement_popup != NULL && !render_cartographer_achievement_message(achievement_popup))
+	// achievement pop-ups: one at a time, oldest first, each shown for 5 seconds. With the original Games for Windows -
+	// LIVE files (the player's xlive.dll) the original pop-up is drawn instead (ImGuiHandler::ImAchievementToast)
+#ifndef IMGUI_DISABLE
+	if (!gfwl_assets_available())
+#endif
 	{
-		achievements_popup_pop();
+		const char* achievement_popup = achievements_popup_get_current();
+		if (achievement_popup != NULL && !render_cartographer_achievement_message(achievement_popup))
+		{
+			achievements_popup_pop();
+		}
 	}
 	render_netdebug_text();
 	render_main_game_time_debug();

@@ -11,6 +11,7 @@
 #include "rasterizer/dx9/rasterizer_dx9_main.h"
 
 #include "H2MOD/Modules/Achievements/Achievements.h"
+#include "gfwl_assets.h"
 
 /*
 * LAN edition: an offline version of the Games for Windows - LIVE Guide that the Home key opened.
@@ -134,7 +135,8 @@ static void home_menu_title_data_read(void)
 	g_home_menu_title_data_read = true;
 
 	HMODULE module = GetModuleHandleW(NULL);
-	HRSRC resource = FindResourceW(module, L"SPAFILE", MAKEINTRESOURCEW(10));	// RT_RCDATA
+	// the type is a string, "RT_RCDATA" (not the standard RT_RCDATA id 10)
+	HRSRC resource = FindResourceW(module, L"SPAFILE", L"RT_RCDATA");
 	HGLOBAL loaded_resource = resource ? LoadResource(module, resource) : NULL;
 	if (loaded_resource == NULL)
 	{
@@ -182,46 +184,7 @@ static PDIRECT3DTEXTURE9 home_menu_texture_create(uint64 image_id)
 		return NULL;
 	}
 
-	// the game's device is Direct3D 9Ex: a D3DPOOL_DEFAULT texture can't be written unless it is dynamic (D3DX can't load
-	// into a plain one). Decode into system memory, then copy into a dynamic default pool texture, like ImGui's font
-	LPDIRECT3DDEVICE9 device = rasterizer_dx9_device_get_interface();
-	PDIRECT3DTEXTURE9 decoded = NULL;
-	if (FAILED(D3DXCreateTextureFromFileInMemoryEx(device, png, png_size,
-		D3DX_DEFAULT_NONPOW2, D3DX_DEFAULT_NONPOW2, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM,
-		D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, NULL, NULL, &decoded)))
-	{
-		return NULL;
-	}
-
-	D3DSURFACE_DESC description;
-	PDIRECT3DTEXTURE9 texture = NULL;
-	if (SUCCEEDED(decoded->GetLevelDesc(0, &description))
-		&& SUCCEEDED(device->CreateTexture(description.Width, description.Height, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texture, NULL)))
-	{
-		D3DLOCKED_RECT source;
-		D3DLOCKED_RECT destination;
-		bool copied = false;
-		if (SUCCEEDED(decoded->LockRect(0, &source, NULL, D3DLOCK_READONLY)))
-		{
-			if (SUCCEEDED(texture->LockRect(0, &destination, NULL, D3DLOCK_DISCARD)))
-			{
-				for (uint32 row = 0; row < description.Height; row++)
-				{
-					csmemcpy((uint8*)destination.pBits + row * destination.Pitch, (const uint8*)source.pBits + row * source.Pitch, description.Width * 4);
-				}
-				texture->UnlockRect(0);
-				copied = true;
-			}
-			decoded->UnlockRect(0);
-		}
-		if (!copied)
-		{
-			texture->Release();
-			texture = NULL;
-		}
-	}
-	decoded->Release();
-	return texture;
+	return imgui_texture_create_from_png(png, png_size, NULL, NULL);
 }
 
 static void home_menu_textures_create(void)
@@ -451,6 +414,18 @@ namespace ImGuiHandler
 		}
 
 		void Close()
+		{
+			home_menu_textures_release();
+			return;
+		}
+
+		uint32 GetAchievementGamerscore(int32 achievement_index)
+		{
+			home_menu_title_data_read();
+			return VALID_INDEX(achievement_index, k_achievement_type_count) ? g_home_menu_achievements[achievement_index].gamerscore : 0;
+		}
+
+		void ReleaseTextures()
 		{
 			home_menu_textures_release();
 			return;

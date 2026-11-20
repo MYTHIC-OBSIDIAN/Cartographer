@@ -53,6 +53,8 @@
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\ImGui_Handler.cpp" />
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\AdvancedSettings.cpp" />
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\ImGui_HomeMenu.cpp" />
+    <ClCompile Include="H2MOD\GUI\ImGui_Integration\ImGui_AchievementToast.cpp" />
+    <ClCompile Include="H2MOD\GUI\ImGui_Integration\gfwl_assets.cpp" />
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\MOTD.cpp" />
     <ClCompile Include="H2MOD\Modules\TagFixes\TagFixes.cpp" />
     <ClCompile Include="H2MOD\Modules\RenderHooks\RenderHooks.cpp" />

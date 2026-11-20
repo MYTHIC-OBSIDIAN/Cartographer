@@ -5,6 +5,7 @@
 
 #include "backends/imgui_impl_dx9.h"
 #include "H2MOD/GUI/ImGui_Integration/ImGui_Handler.h"
+#include "H2MOD/GUI/imgui_integration/gfwl_assets.h"
 #include "H2MOD/Modules/Input/KeyboardInput.h"
 
 extern void initialize_instance();
@@ -33,6 +34,8 @@ void XLiveRendering::D3D9ReleaseResources()
 {
 #ifndef IMGUI_DISABLE
 	ImGuiHandler::release_motd_texture();
+	ImGuiHandler::ImHomeMenu::ReleaseTextures();
+	gfwl_assets_release_textures();
 	ImGui_ImplDX9_InvalidateDeviceObjects();
 #endif
 }
