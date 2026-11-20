@@ -54,8 +54,7 @@ enum
 	k_y_menu_header_text_index = 2,
 	// online_y_menu panes: the collapsed tab's "<Y> FRIENDS" (title font), and the text block added for its glyph
 	k_y_menu_pane_tab_text_index = 3,
-	k_y_menu_pane_text_count = 8,
-	k_y_menu_pane_tab_glyph_text_index = k_y_menu_pane_text_count,
+	k_y_menu_default_text_count = 1,
 
 	// the collapsed tab (y_menu_compact) is 60 pixels high, drawn at twice its size
 	k_y_menu_collapsed_tab_height = 60 * k_y_menu_scale,
@@ -84,6 +83,10 @@ static const wchar_t* const k_y_menu_clan_options[] =
 	L"Create Clan",
 };
 static const char k_y_menu_options_list_name[] = "y menu options list";
+enum
+{
+	k_y_menu_friends_option_view_your_stats = 1,	// k_y_menu_friends_options[1]
+};
 
 /* globals */
 
@@ -313,12 +316,6 @@ void c_screen_y_menu::update(void)
 {
 	c_screen_widget::update();
 	this->update_header();
-
-	c_text_widget* tab_label = this->try_find_screen_text(k_y_menu_pane_tab_text_index);
-	if (tab_label != NULL)
-	{
-		y_menu_split_glyph(tab_label, this->try_find_screen_text(k_y_menu_pane_tab_glyph_text_index), tab_label->get_interface()->get_raw_string());
-	}
 	return;
 }
 
@@ -416,7 +413,9 @@ void c_screen_y_menu::scale_pane_bitmaps(void)
 void c_screen_y_menu::update_header(void)
 {
 	// the header's gamertag placeholder (U+E420 in "\xE420's Friends"): the signed-in profile's name
-	c_text_widget* header = this->try_find_screen_text(k_y_menu_header_text_index);
+	// (the Y menu has no header or button key text of the screen's own: its text widgets are its blocks after the one
+	// default text, not after two like try_find_screen_text assumes)
+	c_text_widget* header = this->try_find_text_widget(k_y_menu_header_text_index + k_y_menu_default_text_count);
 	if (header == NULL)
 	{
 		return;
@@ -539,17 +538,18 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 			pane->buttons.count = 0;
 			pane->player_blocks.count = 0;
 
-			// the tab's "<Y> FRIENDS": its glyph in a text block of its own (each pane gets its own copy of its blocks)
-			if (pane->text_blocks.count == k_y_menu_pane_text_count)
+			// the collapsed tab ("<Y> FRIENDS" on y_menu_compact) the Y menu opens from: on the Xbox it animates away as the
+			// menu opens; without that animation it sat over the tab title, so it's left out
+			if (pane->text_blocks.count > k_y_menu_pane_tab_text_index)
 			{
-				tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 1);
-				s_text_block_reference* label = TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, k_y_menu_pane_tab_text_index, s_text_block_reference);
-				*TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, k_y_menu_pane_tab_glyph_text_index, s_text_block_reference) = y_menu_glyph_text_block(label);
+				s_text_block_reference* collapsed_label = TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, k_y_menu_pane_tab_text_index, s_text_block_reference);
+				collapsed_label->text_bounds = { 0, 0, 0, 0 };
 			}
+			const datum compact_tab = tag_loaded(_tag_group_bitmap, k_y_menu_xbox_bitmap_tags[2]);
 			for (int32 index = 0; index < pane->bitmap_blocks.count; index++)
 			{
 				s_bitmap_block_reference* bitmap = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, index, s_bitmap_block_reference);
-				if (rank_icons != NONE && bitmap->bitmap_tag.index == rank_icons)
+				if ((rank_icons != NONE && bitmap->bitmap_tag.index == rank_icons) || (compact_tab != NONE && bitmap->bitmap_tag.index == compact_tab))
 				{
 					bitmap->bitmap_tag.index = NONE;
 				}
@@ -688,6 +688,12 @@ void c_y_menu_options_list::update_list_items(c_list_item_widget* item, int32 sk
 
 void c_y_menu_options_list::handle_item_pressed_event(s_event_record* const& event, datum* item_index)
 {
+	// View Your Stats: nothing (there are no Xbox Live stats offline)
+	if (m_type == _y_menu_options_friends && DATUM_INDEX_TO_ABSOLUTE_INDEX(*item_index) == k_y_menu_friends_option_view_your_stats)
+	{
+		return;
+	}
+
 	// offline there are no friends or clans to act on: back to the Y menu
 	user_interface_back_out_from_channel(this->get_parent_channel(), this->get_parent_render_window());
 	return;
