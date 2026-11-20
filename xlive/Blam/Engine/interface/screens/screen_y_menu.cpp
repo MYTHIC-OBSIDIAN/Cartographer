@@ -590,8 +590,7 @@ void c_screen_y_menu::update_player(void)
 void c_screen_y_menu::update_player_bar(void)
 {
 	// after the widgets' own update, so this frame is drawn with it: no nameplate (the player's bar is the border's
-	// fill instead), and the fill in the player's primary colour (the border picture's fill is see-through white like
-	// the Xbox's ymenu_yourself bar, so the colour is mixed with the blue tab under it as it was there; its line black)
+	// fill instead), and the fill in the player's primary colour (the border picture's fill is white, its line black)
 	c_player_widget* player_widget = this->try_find_player_widget(0);
 	if (player_widget != NULL)
 	{
