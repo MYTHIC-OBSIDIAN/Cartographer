@@ -5,6 +5,7 @@
 #include "input_xinput.h"
 
 #include "game/player_constants.h"
+#include "game/players.h"
 #include "main/game_preferences.h"
 #include "saved_games/cartographer_player_profile/cartographer_player_profile.h"
 
@@ -107,6 +108,10 @@ static void input_abstraction_mouse_set_default_mapping(s_gamepad_input_preferen
 
 static bool __cdecl input_abstraction_controller_plugged_hook(uint16 gamepad_index);
 
+typedef s_input_button* (__cdecl* t_input_abstraction_get_action_button)(s_input_button* out_button, int32 action, int32 button_index, s_gamepad_input_preferences* preferences);
+static t_input_abstraction_get_action_button p_input_abstraction_get_action_button;
+static s_input_button* __cdecl input_abstraction_get_action_button_hook(s_input_button* out_button, int32 action, int32 button_index, s_gamepad_input_preferences* preferences);
+
 /* public code */
 
 void input_abstraction_patches_apply(void)
@@ -114,6 +119,7 @@ void input_abstraction_patches_apply(void)
 	g_input_abstraction_globals = Memory::GetAddress<s_input_abstraction_globals*>(0x4A89B0);
 
 	PatchCall(Memory::GetAddress(0x61FBD), input_abstraction_controller_plugged_hook); //inside input_abstraction_update_input_state
+	DETOUR_ATTACH(p_input_abstraction_get_action_button, Memory::GetAddress<t_input_abstraction_get_action_button>(0x5E589), input_abstraction_get_action_button_hook);
 	return;
 }
 
@@ -1209,6 +1215,33 @@ static void input_abstraction_mouse_set_default_mapping(s_gamepad_input_preferen
 	preference->game_controls_to_hardware[_button_strafe_left].add_button(_input_device_type_mouse, _mouse_button_6, 0, 0);
 	preference->game_controls_to_hardware[_button_strafe_right].add_button(_input_device_type_mouse, _mouse_button_7, 0, 0);
 	return;
+}
+
+// LAN edition: the button an action is bound to, as shown in the HUD's button prompts ("Press <button> to look"). The game
+// picks the binding for the device the player last used (field_1658: 1 gamepad, 0 keyboard and mouse); in split screen
+// the second to fourth players' prompts came out with their keyboard and mouse binding (drawn as the font's missing
+// character square), so in split screen, and for controllers 2 to 4 (which have no keyboard or mouse), the gamepad
+// binding is shown when there is one
+static s_input_button* __cdecl input_abstraction_get_action_button_hook(s_input_button* out_button, int32 action, int32 button_index, s_gamepad_input_preferences* preferences)
+{
+	s_gamepad_input_preferences* used = preferences != NULL ? preferences : &g_input_abstraction_globals->preferences[0];
+	const int32 controller = (int32)(used - g_input_abstraction_globals->preferences);
+	const bool known_controller = used >= g_input_abstraction_globals->preferences && VALID_INDEX(controller, k_number_of_controllers);
+
+	bool prefer_gamepad = local_player_count() > 1;
+	if (known_controller)
+	{
+		prefer_gamepad = (prefer_gamepad || controller > 0) && input_has_gamepad_plugged((uint16)controller);
+	}
+
+	const uint32 last_used_device = used->field_1658;
+	if (prefer_gamepad)
+	{
+		used->field_1658 = 1;
+	}
+	s_input_button* result = p_input_abstraction_get_action_button(out_button, action, button_index, preferences);
+	used->field_1658 = last_used_device;
+	return result;
 }
 
 static bool __cdecl input_abstraction_controller_plugged_hook(uint16 gamepad_index)
