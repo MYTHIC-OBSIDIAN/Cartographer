@@ -32,6 +32,17 @@
 #define k_pregame_lobby_player_skin_tag "ui\\player_skins\\player_skin_lobby"
 #define k_y_menu_player_skin_tag "ui\\player_skins\\ymenu_yourself"
 #define k_y_menu_player_border_frame 12	// multiplayer49 extra picture: the black border round the top bar's player
+#define k_live_icons_small_bitmap_tag "ui\\global_bitmaps\\live_icons_sm"
+
+// the top bar's draw order (widgets at the same depth are drawn in order of their render depth bias): the menu's
+// translucent bars, the border, the voice and status icons, then the player's emblem, nameplate, name and rank on top
+// (behind the bars they looked faint)
+enum
+{
+	k_y_menu_player_border_depth_bias = 1,
+	k_y_menu_player_icons_depth_bias = 2,
+	k_y_menu_player_depth_bias = 10,
+};
 // the Create Clan row's pictures in the LAN edition mainmenu.map (digsite build_mainmenu.py, appended to multiplayer49 by
 // digsite_apply_patches_on_map_load): the Seventh Column emblem on a steel blue square, and the row's blue bar
 #define k_y_menu_create_clan_bitmap_tag "ui\\code_global_bitmaps\\multiplayer49"
@@ -76,8 +87,9 @@ enum
 	k_y_menu_player_bottom = 320,
 
 	// the options dialogs' list, fitted inside the dialog frame below its header
-	k_y_menu_options_list_left = -276,
-	k_y_menu_options_list_bottom = 75,
+	k_y_menu_options_list_left = -230,
+	k_y_menu_options_list_bottom = -40,
+	k_y_menu_friends_options_visible_items = 4,
 
 	// the Y menu's button prompts (pane text 1): at the bottom of the screen, like Halo 2 Vista's other screens
 	k_y_menu_button_key_text_index = 1,
@@ -86,7 +98,7 @@ enum
 
 	// the Clan tab's Create Clan row (under the column headings): the clan icon, then the row's bar with its text
 	k_y_menu_create_clan_icon_left = -535,
-	k_y_menu_create_clan_bar_left = -437,
+	k_y_menu_create_clan_bar_left = -463,		// right after the 72 wide icon (pictures are 1 unit a pixel)
 	k_y_menu_create_clan_top = 288,
 	k_y_menu_create_clan_row_height = 82,
 
@@ -99,7 +111,8 @@ enum
 };
 static const real_vector2d k_y_menu_xbox_bitmap_scale = { 2.f, 2.f };
 
-static const real_vector2d k_y_menu_create_clan_bar_scale = { 2.f, 2.f };	// the 366x36 bar drawn 842x83
+static const real_vector2d k_y_menu_create_clan_bar_scale = { 2.342f, 2.f };	// the 366x36 bar drawn 857x72: to under Status
+static const real_argb_color k_y_menu_create_clan_text_color = { 1.f, .70f, .74f, .79f };
 static const real_vector2d k_y_menu_player_border_scale = { 2.f, 2.f };	// the 268x22 border drawn about 616x51
 // the border's top left: round the top bar's emblem, name, rank, voice and status icons
 static const point2d k_y_menu_player_border_topleft = { -210, 386 };
@@ -330,6 +343,7 @@ static datum y_menu_player_skin_patch(void)
 		*text = *TAG_BLOCK_GET_ELEMENT(lobby_texts, index, s_text_block_reference);
 		text->animation_index = (e_animation_index)0;
 		text->intro_animation_delay_milliseconds = 0;
+		text->render_depth_bias = k_y_menu_player_depth_bias;
 	}
 	for (int32 index = 0; index < y_menu_bitmaps->count; index++)
 	{
@@ -337,6 +351,7 @@ static datum y_menu_player_skin_patch(void)
 		*bitmap = *TAG_BLOCK_GET_ELEMENT(lobby_bitmaps, index, s_bitmap_block_reference);
 		bitmap->animation_index = (e_ui_animation_index)0;
 		bitmap->intro_animation_delay = 0;
+		bitmap->render_depth_bias = k_y_menu_player_depth_bias;
 	}
 	for (int32 index = 0; index < y_menu_huds->count; index++)
 	{
@@ -344,6 +359,7 @@ static datum y_menu_player_skin_patch(void)
 		*hud = *TAG_BLOCK_GET_ELEMENT(lobby_huds, index, s_hud_block_reference);
 		hud->animation_index = (e_animation_index)0;
 		hud->intro_animation_delay_milliseconds = 0;
+		hud->render_depth_bias = k_y_menu_player_depth_bias;
 	}
 	return y_menu_skin;
 }
@@ -773,7 +789,19 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 				border->bitmap_tag.index = pictures;
 				border->initial_sprite_frame = k_y_menu_player_border_frame;
 				border->topleft = k_y_menu_player_border_topleft;
+				border->render_depth_bias = k_y_menu_player_border_depth_bias;
 				g_y_menu_player_border_index[pane_index] = border_index;
+
+				// the voice and status icons drawn over the border's nameplate coloured end
+				const datum live_icons = tag_loaded(_tag_group_bitmap, k_live_icons_small_bitmap_tag);
+				for (int32 index = 0; index < pane->bitmap_blocks.count; index++)
+				{
+					s_bitmap_block_reference* icon = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, index, s_bitmap_block_reference);
+					if (live_icons != NONE && icon->bitmap_tag.index == live_icons)
+					{
+						icon->render_depth_bias = k_y_menu_player_icons_depth_bias;
+					}
+				}
 			}
 
 			// the collapsed tab ("<Y> FRIENDS" on y_menu_compact) the Y menu opens from: on the Xbox it animates away as the
@@ -817,8 +845,9 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 				tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 1);
 				s_text_block_reference* text = TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, text_index, s_text_block_reference);
 				*text = *TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, k_y_menu_header_text_index, s_text_block_reference);
-				text->custom_font = custom_font_large_body_text;
-				text->text_bounds = { (int16)(k_y_menu_create_clan_top - 6), (int16)(k_y_menu_create_clan_bar_left + 24), (int16)(k_y_menu_create_clan_top - 46), (int16)(k_y_menu_create_clan_bar_left + 800) };
+				text->custom_font = custom_font_body_text;
+				text->text_color = k_y_menu_create_clan_text_color;
+				text->text_bounds = { (int16)(k_y_menu_create_clan_top - 4), (int16)(k_y_menu_create_clan_bar_left + 20), (int16)(k_y_menu_create_clan_top - 38), (int16)(k_y_menu_create_clan_bar_left + 800) };
 				g_y_menu_create_clan_text_index = text_index;
 			}
 
@@ -855,14 +884,25 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 		{
 			y_menu_scale_widget_tag(options, false);
 		}
+		// laid out like Halo 2 Vista's own dialogs (the Skulls menu's brightness_level dialog): its frame, then its list
+		static const point2d k_dialog_frame[] = { { -292, 210 }, { 150, -130 }, { -282, 198 }, { -230, 242 } };	// ul_07, br_07, dialog1, dialog2
 		for (int32 pane_index = 0; pane_index < options->panes.count; pane_index++)
 		{
 			s_window_pane_reference* pane = user_interface_widget_pane_get(&options->panes, pane_index);
+			for (int32 bitmap_index = 0; bitmap_index < pane->bitmap_blocks.count && bitmap_index < (int32)NUMBEROF(k_dialog_frame); bitmap_index++)
+			{
+				TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, bitmap_index, s_bitmap_block_reference)->topleft = k_dialog_frame[bitmap_index];
+			}
 			for (int32 list_index = 0; list_index < pane->list_block.count; list_index++)
 			{
 				s_list_reference* list = TAG_BLOCK_GET_ELEMENT(&pane->list_block, list_index, s_list_reference);
 				list->bottom_left.x = k_y_menu_options_list_left;
 				list->bottom_left.y = k_y_menu_options_list_bottom;
+				// Xbox Live Options has 4 options: 4 rows like the Skulls menu (its 7 ran past the frame)
+				if (index == 0)
+				{
+					list->num_visible_items = k_y_menu_friends_options_visible_items;
+				}
 			}
 		}
 	}
@@ -954,7 +994,7 @@ c_list_item_widget* c_y_menu_options_list::get_list_items()
 int32 c_y_menu_options_list::get_list_items_count()
 {
 	// the tags' visible items: 7 (friends_options_dialog), 5 (clan_options_dialog, also used by Clan Rank)
-	return m_type == _y_menu_options_friends ? k_y_menu_options_maximum_visible_items : 5;
+	return m_type == _y_menu_options_friends ? k_y_menu_friends_options_visible_items : 5;
 }
 
 void c_y_menu_options_list::update_list_items(c_list_item_widget* item, int32 skin_index)

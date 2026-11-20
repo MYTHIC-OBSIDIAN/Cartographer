@@ -440,11 +440,13 @@ static void __cdecl draw_hud_bitmap_widget(
 	if (bitmap_index == NONE)
 		return;
 
-	// LAN edition: in split screen the crosshair widgets use their half/quarter screen sequences, small Xbox-era
-	// bitmaps that look blurry once the HUD is scaled up for PC resolutions. Draw the full screen bitmap instead,
-	// scaled down to the size the split screen bitmap would have been drawn at.
+	// LAN edition: in split screen the crosshair and motion sensor widgets use their half/quarter screen sequences,
+	// small Xbox-era bitmaps that look blurry once the HUD is scaled up for PC resolutions. Draw the full screen bitmap
+	// instead, scaled down to the size the split screen bitmap would have been drawn at (so the motion sensor's blips
+	// still line up with it).
 	real32 crosshair_split_draw_ratio = 1.f;
-	if (bitmap_widget->anchor == _hud_anchor_crosshair && split_type != _screen_split_type_full)
+	if ((bitmap_widget->anchor == _hud_anchor_crosshair || bitmap_widget->anchor == _hud_anchor_motion_sensor)
+		&& split_type != _screen_split_type_full)
 	{
 		real_rectangle2d full_bounds;
 		int16 full_index = NONE;
