@@ -8,6 +8,7 @@
 #include "interface/user_interface_memory.h"
 #include "interface/user_interface_player_widget.h"
 #include "screen_cartographer_menus.h"
+#include "saved_games/cartographer_player_profile/cartographer_player_profile.h"
 #include "interface/user_interface_screen_widget_definition.h"
 #include "interface/user_interface_shared_globals.h"
 #include "interface/user_interface_widget_text.h"
@@ -27,7 +28,9 @@
 #define k_bungie_news_widget_tag "ui\\screens\\game_shell\\bungie_news\\bungie_news"
 #define k_rank_icons_bitmap_tag "ui\\global_bitmaps\\rank_icons"
 #define k_pregame_lobby_widget_tag "ui\\screens\\game_shell\\pregame_lobby\\pregame_lobby"
-#define k_y_menu_clan_rank L" : Overlord"
+#define k_y_menu_list_item_background_tag "ui\\list_skins\\y_menu_list\\item_background"
+#define k_y_menu_clan_icon_bitmap_tag "ui\\screens\\game_shell\\mp_game_select\\mp_games"
+#define k_y_menu_clan_icon_frame 5		// the Seventh Column logo the LAN edition mainmenu.map adds (see nameplates)
 
 // the Y menu's own (Xbox resolution) bitmaps; the others (ui\global_bitmaps) are Halo 2 Vista's
 static const char* const k_y_menu_xbox_bitmap_tags[] =
@@ -35,6 +38,7 @@ static const char* const k_y_menu_xbox_bitmap_tags[] =
 	"ui\\screens\\game_shell\\online_y_menu\\y_menu_bkd",
 	"ui\\screens\\game_shell\\online_y_menu\\tabs",
 	"ui\\screens\\game_shell\\online_y_menu\\y_menu_compact",
+	"ui\\list_skins\\y_menu_list\\item_background",
 };
 
 enum
@@ -66,8 +70,19 @@ enum
 	k_y_menu_player_bottom = 320,
 
 	// the options dialogs' list, fitted inside the dialog frame below its header
-	k_y_menu_options_list_left = -365,
+	k_y_menu_options_list_left = -305,
 	k_y_menu_options_list_bottom = 80,
+
+	// the Y menu's button prompts (pane text 1): at the bottom of the screen, like Halo 2 Vista's other screens
+	k_y_menu_button_key_text_index = 1,
+	k_y_menu_button_key_top = -500,
+	k_y_menu_button_key_bottom = -545,
+
+	// the Clan tab's Create Clan row (under the column headings): the clan icon, then the row's bar with its text
+	k_y_menu_create_clan_icon_left = -535,
+	k_y_menu_create_clan_bar_left = -437,
+	k_y_menu_create_clan_top = 288,
+	k_y_menu_create_clan_row_height = 82,
 
 	// the collapsed tab (y_menu_compact) is 60 pixels high, drawn at twice its size
 	k_y_menu_collapsed_tab_height = 60 * k_y_menu_scale,
@@ -77,6 +92,8 @@ enum
 	k_y_menu_tab_glyph_width = 40,
 };
 static const real_vector2d k_y_menu_xbox_bitmap_scale = { 2.f, 2.f };
+
+static const real_vector2d k_y_menu_clan_icon_scale = { .27f, .27f };	// the 302 high logo in the 82 high row
 
 // the options dialogs' items (their strings are in the Y menu's string list, without string ids for these)
 static const wchar_t* const k_y_menu_friends_options[] =
@@ -94,6 +111,26 @@ static const wchar_t* const k_y_menu_clan_options[] =
 	L"Invite Online Members",
 	L"Leave Clan",
 	L"Create Clan",
+	L"Clan Rank",
+};
+enum
+{
+	k_y_menu_clan_option_clan_rank = 6,		// k_y_menu_clan_options[6]
+};
+// Clan Rank's choices, in this order (e_cartographer_clan_rank keeps Overlord at 0, the default)
+static const wchar_t* const k_y_menu_clan_ranks[] =
+{
+	L"Peon",
+	L"Member",
+	L"Staff",
+	L"Overlord",
+};
+static const e_cartographer_clan_rank k_y_menu_clan_rank_values[NUMBEROF(k_y_menu_clan_ranks)] =
+{
+	_cartographer_clan_rank_peon,
+	_cartographer_clan_rank_member,
+	_cartographer_clan_rank_staff,
+	_cartographer_clan_rank_overlord,
 };
 static const char k_y_menu_options_list_name[] = "y menu options list";
 
@@ -111,6 +148,24 @@ static int32 g_y_menu_collapsed_glyph_index[k_y_menu_maximum_xbox_live_menu_pane
 static rectangle2d g_y_menu_collapsed_text_offset = {};
 // per Y menu pane: its Xbox bitmaps' block indices
 static uint32 g_y_menu_xbox_bitmaps[k_y_menu_maximum_panes];
+// the Clan tab's Create Clan row: its icon bitmap and text block indices (NONE when not added)
+static int32 g_y_menu_create_clan_icon_index = NONE;
+static int32 g_y_menu_create_clan_text_index = NONE;
+// the tab the Y menu opens on
+static int32 g_y_menu_open_pane = 0;
+
+static const wchar_t* y_menu_clan_rank_name(e_controller_index controller)
+{
+	const uint8 rank = VALID_INDEX(controller, k_number_of_controllers) ? cartographer_player_profile_get_by_controller_index(controller)->clan_rank : 0;
+	for (int32 index = 0; index < (int32)NUMBEROF(k_y_menu_clan_rank_values); index++)
+	{
+		if (k_y_menu_clan_rank_values[index] == rank)
+		{
+			return k_y_menu_clan_ranks[index];
+		}
+	}
+	return k_y_menu_clan_ranks[NUMBEROF(k_y_menu_clan_ranks) - 1];
+}
 
 /* private code */
 
@@ -303,9 +358,10 @@ void* __cdecl c_screen_y_menu::load(c_screen_parameters* parameters)
 	return screen;
 }
 
-void c_screen_y_menu::open(void)
+void c_screen_y_menu::open(int32 pane_index)
 {
 	// a dialog over the screen it was opened from, which comes back when it closes
+	g_y_menu_open_pane = VALID_INDEX(pane_index, k_y_menu_pane_count) ? pane_index : 0;
 	c_screen_parameters parameters;
 	parameters.initialize_default_user(
 		user_interface_controller_get_signed_in_controllers_mask(),
@@ -327,6 +383,7 @@ void c_screen_y_menu::update(void)
 	this->update_player();
 	c_screen_widget::update();
 	this->update_header();
+	this->update_create_clan();
 	return;
 }
 
@@ -392,7 +449,8 @@ void c_screen_y_menu::initialize(c_screen_parameters* parameters)
 	}
 	this->setup_children();
 
-	int32 first_pane = 0;
+	int32 first_pane = g_y_menu_open_pane;
+	g_y_menu_open_pane = 0;
 	this->switch_panes(&first_pane);
 	this->scale_pane_bitmaps();
 	this->update_header();
@@ -402,6 +460,23 @@ void c_screen_y_menu::initialize(c_screen_parameters* parameters)
 const void* c_screen_y_menu::load_proc(void) const
 {
 	return c_screen_y_menu::load;
+}
+
+bool c_screen_y_menu::overlay_effect_is_disabled(void)
+{
+	// the dialog overlay (which blurs and darkens what's under a dialog) also dimmed the player's emblem in the top bar;
+	// the Y menu has its own background, as on the Xbox
+	return true;
+}
+
+void c_screen_y_menu::update_create_clan(void)
+{
+	if (this->m_pane_index != k_y_menu_clan_pane || g_y_menu_create_clan_text_index == NONE)
+	{
+		return;
+	}
+	y_menu_set_text(this->try_find_text_widget(g_y_menu_create_clan_text_index + k_y_menu_default_text_count), L"Create Clan");
+	return;
 }
 
 void c_screen_y_menu::update_player(void)
@@ -419,7 +494,7 @@ void c_screen_y_menu::update_player(void)
 	if (this->m_pane_index == k_y_menu_clan_pane)
 	{
 		wchar_t name[NUMBEROF(player.name)];
-		swprintf_s(name, NUMBEROF(name), L"%.*s%s", (int)NUMBEROF(player.name), player.name, k_y_menu_clan_rank);
+		swprintf_s(name, NUMBEROF(name), L"%.*s : %s", (int)NUMBEROF(player.name), player.name, y_menu_clan_rank_name(controller));
 		wcsncpy_s(player.name, name, _TRUNCATE);
 	}
 
@@ -444,6 +519,15 @@ void c_screen_y_menu::scale_pane_bitmaps(void)
 			{
 				bitmap->set_render_scale(&k_y_menu_xbox_bitmap_scale);
 			}
+		}
+	}
+
+	if (this->m_pane_index == k_y_menu_clan_pane && g_y_menu_create_clan_icon_index != NONE)
+	{
+		c_bitmap_widget* icon = this->try_find_bitmap_widget(g_y_menu_create_clan_icon_index);
+		if (icon != NULL)
+		{
+			icon->set_render_scale(&k_y_menu_clan_icon_scale);
 		}
 	}
 	return;
@@ -554,6 +638,8 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 		g_y_menu_collapsed_glyph_index[index] = NONE;
 	}
 	csmemset(g_y_menu_xbox_bitmaps, 0, sizeof(g_y_menu_xbox_bitmaps));
+	g_y_menu_create_clan_icon_index = NONE;
+	g_y_menu_create_clan_text_index = NONE;
 
 	// the Y menu: its lists and player blocks would need Xbox Live players and the Level column's rank icon a selected
 	// player, so they're left out
@@ -610,6 +696,48 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 				s_text_block_reference* collapsed_label = TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, k_y_menu_pane_tab_text_index, s_text_block_reference);
 				collapsed_label->text_bounds = { 0, 0, 0, 0 };
 			}
+			// the button prompts at the bottom of the screen
+			if (pane->text_blocks.count > k_y_menu_button_key_text_index)
+			{
+				s_text_block_reference* button_keys = TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, k_y_menu_button_key_text_index, s_text_block_reference);
+				button_keys->text_bounds.top = k_y_menu_button_key_top;
+				button_keys->text_bounds.bottom = k_y_menu_button_key_bottom;
+			}
+
+			// the Clan tab's Create Clan row (shown on the Xbox when not in a clan): the clan icon, the row's bar and its
+			// text, added to the tab's own copies of its blocks (once: the tag's tab has 8 texts)
+			const datum row_background = tag_loaded(_tag_group_bitmap, k_y_menu_list_item_background_tag);
+			const datum clan_icon = tag_loaded(_tag_group_bitmap, k_y_menu_clan_icon_bitmap_tag);
+			if (pane_index == k_y_menu_clan_pane && pane->text_blocks.count == 8 && pane->bitmap_blocks.count > 1 && row_background != NONE)
+			{
+				const int32 bitmap_index = pane->bitmap_blocks.count;
+				tag_injection_extend_block(&pane->bitmap_blocks, sizeof(s_bitmap_block_reference), clan_icon != NONE ? 2 : 1);
+				s_bitmap_block_reference* bar = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, bitmap_index, s_bitmap_block_reference);
+				*bar = *TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, 1, s_bitmap_block_reference);
+				bar->bitmap_tag.group = _tag_group_bitmap;
+				bar->bitmap_tag.index = row_background;
+				bar->initial_sprite_frame = 0;
+				bar->topleft.x = k_y_menu_create_clan_bar_left;
+				bar->topleft.y = k_y_menu_create_clan_top;
+				if (clan_icon != NONE)
+				{
+					s_bitmap_block_reference* icon = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, bitmap_index + 1, s_bitmap_block_reference);
+					*icon = *bar;
+					icon->bitmap_tag.index = clan_icon;
+					icon->initial_sprite_frame = k_y_menu_clan_icon_frame;
+					icon->topleft.x = k_y_menu_create_clan_icon_left;
+					g_y_menu_create_clan_icon_index = bitmap_index + 1;
+				}
+
+				const int32 text_index = pane->text_blocks.count;
+				tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 1);
+				s_text_block_reference* text = TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, text_index, s_text_block_reference);
+				*text = *TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, k_y_menu_header_text_index, s_text_block_reference);
+				text->custom_font = custom_font_large_body_text;
+				text->text_bounds = { (int16)(k_y_menu_create_clan_top - 6), (int16)(k_y_menu_create_clan_bar_left + 24), (int16)(k_y_menu_create_clan_top - 46), (int16)(k_y_menu_create_clan_bar_left + 800) };
+				g_y_menu_create_clan_text_index = text_index;
+			}
+
 			const datum compact_tab = tag_loaded(_tag_group_bitmap, k_y_menu_xbox_bitmap_tags[2]);
 			for (int32 index = 0; index < pane->bitmap_blocks.count; index++)
 			{
@@ -721,7 +849,10 @@ c_y_menu_options_list::c_y_menu_options_list(uint16 user_flags, e_y_menu_options
 	m_slot(this, &c_y_menu_options_list::handle_item_pressed_event),
 	m_type(type)
 {
-	const uint32 item_count = type == _y_menu_options_clan ? NUMBEROF(k_y_menu_clan_options) : NUMBEROF(k_y_menu_friends_options);
+	const uint32 item_count =
+		type == _y_menu_options_clan ? NUMBEROF(k_y_menu_clan_options) :
+		type == _y_menu_options_clan_rank ? NUMBEROF(k_y_menu_clan_ranks) :
+		NUMBEROF(k_y_menu_friends_options);
 	m_list_data = ui_list_data_new(k_y_menu_options_list_name, item_count, sizeof(datum));
 	data_make_valid(m_list_data);
 	for (int32 index = 0; index < m_list_data->maximum_count; index++)
@@ -738,8 +869,8 @@ c_list_item_widget* c_y_menu_options_list::get_list_items()
 
 int32 c_y_menu_options_list::get_list_items_count()
 {
-	// the tags' visible items: 7 (friends_options_dialog), 5 (clan_options_dialog)
-	return m_type == _y_menu_options_clan ? 5 : k_y_menu_options_maximum_visible_items;
+	// the tags' visible items: 7 (friends_options_dialog), 5 (clan_options_dialog, also used by Clan Rank)
+	return m_type == _y_menu_options_friends ? k_y_menu_options_maximum_visible_items : 5;
 }
 
 void c_y_menu_options_list::update_list_items(c_list_item_widget* item, int32 skin_index)
@@ -750,7 +881,23 @@ void c_y_menu_options_list::update_list_items(c_list_item_widget* item, int32 sk
 		return;
 	}
 	const int32 index = DATUM_INDEX_TO_ABSOLUTE_INDEX(item->get_last_data_index());
-	if (m_type == _y_menu_options_clan)
+	if (m_type == _y_menu_options_clan_rank)
+	{
+		if (VALID_INDEX(index, (int32)NUMBEROF(k_y_menu_clan_ranks)))
+		{
+			const e_controller_index controller = first_controller();
+			const bool selected = VALID_INDEX(controller, k_number_of_controllers)
+				&& cartographer_player_profile_get_by_controller_index(controller)->clan_rank == k_y_menu_clan_rank_values[index];
+			wchar_t label[64];
+			swprintf_s(label, NUMBEROF(label), L"%s%s", k_y_menu_clan_ranks[index], selected ? L" (Selected)" : L"");
+			text->set_text(label);
+		}
+		else
+		{
+			text->set_text(L"");
+		}
+	}
+	else if (m_type == _y_menu_options_clan)
 	{
 		text->set_text(VALID_INDEX(index, (int32)NUMBEROF(k_y_menu_clan_options)) ? k_y_menu_clan_options[index] : L"");
 	}
@@ -763,12 +910,44 @@ void c_y_menu_options_list::update_list_items(c_list_item_widget* item, int32 sk
 
 void c_y_menu_options_list::handle_item_pressed_event(s_event_record* const& event, datum* item_index)
 {
-	// offline there are no friends, clans or Xbox Live stats to act on: like View Your Stats, every option does nothing
+	const int32 index = DATUM_INDEX_TO_ABSOLUTE_INDEX(*item_index);
+
+	// Clan Options > Clan Rank: the rank choices
+	if (m_type == _y_menu_options_clan && index == k_y_menu_clan_option_clan_rank)
+	{
+		c_screen_y_menu_options::open(_y_menu_options_clan_rank, event->controller);
+		return;
+	}
+
+	// a clan rank: saved with the profile (shown after the player's name on the Clan tab)
+	if (m_type == _y_menu_options_clan_rank && VALID_INDEX(index, (int32)NUMBEROF(k_y_menu_clan_ranks)))
+	{
+		const e_controller_index controller = first_controller();
+		if (VALID_INDEX(controller, k_number_of_controllers))
+		{
+			cartographer_player_profile_get_by_controller_index(controller)->clan_rank = (uint8)k_y_menu_clan_rank_values[index];
+			cartographer_player_profile_save(controller);
+		}
+		this->refresh_items();
+		return;
+	}
+
+	// offline there are no friends, clans or Xbox Live stats to act on: like View Your Stats, every other option does
+	// nothing
+	return;
+}
+
+void c_y_menu_options_list::refresh_items(void)
+{
+	for (int32 index = 0; index < (int32)NUMBEROF(m_list_items); index++)
+	{
+		this->update_list_items(&m_list_items[index], 0);
+	}
 	return;
 }
 
 c_screen_y_menu_options::c_screen_y_menu_options(e_y_menu_options_type type, e_user_interface_channel_type channel_type, e_user_interface_render_window window_index, uint16 user_flags) :
-	c_screen_with_menu(type == _y_menu_options_clan ? _screen_clan_options_dialog : _screen_friends_options_dialog, channel_type, window_index, user_flags, &m_options_list),
+	c_screen_with_menu(type == _y_menu_options_friends ? _screen_friends_options_dialog : _screen_clan_options_dialog, channel_type, window_index, user_flags, &m_options_list),
 	m_options_list(user_flags, type),
 	m_type(type)
 {
@@ -798,6 +977,46 @@ void* c_screen_y_menu_options::load_clan(c_screen_parameters* parameters)
 	return c_screen_y_menu_options::load_type(_y_menu_options_clan, parameters);
 }
 
+void* c_screen_y_menu_options::load_clan_rank(c_screen_parameters* parameters)
+{
+	return c_screen_y_menu_options::load_type(_y_menu_options_clan_rank, parameters);
+}
+
+bool c_screen_y_menu_options::handle_event(s_event_record* event)
+{
+	// back: Clan Rank to Clan Options, the options to the Y menu's tab they came from (not out of the Y menu)
+	const bool back =
+		(event->type == _user_interface_event_type_gamepad_button_pressed && event->component == _controller_component_button_b)
+		|| (event->type == _user_interface_event_type_keyboard_button_pressed && event->component == _user_interface_keyboard_component_button_escape);
+	if (back)
+	{
+		if (m_type == _y_menu_options_clan_rank)
+		{
+			c_screen_y_menu_options::open(_y_menu_options_clan, event->controller);
+		}
+		else
+		{
+			c_screen_y_menu::open(m_type == _y_menu_options_clan ? k_y_menu_clan_pane : k_y_menu_friends_pane);
+		}
+		return true;
+	}
+	return c_screen_with_menu::handle_event(event);
+}
+
+void c_screen_y_menu_options::initialize(c_screen_parameters* parameters)
+{
+	c_screen_with_menu::initialize(parameters);
+	if (m_type == _y_menu_options_clan_rank)
+	{
+		c_text_widget* header = this->get_screen_header_text();
+		if (header != NULL)
+		{
+			header->set_text(L"CLAN RANK");
+		}
+	}
+	return;
+}
+
 void c_screen_y_menu_options::open(e_y_menu_options_type type, e_controller_index controller)
 {
 	c_screen_parameters parameters;
@@ -805,6 +1024,7 @@ void c_screen_y_menu_options::open(e_y_menu_options_type type, e_controller_inde
 		VALID_INDEX(controller, k_number_of_controllers) ? (uint16)FLAG(controller) : user_interface_controller_get_signed_in_controllers_mask(),
 		_user_interface_channel_type_gameshell_dialog,
 		_window_4,
+		type == _y_menu_options_clan_rank ? c_screen_y_menu_options::load_clan_rank :
 		type == _y_menu_options_clan ? c_screen_y_menu_options::load_clan : c_screen_y_menu_options::load_friends);
 	parameters.execute_load_function();
 	return;
@@ -812,5 +1032,8 @@ void c_screen_y_menu_options::open(e_y_menu_options_type type, e_controller_inde
 
 const void* c_screen_y_menu_options::load_proc() const
 {
-	return m_type == _y_menu_options_clan ? (const void*)c_screen_y_menu_options::load_clan : (const void*)c_screen_y_menu_options::load_friends;
+	return
+		m_type == _y_menu_options_clan_rank ? (const void*)c_screen_y_menu_options::load_clan_rank :
+		m_type == _y_menu_options_clan ? (const void*)c_screen_y_menu_options::load_clan :
+		(const void*)c_screen_y_menu_options::load_friends;
 }

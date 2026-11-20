@@ -109,7 +109,8 @@ struct s_saved_game_cartographer_player_profile_v4
 	real_point3d weapon_offsets[k_weapon_offset_weapon_count];
 	uint8 nameplate;		// index in the Nameplate menu, 0 = Default
 	uint8 rank;				// LAN edition: index in the Rank menu, 0 = Rank 1 ... 49 = Rank 50 (was padding, so older v4 profiles read Rank 1)
-	uint8 pad_0[2];
+	uint8 clan_rank;		// LAN edition: the Y menu's clan rank (e_cartographer_clan_rank, was padding: 0 = Overlord)
+	uint8 pad_0[1];
 };
 ASSERT_STRUCT_SIZE(s_saved_game_cartographer_player_profile_v4, 272);
 
@@ -136,6 +137,16 @@ struct s_cartographer_profile_run_time
 };
 
 /* constants */
+
+// LAN edition: s_saved_game_cartographer_player_profile::clan_rank
+enum e_cartographer_clan_rank : uint8
+{
+	_cartographer_clan_rank_overlord = 0,
+	_cartographer_clan_rank_peon,
+	_cartographer_clan_rank_member,
+	_cartographer_clan_rank_staff,
+	k_cartographer_clan_rank_count
+};
 
 // LAN edition: entries in the Nameplate menu (s_saved_game_cartographer_player_profile::nameplate)
 constexpr uint8 k_cartographer_profile_nameplate_count = 7;

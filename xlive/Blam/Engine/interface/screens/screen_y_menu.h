@@ -24,8 +24,8 @@ class c_screen_y_menu : protected c_screen_widget
 public:
 	static void* __cdecl load(c_screen_parameters* parameters);
 
-	// opens the Y menu over the current game shell screen
-	static void open(void);
+	// opens the Y menu over the current game shell screen, on a tab (0 Friends, 1 Clan, 2 Recent Players)
+	static void open(int32 pane_index = 0);
 
 	// the Y menu tags fitted to Halo 2 Vista's screen, and the collapsed tab added to the Xbox Live menu (bungie_news)
 	static void apply_patches_on_map_load(void);
@@ -41,8 +41,11 @@ public:
 	virtual bool handle_event(s_event_record* event) override;
 	virtual void initialize(c_screen_parameters* parameters) override;
 	virtual const void* load_proc(void) const override;
+	virtual bool overlay_effect_is_disabled(void) override;
 
 private:
+	// the Clan tab's Create Clan row text
+	void update_create_clan(void);
 	// the signed-in player in the bar at the top right
 	void update_player(void);
 	// after a tab loads: its Xbox bitmaps at twice their size
@@ -56,6 +59,7 @@ enum e_y_menu_options_type
 {
 	_y_menu_options_friends = 0,
 	_y_menu_options_clan,
+	_y_menu_options_clan_rank,		// Clan Options > Clan Rank: Peon, Member, Staff, Overlord
 	k_y_menu_options_type_count
 };
 
@@ -75,6 +79,7 @@ protected:
 
 public:
 	c_y_menu_options_list(uint16 user_flags, e_y_menu_options_type type);
+	void refresh_items(void);
 
 	virtual ~c_y_menu_options_list() = default;
 	virtual c_list_item_widget* get_list_items() override;
@@ -93,10 +98,13 @@ protected:
 public:
 	static void* load_friends(c_screen_parameters* parameters);
 	static void* load_clan(c_screen_parameters* parameters);
+	static void* load_clan_rank(c_screen_parameters* parameters);
 	static void open(e_y_menu_options_type type, e_controller_index controller);
 
 	c_screen_y_menu_options(e_y_menu_options_type type, e_user_interface_channel_type channel_type, e_user_interface_render_window window_index, uint16 user_flags);
 
 	virtual ~c_screen_y_menu_options() = default;
+	virtual bool handle_event(s_event_record* event) override;
+	virtual void initialize(c_screen_parameters* parameters) override;
 	virtual const void* load_proc() const override;
 };
