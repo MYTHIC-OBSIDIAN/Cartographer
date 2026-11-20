@@ -39,12 +39,15 @@
 #define k_y_menu_player_nameplate_bitmap_index 0	// the player skin's nameplate (the lobby's item_background_lobby)
 
 // the top bar's draw order (widgets at the same depth are drawn in order of their render depth bias): the menu's
-// translucent bars, the border, the voice and status icons, then the player's emblem, nameplate, name and rank on top
-// (behind the bars they looked faint)
+// translucent bars, the tabs (the tab title's and the player's), the border, the voice and status icons and the tab
+// title's text, then the player's emblem, nameplate, name and rank on top (behind the bars they looked faint)
 enum
 {
-	k_y_menu_player_border_depth_bias = 1,
-	k_y_menu_player_icons_depth_bias = 2,
+	k_y_menu_tabs_depth_bias = 1,
+	k_y_menu_player_border_depth_bias = 2,
+	k_y_menu_player_icons_depth_bias = 3,
+	k_y_menu_tab_title_depth_bias = 3,
+	k_y_menu_tab_title_text_index = 0,
 	k_y_menu_player_depth_bias = 10,
 	k_y_menu_player_rank_depth_bias = 11,		// the rank icon over the rest of the player
 };
@@ -952,10 +955,21 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 				g_y_menu_create_clan_text_index = text_index;
 			}
 
+			// the tab title (its bitmap and text) drawn in the same order as the player's tab next to it, on every tab
+			if (pane->text_blocks.count > k_y_menu_tab_title_text_index)
+			{
+				TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, k_y_menu_tab_title_text_index, s_text_block_reference)->render_depth_bias = k_y_menu_tab_title_depth_bias;
+			}
+
 			const datum compact_tab = tag_loaded(_tag_group_bitmap, k_y_menu_xbox_bitmap_tags[2]);
+			const datum tabs = tag_loaded(_tag_group_bitmap, k_y_menu_xbox_bitmap_tags[1]);
 			for (int32 index = 0; index < pane->bitmap_blocks.count; index++)
 			{
 				s_bitmap_block_reference* bitmap = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, index, s_bitmap_block_reference);
+				if (tabs != NONE && bitmap->bitmap_tag.index == tabs)
+				{
+					bitmap->render_depth_bias = k_y_menu_tabs_depth_bias;
+				}
 				if ((rank_icons != NONE && bitmap->bitmap_tag.index == rank_icons) || (compact_tab != NONE && bitmap->bitmap_tag.index == compact_tab))
 				{
 					bitmap->bitmap_tag.index = NONE;
