@@ -29,6 +29,7 @@ static const float k_guide_canvas_width = 1024.f;
 static const float k_guide_canvas_height = 768.f;
 static const float k_guide_scene_x = 50.f;						// AppHostElementId
 static const float k_guide_point_to_pixel = 1.55f;				// XUI point size to canvas pixels (Segoe UI)
+static const float k_guide_header_icon_scale = 0.75f;			// LAN edition: the Y button, the logo and the controller
 
 enum
 {
@@ -129,6 +130,24 @@ static void guide_image(const char* package, const wchar_t* name, float x, float
 	g_guide_draw_list->PushClipRect(guide_point(x, y), guide_point(x + width, y + height), true);
 	g_guide_draw_list->AddImage(guide_texture_id(texture->texture), guide_point(x, y),
 		guide_point(x + texture->width, y + texture->height), ImVec2(0, 0), ImVec2(1, 1), guide_color(IM_COL32_WHITE, 1.f));
+	g_guide_draw_list->PopClipRect();
+	return;
+}
+
+// guide_image scaled about a point of the texture (pivot_x, pivot_y), which stays in place; the clip scales with it
+static void guide_image_scaled(const char* package, const wchar_t* name, float x, float y, float width, float height,
+	float pivot_x, float pivot_y, float scale)
+{
+	const s_gfwl_texture* texture = gfwl_assets_get_texture(package, name);
+	if (texture == NULL)
+	{
+		return;
+	}
+	const float left = x + pivot_x * (1.f - scale);
+	const float top = y + pivot_y * (1.f - scale);
+	g_guide_draw_list->PushClipRect(guide_point(left, top), guide_point(left + width * scale, top + height * scale), true);
+	g_guide_draw_list->AddImage(guide_texture_id(texture->texture), guide_point(left, top),
+		guide_point(left + texture->width * scale, top + texture->height * scale), ImVec2(0, 0), ImVec2(1, 1), guide_color(IM_COL32_WHITE, 1.f));
 	g_guide_draw_list->PopClipRect();
 	return;
 }
@@ -519,8 +538,11 @@ static void guide_draw_list(float scene_y, const s_guide_input* input)
 	const bool sort_hovered = guide_point_inside(mouse, sort_x, scene_y + 94.f, sort_width, 34.f);
 	guide_nine_grid("SKIN", sort_hovered ? L"btn_list_header_posE_focus.png" : L"btn_list_header_posE_normal.png", sort_x, scene_y + 94.f, sort_width, 34.f, 5.f);
 	// the Y: the yellow button with its letter (header_btn_ico_y.png, drawn over it 2 pixels up and left to centre it)
-	guide_image("SKIN", sort_hovered ? L"Ybutton_Focus.png" : L"Ybutton_Normal.png", sort_x + 3.f, scene_y + 94.f + 3.f, 28.f, 28.f);
-	guide_image("SKIN", L"header_btn_ico_y.png", sort_x + 3.f - 2.f, scene_y + 94.f + 3.f - 2.f, 30.f, 30.f);
+	// LAN edition: both 75% of their size about their centres (the button's (1,2)-(27,27), the letter's (10,9)-(22,23))
+	guide_image_scaled("SKIN", sort_hovered ? L"Ybutton_Focus.png" : L"Ybutton_Normal.png", sort_x + 3.f, scene_y + 94.f + 3.f, 28.f, 28.f,
+		14.f, 14.5f, k_guide_header_icon_scale);
+	guide_image_scaled("SKIN", L"header_btn_ico_y.png", sort_x + 3.f - 2.f, scene_y + 94.f + 3.f - 2.f, 30.f, 30.f,
+		16.f, 16.f, k_guide_header_icon_scale);
 	guide_text("Change Sort Order", sort_x + 36.f, scene_y + 94.f, 210.f, 34.f, 10.f, k_guide_text_blue);
 
 	// rows (ListAchievements / btn_Achievements): 870x42, 43 apart, from (2, 2) in the 874x351 list at (17, 129)
@@ -776,7 +798,9 @@ namespace ImGuiHandler
 
 			// top bar: frame, Games for Windows LIVE logo, clock and close button
 			guide_image("XAM", L"header_frame.png", 0.f, bar_y, 1024.f, 64.f);
-			guide_image("XAM", L"header_logo.png", 421.f, bar_y + 2.f, 176.f, 43.f);
+			// LAN edition: the logo and the controller at 75% of their size about their centres (the logo's (1,1)-(175,26),
+			// the controller's (2,0)-(88,34))
+			guide_image_scaled("XAM", L"header_logo.png", 421.f, bar_y + 2.f, 176.f, 43.f, 88.f, 13.5f, k_guide_header_icon_scale);
 			guide_image("XAM", L"screen_time.png", 822.f, bar_y, 128.f, 32.f);
 			wchar_t time_wide[32];
 			char time_text[64];
@@ -789,7 +813,7 @@ namespace ImGuiHandler
 			guide_image_stretched("SKIN", L"closex.png", 935.f + 13.f, bar_y + 0.f, 19.f, 19.f);
 
 			// controller bar
-			guide_image("XAM", L"header_controller.png", 138.f, controller_y, 90.f, 38.f);
+			guide_image_scaled("XAM", L"header_controller.png", 138.f, controller_y, 90.f, 38.f, 45.f, 17.f, k_guide_header_icon_scale);
 
 			ImGui::End();
 

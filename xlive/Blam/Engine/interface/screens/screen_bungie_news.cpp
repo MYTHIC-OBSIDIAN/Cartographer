@@ -3,6 +3,8 @@
 
 #include "cache/cache_files.h"
 #include "interface/user_interface.h"
+#include "interface/user_interface_controller.h"
+#include "networking/online/online_account_xbox.h"
 #include "interface/user_interface_widget_text.h"
 #include "interface/user_interface_widget_window.h"
 #include "interface/user_interface_screen_widget_definition.h"
@@ -58,6 +60,8 @@ enum e_xbox_live_list_item
 #define k_xbox_live_achievements_description L"View your Achievements."
 
 /* globals */
+
+static bool g_lobby_opened_from_xbox_live_menu = false;
 
 typedef void(__thiscall* screen_update_t)(c_screen_widget* screen);
 static screen_update_t p_bungie_news_update = NULL;
@@ -140,6 +144,7 @@ static void __fastcall xbox_live_list_handle_item_pressed_hook(c_list_widget* li
 	if (index == _xbox_live_list_item_create_new_game)
 	{
 		datum create_new_game = (*item_index & ~0xFFFF) | k_xbox_live_list_original_create_new_game;
+		g_lobby_opened_from_xbox_live_menu = true;
 		p_xbox_live_list_handle_item_pressed(list, event, &create_new_game);
 		return;
 	}
@@ -163,7 +168,51 @@ static void __fastcall bungie_news_update_hook(c_screen_widget* screen, void*)
 	bungie_news_set_text(screen->try_find_screen_text(_bungie_news_text_guide_help), k_bungie_news_message);
 }
 
+// replaces online_connected_to_xbox_live() in user_interface_recover_from_disconnection (halo2.exe 0x6175DC), which
+// opens the Xbox Live menu when backing out of an Xbox Live lobby, else signs out to the sign-in screen
+static bool __cdecl recover_from_disconnection_xbox_live_menu_available(void)
+{
+	if (online_connected_to_xbox_live())
+	{
+		return true;
+	}
+	if (g_lobby_opened_from_xbox_live_menu)
+	{
+		g_lobby_opened_from_xbox_live_menu = false;
+		return true;
+	}
+	return false;
+}
+
 /* public code */
+
+bool screen_bungie_news_lobby_opened_from_menu(void)
+{
+	return g_lobby_opened_from_xbox_live_menu;
+}
+
+void screen_bungie_news_lobby_opened_from_menu_clear(void)
+{
+	g_lobby_opened_from_xbox_live_menu = false;
+	return;
+}
+
+void screen_bungie_news_recover_from_lobby(void)
+{
+	g_lobby_opened_from_xbox_live_menu = false;
+
+	c_screen_parameters params;
+	params.initialize_internal(
+		7,							// retreating or recovering
+		user_interface_controller_get_signed_in_controllers_mask(),
+		_user_interface_channel_type_gameshell_screen,
+		_window_4,
+		NULL,
+		c_screen_bungie_news::load
+	);
+	params.execute_load_function();
+	return;
+}
 
 void* __cdecl c_screen_bungie_news::load(c_screen_parameters* parameters)
 {
@@ -185,6 +234,9 @@ void c_screen_bungie_news::apply_patches(void)
 
 	p_xbox_live_list_handle_item_pressed = (t_xbox_live_list_handle_item_pressed)Memory::GetAddressRelative(0x61F958);
 	WriteValue<uint32>(Memory::GetAddressRelative(0x61FE5A), (uint32)xbox_live_list_handle_item_pressed_hook);
+
+	// backing out of an Xbox Live lobby opened from this menu comes back here
+	PatchCall(Memory::GetAddressRelative(0x6175DC), recover_from_disconnection_xbox_live_menu_available);
 }
 
 void c_screen_bungie_news::apply_patches_on_map_load(void)

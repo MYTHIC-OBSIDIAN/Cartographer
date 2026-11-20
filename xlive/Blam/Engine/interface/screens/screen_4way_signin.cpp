@@ -771,6 +771,7 @@ void* c_screen_4way_signin::load_for_splitscreen(
 {
 	c_screen_4way_signin* screen = (c_screen_4way_signin*)c_screen_4way_signin::load(parameters);
 	screen->m_call_context = _4_way_signin_type_splitscreen;
+	screen_bungie_news_lobby_opened_from_menu_clear();
 	user_interface_register_screen_to_channel(screen, parameters);
 	return screen;
 }
@@ -780,6 +781,7 @@ void* c_screen_4way_signin::load_for_campaign(
 {
 	c_screen_4way_signin* screen = (c_screen_4way_signin*)c_screen_4way_signin::load(parameters);
 	screen->m_call_context = _4_way_signin_type_campaign;
+	screen_bungie_news_lobby_opened_from_menu_clear();
 	user_interface_register_screen_to_channel(screen, parameters);
 	return screen;
 }
@@ -935,6 +937,13 @@ static void modify_controller_bitmap_for_split(
 static void user_interface_recover_4way_screen(
 	e_session_protocol protocol)
 {
+	// LAN edition: the lobby the Xbox Live menu's Create New Game opened (and its games) goes back to the Xbox Live menu
+	if (screen_bungie_news_lobby_opened_from_menu())
+	{
+		screen_bungie_news_recover_from_lobby();
+		return;
+	}
+
 	c_screen_parameters params;
 
 	params.initialize_internal(

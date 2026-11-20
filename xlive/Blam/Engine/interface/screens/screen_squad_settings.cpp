@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "screen_squad_settings.h"
+#include "screen_bungie_news.h"
 
 #include "screen_single_player_difficulty_select.h"
 #include "screen_single_player_level_select.h"
@@ -180,7 +181,11 @@ c_squad_settings_list::c_squad_settings_list(int16 user_flags) :
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_map;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_variant;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_quick_options;
-		SQUAD_ITEM_GET_NEW()->item_id = _item_switch_to_coop;
+		// LAN edition: no Switch to Co-op in the lobby the Xbox Live menu's Create New Game opens
+		if (!screen_bungie_news_lobby_opened_from_menu())
+		{
+			SQUAD_ITEM_GET_NEW()->item_id = _item_switch_to_coop;
+		}
 		break;
 	case _session_protocol_system_link_custom:
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_map;
@@ -194,7 +199,7 @@ c_squad_settings_list::c_squad_settings_list(int16 user_flags) :
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_map;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_variant;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_quick_options;
-		SQUAD_ITEM_GET_NEW()->item_id = _item_switch_to_coop;
+		// LAN edition: no Switch to Co-op in an Xbox Live custom game lobby
 		SQUAD_ITEM_GET_NEW()->item_id = _item_switch_to_optimatch;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_rename_squad;
 
