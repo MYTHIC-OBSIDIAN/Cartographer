@@ -835,7 +835,14 @@ namespace ImGuiHandler
 				guide_text_centred_on_digits(time_text, 822.f + 20.f, bar_y, 86.f, 19.f, 9.f, k_guide_text_blue);
 			}
 			const bool close_hovered = guide_point_inside(io.MousePos, 935.f, bar_y, 46.f, 18.f);
-			guide_image_stretched("SKIN", L"closex.png", 935.f + 13.f, bar_y + 0.f, 19.f, 19.f);
+			// CloseX (46x18) with its btn_v2_Exit visual: the red tab (btn_hud_close_normal / focus / press) and its X, each
+			// a 128x32 image at (-39, 0)
+			const float close_image_x = 935.f - 39.f;
+			const wchar_t* close_tab = close_hovered
+				? (ImGui::IsMouseDown(ImGuiMouseButton_Left) ? L"btn_hud_close_press.png" : L"btn_hud_close_focus.png")
+				: L"btn_hud_close_normal.png";
+			guide_image("SKIN", close_tab, close_image_x, bar_y, 128.f, 32.f);
+			guide_image("SKIN", L"btn_hud_close_x.png", close_image_x, bar_y, 128.f, 32.f);
 
 			// controller bar
 			guide_image_scaled("XAM", L"header_controller.png", 138.f, controller_y, 90.f, 38.f, 45.f, 17.f, k_guide_header_icon_scale);
