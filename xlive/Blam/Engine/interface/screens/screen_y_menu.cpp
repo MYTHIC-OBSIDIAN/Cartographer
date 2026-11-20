@@ -52,9 +52,17 @@ enum
 
 	// online_y_menu panes: the "<gamertag>'s Friends" style header
 	k_y_menu_header_text_index = 2,
+	// online_y_menu panes: the collapsed tab's "<Y> FRIENDS" (title font), and the text block added for its glyph
+	k_y_menu_pane_tab_text_index = 3,
+	k_y_menu_pane_text_count = 8,
+	k_y_menu_pane_tab_glyph_text_index = k_y_menu_pane_text_count,
 
 	// the collapsed tab (y_menu_compact) is 60 pixels high, drawn at twice its size
 	k_y_menu_collapsed_tab_height = 60 * k_y_menu_scale,
+
+	// "<Y> FRIENDS": the controller glyph is drawn in the body text font (whose glyphs change with the Button Glyphs
+	// setting), the label after it in the title font
+	k_y_menu_tab_glyph_width = 40,
 };
 static const real_vector2d k_y_menu_xbox_bitmap_scale = { 2.f, 2.f };
 
@@ -85,12 +93,46 @@ static wchar_t g_y_menu_collapsed_text[128] = L"";
 // per Xbox Live menu pane: the collapsed tab's bitmap and text block indices
 static int32 g_y_menu_collapsed_bitmap_index[k_y_menu_maximum_xbox_live_menu_panes];
 static int32 g_y_menu_collapsed_text_index[k_y_menu_maximum_xbox_live_menu_panes];
+static int32 g_y_menu_collapsed_glyph_index[k_y_menu_maximum_xbox_live_menu_panes];
 // the collapsed tab's text, relative to the tab's top left
 static rectangle2d g_y_menu_collapsed_text_offset = {};
 // per Y menu pane: its Xbox bitmaps' block indices
 static uint32 g_y_menu_xbox_bitmaps[k_y_menu_maximum_panes];
 
 /* private code */
+
+static bool y_menu_character_is_glyph(wchar_t character)
+{
+	return character >= 0xE000 && character <= 0xF8FF;
+}
+
+// "<glyph> LABEL": the glyph in its own text (body text font), the label without it; nothing when already split
+static void y_menu_split_glyph(c_text_widget* label, c_text_widget* glyph, const wchar_t* full_text)
+{
+	if (label == NULL || glyph == NULL || full_text == NULL || !y_menu_character_is_glyph(full_text[0]))
+	{
+		return;
+	}
+	const wchar_t glyph_text[2] = { full_text[0], L'\0' };
+	const wchar_t* label_text = full_text + 1;
+	while (*label_text == L' ')
+	{
+		label_text++;
+	}
+	glyph->set_text(glyph_text);
+	label->set_text(label_text);
+	return;
+}
+
+// a text block's copy for the glyph of "<glyph> LABEL": the body text font, as wide as the glyph; the label moves right
+static s_text_block_reference y_menu_glyph_text_block(s_text_block_reference* label)
+{
+	s_text_block_reference glyph = *label;
+	glyph.custom_font = custom_font_body_text;
+	glyph.text_bounds.right = (int16)(glyph.text_bounds.left + k_y_menu_tab_glyph_width + 20);
+	label->text_bounds.left = (int16)(label->text_bounds.left + k_y_menu_tab_glyph_width);
+	return glyph;
+}
 
 static bool y_menu_bitmap_is_xbox(datum bitmap)
 {
@@ -271,6 +313,12 @@ void c_screen_y_menu::update(void)
 {
 	c_screen_widget::update();
 	this->update_header();
+
+	c_text_widget* tab_label = this->try_find_screen_text(k_y_menu_pane_tab_text_index);
+	if (tab_label != NULL)
+	{
+		y_menu_split_glyph(tab_label, this->try_find_screen_text(k_y_menu_pane_tab_glyph_text_index), tab_label->get_interface()->get_raw_string());
+	}
 	return;
 }
 
@@ -428,12 +476,29 @@ void c_screen_y_menu::update_collapsed_tab(c_screen_widget* xbox_live_menu, int3
 	}
 
 	c_text_widget* text = xbox_live_menu->try_find_screen_text(g_y_menu_collapsed_text_index[pane_index]);
+	c_text_widget* glyph = g_y_menu_collapsed_glyph_index[pane_index] != NONE ? xbox_live_menu->try_find_screen_text(g_y_menu_collapsed_glyph_index[pane_index]) : NULL;
 	if (text != NULL)
 	{
-		y_menu_set_text(text, y_menu_collapsed_tab_text());
+		const wchar_t* full_text = y_menu_collapsed_tab_text();
+		if (glyph != NULL && y_menu_character_is_glyph(full_text[0]))
+		{
+			const wchar_t* current = glyph->get_interface()->get_raw_string();
+			if (current == NULL || current[0] != full_text[0] || current[1] != L'\0')
+			{
+				y_menu_split_glyph(text, glyph, full_text);
+			}
+		}
+		else
+		{
+			y_menu_set_text(text, full_text);
+		}
 		if (edges)
 		{
-			y_menu_widget_move_to(text, (int16)(left + g_y_menu_collapsed_text_offset.left), (int16)(top + g_y_menu_collapsed_text_offset.top));
+			y_menu_widget_move_to(text, (int16)(left + g_y_menu_collapsed_text_offset.left + (glyph != NULL ? k_y_menu_tab_glyph_width : 0)), (int16)(top + g_y_menu_collapsed_text_offset.top));
+			if (glyph != NULL)
+			{
+				y_menu_widget_move_to(glyph, (int16)(left + g_y_menu_collapsed_text_offset.left), (int16)(top + g_y_menu_collapsed_text_offset.top));
+			}
 		}
 	}
 	return;
@@ -448,6 +513,7 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 	{
 		g_y_menu_collapsed_bitmap_index[index] = NONE;
 		g_y_menu_collapsed_text_index[index] = NONE;
+		g_y_menu_collapsed_glyph_index[index] = NONE;
 	}
 	csmemset(g_y_menu_xbox_bitmaps, 0, sizeof(g_y_menu_xbox_bitmaps));
 
@@ -472,6 +538,14 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 			pane->list_block.count = 0;
 			pane->buttons.count = 0;
 			pane->player_blocks.count = 0;
+
+			// the tab's "<Y> FRIENDS": its glyph in a text block of its own (each pane gets its own copy of its blocks)
+			if (pane->text_blocks.count == k_y_menu_pane_text_count)
+			{
+				tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 1);
+				s_text_block_reference* label = TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, k_y_menu_pane_tab_text_index, s_text_block_reference);
+				*TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, k_y_menu_pane_tab_glyph_text_index, s_text_block_reference) = y_menu_glyph_text_block(label);
+			}
 			for (int32 index = 0; index < pane->bitmap_blocks.count; index++)
 			{
 				s_bitmap_block_reference* bitmap = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, index, s_bitmap_block_reference);
@@ -553,10 +627,14 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 		*TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, bitmap_index, s_bitmap_block_reference) = tab;
 		g_y_menu_collapsed_bitmap_index[pane_index] = bitmap_index;
 
+		s_text_block_reference label = tab_text;
+		const s_text_block_reference glyph = y_menu_glyph_text_block(&label);
 		const int32 text_index = pane->text_blocks.count;
-		tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 1);
-		*TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, text_index, s_text_block_reference) = tab_text;
+		tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 2);
+		*TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, text_index, s_text_block_reference) = label;
+		*TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, text_index + 1, s_text_block_reference) = glyph;
 		g_y_menu_collapsed_text_index[pane_index] = text_index;
+		g_y_menu_collapsed_glyph_index[pane_index] = text_index + 1;
 	}
 	return;
 }
