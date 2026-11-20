@@ -33,9 +33,10 @@ void screens_apply_patches_on_map_load()
 	c_screen_button_settings_menu::apply_patches_on_ui_map_load();
 	c_screen_video_settings::apply_patches_on_map_load();
 	c_screen_bungie_news::apply_patches_on_map_load();
-	c_screen_y_menu::apply_patches_on_map_load();
 	nameplates_apply_patches_on_map_load();
 	digsite_apply_patches_on_map_load();
+	// after digsite: the Y menu's Create Clan row uses the extra multiplayer49 pictures it adds
+	c_screen_y_menu::apply_patches_on_map_load();
 }
 
 void screens_apply_patches_on_mp_map_load()
@@ -62,4 +63,9 @@ void screens_apply_patches()
 	c_screen_resolution_menu::apply_instance_patches();
 	c_screen_bungie_news::apply_patches();
 	nameplates_apply_patches();
+
+	// LAN edition: the campaign pause screen's mission objectives are "<box>\t<objective>" (halo2.exe 0x63E8A6): at
+	// higher resolutions the box is wider than the tab stop and overlaps the text, so a space follows the box instead
+	WriteValue<uint16>(Memory::GetAddressRelative(0x63E8C1), (uint16)L' ');	// unchecked: mov word ptr [esp+0x41A], 9
+	WriteValue<uint16>(Memory::GetAddressRelative(0x63E8E7), (uint16)L' ');	// checked: mov word ptr [esp+0x422], 9
 }

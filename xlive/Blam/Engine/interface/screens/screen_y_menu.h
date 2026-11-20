@@ -41,7 +41,6 @@ public:
 	virtual bool handle_event(s_event_record* event) override;
 	virtual void initialize(c_screen_parameters* parameters) override;
 	virtual const void* load_proc(void) const override;
-	virtual bool overlay_effect_is_disabled(void) override;
 
 private:
 	// the Clan tab's Create Clan row text

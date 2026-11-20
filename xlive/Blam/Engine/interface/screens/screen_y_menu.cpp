@@ -2,6 +2,7 @@
 #include "screen_y_menu.h"
 
 #include "cache/cache_files.h"
+#include "bitmaps/bitmap_group.h"
 #include "interface/hud.h"
 #include "interface/user_interface_bitmap_block.h"
 #include "interface/user_interface_controller.h"
@@ -28,9 +29,11 @@
 #define k_bungie_news_widget_tag "ui\\screens\\game_shell\\bungie_news\\bungie_news"
 #define k_rank_icons_bitmap_tag "ui\\global_bitmaps\\rank_icons"
 #define k_pregame_lobby_widget_tag "ui\\screens\\game_shell\\pregame_lobby\\pregame_lobby"
-#define k_y_menu_list_item_background_tag "ui\\list_skins\\y_menu_list\\item_background"
-#define k_y_menu_clan_icon_bitmap_tag "ui\\screens\\game_shell\\mp_game_select\\mp_games"
-#define k_y_menu_clan_icon_frame 5		// the Seventh Column logo the LAN edition mainmenu.map adds (see nameplates)
+// the Create Clan row's pictures in the LAN edition mainmenu.map (digsite build_mainmenu.py, appended to multiplayer49 by
+// digsite_apply_patches_on_map_load): the Seventh Column emblem on a steel blue square, and the row's blue bar
+#define k_y_menu_create_clan_bitmap_tag "ui\\code_global_bitmaps\\multiplayer49"
+#define k_y_menu_create_clan_icon_frame 10
+#define k_y_menu_create_clan_bar_frame 11
 
 // the Y menu's own (Xbox resolution) bitmaps; the others (ui\global_bitmaps) are Halo 2 Vista's
 static const char* const k_y_menu_xbox_bitmap_tags[] =
@@ -70,8 +73,8 @@ enum
 	k_y_menu_player_bottom = 320,
 
 	// the options dialogs' list, fitted inside the dialog frame below its header
-	k_y_menu_options_list_left = -305,
-	k_y_menu_options_list_bottom = 80,
+	k_y_menu_options_list_left = -276,
+	k_y_menu_options_list_bottom = 75,
 
 	// the Y menu's button prompts (pane text 1): at the bottom of the screen, like Halo 2 Vista's other screens
 	k_y_menu_button_key_text_index = 1,
@@ -93,7 +96,7 @@ enum
 };
 static const real_vector2d k_y_menu_xbox_bitmap_scale = { 2.f, 2.f };
 
-static const real_vector2d k_y_menu_clan_icon_scale = { .27f, .27f };	// the 302 high logo in the 82 high row
+static const real_vector2d k_y_menu_create_clan_bar_scale = { 2.f, 2.f };	// the 366x36 bar drawn 842x83
 
 // the options dialogs' items (their strings are in the Y menu's string list, without string ids for these)
 static const wchar_t* const k_y_menu_friends_options[] =
@@ -149,7 +152,7 @@ static rectangle2d g_y_menu_collapsed_text_offset = {};
 // per Y menu pane: its Xbox bitmaps' block indices
 static uint32 g_y_menu_xbox_bitmaps[k_y_menu_maximum_panes];
 // the Clan tab's Create Clan row: its icon bitmap and text block indices (NONE when not added)
-static int32 g_y_menu_create_clan_icon_index = NONE;
+static int32 g_y_menu_create_clan_bar_index = NONE;
 static int32 g_y_menu_create_clan_text_index = NONE;
 // the tab the Y menu opens on
 static int32 g_y_menu_open_pane = 0;
@@ -462,13 +465,6 @@ const void* c_screen_y_menu::load_proc(void) const
 	return c_screen_y_menu::load;
 }
 
-bool c_screen_y_menu::overlay_effect_is_disabled(void)
-{
-	// the dialog overlay (which blurs and darkens what's under a dialog) also dimmed the player's emblem in the top bar;
-	// the Y menu has its own background, as on the Xbox
-	return true;
-}
-
 void c_screen_y_menu::update_create_clan(void)
 {
 	if (this->m_pane_index != k_y_menu_clan_pane || g_y_menu_create_clan_text_index == NONE)
@@ -522,12 +518,12 @@ void c_screen_y_menu::scale_pane_bitmaps(void)
 		}
 	}
 
-	if (this->m_pane_index == k_y_menu_clan_pane && g_y_menu_create_clan_icon_index != NONE)
+	if (this->m_pane_index == k_y_menu_clan_pane && g_y_menu_create_clan_bar_index != NONE)
 	{
-		c_bitmap_widget* icon = this->try_find_bitmap_widget(g_y_menu_create_clan_icon_index);
-		if (icon != NULL)
+		c_bitmap_widget* bar = this->try_find_bitmap_widget(g_y_menu_create_clan_bar_index);
+		if (bar != NULL)
 		{
-			icon->set_render_scale(&k_y_menu_clan_icon_scale);
+			bar->set_render_scale(&k_y_menu_create_clan_bar_scale);
 		}
 	}
 	return;
@@ -638,7 +634,7 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 		g_y_menu_collapsed_glyph_index[index] = NONE;
 	}
 	csmemset(g_y_menu_xbox_bitmaps, 0, sizeof(g_y_menu_xbox_bitmaps));
-	g_y_menu_create_clan_icon_index = NONE;
+	g_y_menu_create_clan_bar_index = NONE;
 	g_y_menu_create_clan_text_index = NONE;
 
 	// the Y menu: its lists and player blocks would need Xbox Live players and the Level column's rank icon a selected
@@ -706,28 +702,25 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 
 			// the Clan tab's Create Clan row (shown on the Xbox when not in a clan): the clan icon, the row's bar and its
 			// text, added to the tab's own copies of its blocks (once: the tag's tab has 8 texts)
-			const datum row_background = tag_loaded(_tag_group_bitmap, k_y_menu_list_item_background_tag);
-			const datum clan_icon = tag_loaded(_tag_group_bitmap, k_y_menu_clan_icon_bitmap_tag);
-			if (pane_index == k_y_menu_clan_pane && pane->text_blocks.count == 8 && pane->bitmap_blocks.count > 1 && row_background != NONE)
+			const datum row_pictures = tag_loaded(_tag_group_bitmap, k_y_menu_create_clan_bitmap_tag);
+			const bool row_pictures_loaded = row_pictures != NONE && bitmap_group_get(row_pictures)->bitmaps.count > k_y_menu_create_clan_bar_frame;
+			if (pane_index == k_y_menu_clan_pane && pane->text_blocks.count == 8 && pane->bitmap_blocks.count > 1 && row_pictures_loaded)
 			{
 				const int32 bitmap_index = pane->bitmap_blocks.count;
-				tag_injection_extend_block(&pane->bitmap_blocks, sizeof(s_bitmap_block_reference), clan_icon != NONE ? 2 : 1);
+				tag_injection_extend_block(&pane->bitmap_blocks, sizeof(s_bitmap_block_reference), 2);
 				s_bitmap_block_reference* bar = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, bitmap_index, s_bitmap_block_reference);
 				*bar = *TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, 1, s_bitmap_block_reference);
 				bar->bitmap_tag.group = _tag_group_bitmap;
-				bar->bitmap_tag.index = row_background;
-				bar->initial_sprite_frame = 0;
+				bar->bitmap_tag.index = row_pictures;
+				bar->initial_sprite_frame = k_y_menu_create_clan_bar_frame;
 				bar->topleft.x = k_y_menu_create_clan_bar_left;
 				bar->topleft.y = k_y_menu_create_clan_top;
-				if (clan_icon != NONE)
-				{
-					s_bitmap_block_reference* icon = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, bitmap_index + 1, s_bitmap_block_reference);
-					*icon = *bar;
-					icon->bitmap_tag.index = clan_icon;
-					icon->initial_sprite_frame = k_y_menu_clan_icon_frame;
-					icon->topleft.x = k_y_menu_create_clan_icon_left;
-					g_y_menu_create_clan_icon_index = bitmap_index + 1;
-				}
+				g_y_menu_create_clan_bar_index = bitmap_index;
+
+				s_bitmap_block_reference* icon = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, bitmap_index + 1, s_bitmap_block_reference);
+				*icon = *bar;
+				icon->initial_sprite_frame = k_y_menu_create_clan_icon_frame;
+				icon->topleft.x = k_y_menu_create_clan_icon_left;
 
 				const int32 text_index = pane->text_blocks.count;
 				tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 1);
