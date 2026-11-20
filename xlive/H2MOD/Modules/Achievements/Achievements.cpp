@@ -178,9 +178,13 @@ enum
 {
 	k_achievements_save_signature = 'achv',
 	k_achievements_save_version = 1,
+	k_achievement_times_save_signature = 'acht',
+	k_achievement_times_save_version = 1,
 };
 
 static const wchar_t k_achievements_bin_name[] = L"cartographer_achievements";
+// when each was unlocked (the Guide shows "Unlocked <date>"), in its own file so the unlock save keeps its format
+static const wchar_t k_achievement_times_bin_name[] = L"cartographer_achievement_times";
 static const uint64 k_achievements_all_mask = (1ull << k_achievement_type_count) - 1;
 
 // unlocked for everyone: they need to know other players' achievements (Ninja / Legend), which came from Xbox Live
@@ -199,10 +203,20 @@ struct s_saved_game_achievements
 };
 static_assert(sizeof(s_saved_game_achievements) == 16, "achievements save size changed");
 
+// cartographer_achievement_times.bin
+struct s_saved_game_achievement_times
+{
+	uint32 signature;
+	uint32 version;
+	uint64 unlock_times[k_achievement_type_count];	// FILETIME (UTC), 0 when not known
+};
+static_assert(sizeof(s_saved_game_achievement_times) == 8 + 8 * k_achievement_type_count, "achievement times save size changed");
+
 struct s_achievements_profile
 {
 	int32 enumerated_file_index;	// NONE when no profile is signed in on the controller
 	uint64 unlocked;
+	uint64 unlock_times[k_achievement_type_count];
 };
 
 /* globals */
@@ -210,6 +224,7 @@ struct s_achievements_profile
 static s_achievements_profile g_achievements_profiles[k_number_of_controllers];
 // unlocked while no profile is signed in: kept until the game closes
 static uint64 g_achievements_unsaved = k_achievements_default_unlocked_mask;
+static uint64 g_achievements_unsaved_times[k_achievement_type_count] = {};
 static std::deque<int32> g_achievement_popups;				// achievement indices, oldest first
 
 /* private code */
@@ -254,6 +269,12 @@ static void achievements_profile_save(const s_achievements_profile* profile)
 	save.version = k_achievements_save_version;
 	save.unlocked = profile->unlocked;
 	saved_games_async_helper_write_saved_game_bin(k_achievements_bin_name, profile->enumerated_file_index, (int8*)&save, sizeof(save));
+
+	s_saved_game_achievement_times times = {};
+	times.signature = k_achievement_times_save_signature;
+	times.version = k_achievement_times_save_version;
+	csmemcpy(times.unlock_times, profile->unlock_times, sizeof(times.unlock_times));
+	saved_games_async_helper_write_saved_game_bin(k_achievement_times_bin_name, profile->enumerated_file_index, (int8*)&times, sizeof(times));
 	return;
 }
 
@@ -274,6 +295,10 @@ static void achievements_unlock(int32 achievement_index)
 	}
 
 	*unlocked |= flag;
+	FILETIME now;
+	GetSystemTimeAsFileTime(&now);
+	uint64* unlock_times = profile ? profile->unlock_times : g_achievements_unsaved_times;
+	unlock_times[achievement_index] = ((uint64)now.dwHighDateTime << 32) | now.dwLowDateTime;
 	if (profile)
 	{
 		achievements_profile_save(profile);
@@ -416,6 +441,7 @@ void achievements_apply_patches(void)
 	{
 		g_achievements_profiles[index].enumerated_file_index = NONE;
 		g_achievements_profiles[index].unlocked = 0;
+		csmemset(g_achievements_profiles[index].unlock_times, 0, sizeof(g_achievements_profiles[index].unlock_times));
 	}
 
 	g_live_check_return = Memory::GetAddressRelative(0x48C6B4);
@@ -446,6 +472,7 @@ void achievements_profile_sign_in(e_controller_index controller_index, uint32 en
 	{
 		profile->enumerated_file_index = (int32)enumerated_file_index;
 		profile->unlocked = 0;
+		csmemset(profile->unlock_times, 0, sizeof(profile->unlock_times));
 
 		if (!ENUMERATED_INDEX_IS_DEFAULT_SAVE(enumerated_file_index))
 		{
@@ -455,6 +482,14 @@ void achievements_profile_sign_in(e_controller_index controller_index, uint32 en
 				&& save.version == k_achievements_save_version)
 			{
 				profile->unlocked = save.unlocked & k_achievements_all_mask;
+			}
+
+			s_saved_game_achievement_times times = {};
+			if (saved_games_async_helper_read_saved_game_bin(k_achievement_times_bin_name, enumerated_file_index, (int8*)&times, sizeof(times))
+				&& times.signature == k_achievement_times_save_signature
+				&& times.version == k_achievement_times_save_version)
+			{
+				csmemcpy(profile->unlock_times, times.unlock_times, sizeof(profile->unlock_times));
 			}
 		}
 		profile->unlocked |= k_achievements_default_unlocked_mask;
@@ -473,6 +508,7 @@ void achievements_profile_sign_out(e_controller_index controller_index)
 
 	g_achievements_profiles[controller_index].enumerated_file_index = NONE;
 	g_achievements_profiles[controller_index].unlocked = 0;
+	csmemset(g_achievements_profiles[controller_index].unlock_times, 0, sizeof(g_achievements_profiles[controller_index].unlock_times));
 	achievements_list_refresh();
 	return;
 }
@@ -552,4 +588,14 @@ void achievements_get_diagnostics(char* buffer, uint32 buffer_size)
 		g_achievements_live_checks[0], g_achievements_live_checks[1], g_achievements_live_checks[2],
 		g_achievements_queued, g_achievements_multiplayer_enabled);
 	return;
+}
+
+uint64 achievements_get_unlock_time(int32 achievement_index)
+{
+	if (!VALID_INDEX(achievement_index, k_achievement_type_count))
+	{
+		return 0;
+	}
+	const s_achievements_profile* profile = achievements_profile_get_primary();
+	return profile ? profile->unlock_times[achievement_index] : g_achievements_unsaved_times[achievement_index];
 }

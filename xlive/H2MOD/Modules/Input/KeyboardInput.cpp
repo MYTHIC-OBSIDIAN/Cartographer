@@ -77,7 +77,7 @@ void KeyboardInput::ExecuteHotkey(WPARAM message)
 
 void hotkeyFuncGuide() {
 #ifndef IMGUI_DISABLE
-	ImGuiHandler::ToggleWindow(k_home_menu_window_name);
+	ImGuiHandler::ImHomeMenu::Toggle();
 #endif
 }
 

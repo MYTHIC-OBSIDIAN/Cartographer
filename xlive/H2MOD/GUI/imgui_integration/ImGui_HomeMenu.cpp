@@ -299,6 +299,18 @@ namespace ImGuiHandler
 	{
 		void Render(bool* p_open)
 		{
+			// the original Guide when the player's Games for Windows - LIVE files are there; closes itself when its closing
+			// animation ends
+			if (ImGfwlGuide::Available())
+			{
+				home_menu_textures_create();
+				if (!ImGfwlGuide::Render())
+				{
+					ImGuiHandler::ToggleWindow(k_home_menu_window_name);
+				}
+				return;
+			}
+
 			bool open = *p_open;
 			home_menu_textures_create();
 
@@ -410,13 +422,35 @@ namespace ImGuiHandler
 		void Open()
 		{
 			g_home_menu_filter = 0;
+			if (ImGfwlGuide::Available())
+			{
+				ImGfwlGuide::Open();
+			}
 			return;
 		}
 
 		void Close()
 		{
+			ImGfwlGuide::Close();
 			home_menu_textures_release();
 			return;
+		}
+
+		void Toggle()
+		{
+			// the Guide plays its closing animation first, then closes the window itself
+			if (ImGuiHandler::IsWindowActive(k_home_menu_window_name) && ImGfwlGuide::Available() && ImGfwlGuide::Toggle())
+			{
+				return;
+			}
+			ImGuiHandler::ToggleWindow(k_home_menu_window_name);
+			return;
+		}
+
+		PDIRECT3DTEXTURE9 GetAchievementIcon(int32 achievement_index)
+		{
+			home_menu_textures_create();
+			return VALID_INDEX(achievement_index, k_achievement_type_count) ? g_home_menu_achievements[achievement_index].icon : NULL;
 		}
 
 		uint32 GetAchievementGamerscore(int32 achievement_index)

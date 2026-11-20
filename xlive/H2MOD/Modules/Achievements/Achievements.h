@@ -23,6 +23,8 @@ void achievements_popup_pop(void);
 e_controller_index achievements_get_player_controller(void);
 uint64 achievements_get_unlocked(void);
 const char* achievements_get_string(int32 achievement_index);
+// when it was unlocked (FILETIME, UTC), 0 when not known (unlocked before dates were saved, or by default)
+uint64 achievements_get_unlock_time(int32 achievement_index);
 
 // what the achievement hooks have seen (Home menu > Diagnostics)
 void achievements_get_diagnostics(char* buffer, uint32 buffer_size);

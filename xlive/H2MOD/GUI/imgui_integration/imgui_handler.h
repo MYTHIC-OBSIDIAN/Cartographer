@@ -101,7 +101,20 @@ namespace ImGuiHandler
 		void Close();
 		// from the game's title data (halo2.exe SPAFILE), 0 when it can't be read
 		uint32 GetAchievementGamerscore(int32 achievement_index);
+		PDIRECT3DTEXTURE9 GetAchievementIcon(int32 achievement_index);
 		void ReleaseTextures();
+		// the Home key: opens it, or closes it (after the Guide's closing animation)
+		void Toggle();
+	}
+	// the original Games for Windows - LIVE Guide's achievement screens (used by the Home menu when the player's
+	// xlive.dll is there)
+	namespace ImGfwlGuide
+	{
+		bool Available();
+		void Open();
+		bool Toggle();
+		bool Render();
+		void Close();
 	}
 	// LAN edition: the original Games for Windows - LIVE achievement pop-up (drawn every frame while one is queued)
 	namespace ImAchievementToast

@@ -2008,6 +2008,7 @@
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\ImGui_HomeMenu.cpp" />
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\ImGui_AchievementToast.cpp" />
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\gfwl_assets.cpp" />
+    <ClCompile Include="H2MOD\GUI\ImGui_Integration\ImGui_GfwlGuide.cpp" />
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\Console\CommandCollection.cpp" />
     <ClCompile Include="H2MOD\GUI\ImGui_Integration\Console\CommandHandler.cpp" />
     <ClCompile Include="H2MOD\GUI\imgui_integration\Console\ComVar.cpp" />
