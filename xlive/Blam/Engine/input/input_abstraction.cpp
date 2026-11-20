@@ -111,6 +111,7 @@ static bool __cdecl input_abstraction_controller_plugged_hook(uint16 gamepad_ind
 typedef s_input_button* (__cdecl* t_input_abstraction_get_action_button)(s_input_button* out_button, int32 action, int32 button_index, s_gamepad_input_preferences* preferences);
 static t_input_abstraction_get_action_button p_input_abstraction_get_action_button;
 static s_input_button* __cdecl input_abstraction_get_action_button_hook(s_input_button* out_button, int32 action, int32 button_index, s_gamepad_input_preferences* preferences);
+static void __cdecl input_abstraction_get_prompt_device_preferences(e_controller_index controller_index, s_gamepad_input_preferences* preferences);
 
 /* public code */
 
@@ -120,6 +121,9 @@ void input_abstraction_patches_apply(void)
 
 	PatchCall(Memory::GetAddress(0x61FBD), input_abstraction_controller_plugged_hook); //inside input_abstraction_update_input_state
 	DETOUR_ATTACH(p_input_abstraction_get_action_button, Memory::GetAddress<t_input_abstraction_get_action_button>(0x5E589), input_abstraction_get_action_button_hook);
+	// the HUD's action prompts ("Press <look> to turn") pick the mouse or the thumbstick look action from the first
+	// controller's preferences
+	PatchCall(Memory::GetAddress(0x22FDCD), input_abstraction_get_prompt_device_preferences);
 	return;
 }
 
@@ -1242,6 +1246,19 @@ static s_input_button* __cdecl input_abstraction_get_action_button_hook(s_input_
 	s_input_button* result = p_input_abstraction_get_action_button(out_button, action, button_index, preferences);
 	used->field_1658 = last_used_device;
 	return result;
+}
+
+// LAN edition: the preferences the HUD's action prompts choose between an action's mouse and thumbstick versions with
+// (look, turn, ...): always the first controller's, by the device it last used. In split screen every player's prompt
+// is the thumbstick one (only the first player could have a mouse, and split screen is played with controllers)
+static void __cdecl input_abstraction_get_prompt_device_preferences(e_controller_index controller_index, s_gamepad_input_preferences* preferences)
+{
+	input_abstraction_get_controller_preferences(controller_index, preferences);
+	if (local_player_count() > 1)
+	{
+		preferences->field_1658 = 1;
+	}
+	return;
 }
 
 static bool __cdecl input_abstraction_controller_plugged_hook(uint16 gamepad_index)
