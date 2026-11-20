@@ -83,8 +83,9 @@ enum
 
 	// the signed-in player in the bar at the top right (the Xbox's ymenu_yourself player skin is replaced by the
 	// pregame lobby's, Halo 2 Vista's): its emblem at the bar's left, room for the voice and status icons on its right
-	k_y_menu_player_left = -190,
-	k_y_menu_player_bottom = 320,
+	// (with the border below, centred on the top bar's blue tab, the nameplate 2 units inside the border's line)
+	k_y_menu_player_left = -189,
+	k_y_menu_player_bottom = 323,
 
 	// the options dialogs' list, fitted inside the dialog frame below its header
 	k_y_menu_options_list_left = -230,
@@ -113,9 +114,11 @@ static const real_vector2d k_y_menu_xbox_bitmap_scale = { 2.f, 2.f };
 
 static const real_vector2d k_y_menu_create_clan_bar_scale = { 2.342f, 2.f };	// the 366x36 bar drawn 857x72: to under Status
 static const real_argb_color k_y_menu_create_clan_text_color = { 1.f, .70f, .74f, .79f };
-static const real_vector2d k_y_menu_player_border_scale = { 2.f, 2.f };	// the 268x22 border drawn about 616x51
-// the border's top left: round the top bar's emblem, name, rank, voice and status icons
-static const point2d k_y_menu_player_border_topleft = { -208, 382 };
+static const real_vector2d k_y_menu_player_border_scale = { 2.f, 2.f };	// the 307x22 border drawn 614x44
+// the border's top left: round the top bar's emblem, name, rank, voice and status icons, centred on the top bar's blue
+// tab (the tabs bitmap's blue part, inside its outline: 396 to 334 high, -220 to 416 across); its fill has a hole where
+// the nameplate is drawn (46 units in from its left, 4 down from its top), see the digsite map build
+static const point2d k_y_menu_player_border_topleft = { -208, 387 };
 
 // the options dialogs' items (their strings are in the Y menu's string list, without string ids for these)
 static const wchar_t* const k_y_menu_friends_options[] =

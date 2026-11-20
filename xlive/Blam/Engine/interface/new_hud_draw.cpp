@@ -64,6 +64,17 @@ static t_render_ingame_user_interface_hud_indicators_element_hook p_render_ingam
 static uint32 g_draw_hud_crosshair_bitmap_cache_count;
 static datum* g_draw_hud_crosshair_bitmap_cache;
 
+// LAN edition: split screen widgets drawn from a full screen only widget of the same hud (see draw_hud_bitmap_widget),
+// found once per map
+struct s_draw_hud_split_screen_counterpart
+{
+	const s_hud_bitmap_widget_definition* widget;
+	const s_hud_bitmap_widget_definition* full_screen_widget;	// nullptr: none
+	int32 split_type;
+};
+static s_draw_hud_split_screen_counterpart g_draw_hud_split_screen_counterparts[128];
+static uint32 g_draw_hud_split_screen_counterpart_count;
+
 // k_number_of_users, we have 4 bits left to spare in this value
 static uint8 g_draw_hud_user_draw_player_indicators_mask;
 
@@ -99,6 +110,19 @@ static void hud_widget_effect_evaluate(
 	real32* out_theta);
 
 static bool draw_hud_bitmap_is_crosshair(datum bitmap_datum);
+
+static bool draw_hud_split_screen_uses_full_bitmap(const s_hud_bitmap_widget_definition* bitmap_widget);
+
+static bool draw_hud_get_full_screen_bitmap(
+	int32 local_render_user_index,
+	const s_hud_bitmap_widget_definition* bitmap_widget,
+	e_screen_split_type split_type,
+	const real_rectangle2d* split_bounds,
+	int16 split_width,
+	int16 split_height,
+	datum* out_bitmap_tag_index,
+	real_rectangle2d* out_bounds,
+	int16* out_bitmap_index);
 
 static void __cdecl draw_hud_bitmap_widget(
 	int32 local_render_user_index,
@@ -154,6 +178,7 @@ void hud_draw_on_map_load()
 	}
 
 	g_draw_hud_crosshair_bitmap_cache_count = 0;
+	g_draw_hud_split_screen_counterpart_count = 0;
 
 	// initial loop to find how many bitmaps there are
 	tag_iterator it;
@@ -420,6 +445,151 @@ static bool draw_hud_bitmap_is_crosshair(
 	return result;
 }
 
+static bool draw_hud_split_screen_uses_full_bitmap(const s_hud_bitmap_widget_definition* bitmap_widget)
+{
+	return bitmap_widget->anchor == _hud_anchor_crosshair
+		|| bitmap_widget->anchor == _hud_anchor_motion_sensor
+		|| bitmap_widget->anchor == _hud_anchor_health_and_shield
+		|| bitmap_widget->special_hud_type == _special_hud_type_unit_shield_meter
+		|| bitmap_widget->special_hud_type == _special_hud_type_motion_sensor;
+}
+
+// whether a full screen bitmap can stand in for a split screen one: more texels, about the same shape (so a different
+// picture is never squashed into its place)
+static bool draw_hud_full_screen_bitmap_fits(
+	const real_rectangle2d* split_bounds, int16 split_width, int16 split_height,
+	const real_rectangle2d* full_bounds, int16 full_width, int16 full_height,
+	real32 shape_tolerance)
+{
+	const real32 split_texels_x = split_width * fabsf(split_bounds->x1 - split_bounds->x0);
+	const real32 split_texels_y = split_height * fabsf(split_bounds->y1 - split_bounds->y0);
+	const real32 full_texels_x = full_width * fabsf(full_bounds->x1 - full_bounds->x0);
+	const real32 full_texels_y = full_height * fabsf(full_bounds->y1 - full_bounds->y0);
+	if (split_texels_x <= 0.f || split_texels_y <= 0.f || full_texels_y <= 0.f)
+	{
+		return false;
+	}
+	if (full_texels_x * full_texels_y <= split_texels_x * split_texels_y * 1.1f)
+	{
+		return false;
+	}
+
+	const real32 split_aspect = split_texels_x / split_texels_y;
+	const real32 full_aspect = full_texels_x / full_texels_y;
+	return fabsf(full_aspect - split_aspect) < shape_tolerance * split_aspect;
+}
+
+// the full screen only widget of the same hud definition that a split screen only widget stands in for: same special
+// hud type and inputs (and for plain widgets, the same bitmap or shader)
+static const s_hud_bitmap_widget_definition* draw_hud_find_full_screen_counterpart(
+	const s_hud_bitmap_widget_definition* bitmap_widget,
+	e_screen_split_type split_type)
+{
+	for (uint32 i = 0; i < g_draw_hud_split_screen_counterpart_count; i++)
+	{
+		if (g_draw_hud_split_screen_counterparts[i].widget == bitmap_widget && g_draw_hud_split_screen_counterparts[i].split_type == split_type)
+		{
+			return g_draw_hud_split_screen_counterparts[i].full_screen_widget;
+		}
+	}
+
+	const s_hud_bitmap_widget_definition* result = nullptr;
+	tag_iterator it;
+	tag_iterator_new(&it, _tag_group_new_hud_definition);
+	while (tag_iterator_next(&it) != NONE && !result)
+	{
+		const s_new_hud_definition* definition = (const s_new_hud_definition*)tag_get(_tag_group_new_hud_definition, it.current_tag_index);
+		if (!definition || definition->bitmap_widgets.count <= 0)
+		{
+			continue;
+		}
+
+		const s_hud_bitmap_widget_definition* widgets = TAG_BLOCK_GET_ELEMENT(&definition->bitmap_widgets, 0, s_hud_bitmap_widget_definition);
+		if (bitmap_widget < widgets || bitmap_widget >= widgets + definition->bitmap_widgets.count)
+		{
+			continue;
+		}
+
+		for (int32 i = 0; i < definition->bitmap_widgets.count; i++)
+		{
+			const s_hud_bitmap_widget_definition* candidate = &widgets[i];
+			if (candidate == bitmap_widget
+				|| candidate->screen_sequence_indices[_screen_split_type_full] < 0
+				|| candidate->screen_sequence_indices[split_type] >= 0
+				|| candidate->special_hud_type != bitmap_widget->special_hud_type
+				|| candidate->bitmap.index == NONE
+				|| csmemcmp(&candidate->widget_inputs, &bitmap_widget->widget_inputs, sizeof(bitmap_widget->widget_inputs)) != 0)
+			{
+				continue;
+			}
+			if (bitmap_widget->special_hud_type == _special_hud_type_unspecial
+				&& candidate->bitmap.index != bitmap_widget->bitmap.index
+				&& candidate->shader.index != bitmap_widget->shader.index)
+			{
+				continue;
+			}
+
+			result = candidate;
+			break;
+		}
+		break;
+	}
+
+	if (g_draw_hud_split_screen_counterpart_count < NUMBEROF(g_draw_hud_split_screen_counterparts))
+	{
+		s_draw_hud_split_screen_counterpart* entry = &g_draw_hud_split_screen_counterparts[g_draw_hud_split_screen_counterpart_count++];
+		entry->widget = bitmap_widget;
+		entry->full_screen_widget = result;
+		entry->split_type = split_type;
+	}
+	return result;
+}
+
+static bool draw_hud_get_full_screen_bitmap(
+	int32 local_render_user_index,
+	const s_hud_bitmap_widget_definition* bitmap_widget,
+	e_screen_split_type split_type,
+	const real_rectangle2d* split_bounds,
+	int16 split_width,
+	int16 split_height,
+	datum* out_bitmap_tag_index,
+	real_rectangle2d* out_bounds,
+	int16* out_bitmap_index)
+{
+	*out_bitmap_index = NONE;
+
+	// the widget's own full screen sequence
+	real_rectangle2d full_bounds = {};
+	int16 full_index = NONE;
+	int16 full_width = 0;
+	int16 full_height = 0;
+	s_hud_bitmap_widget_definition* widget = (s_hud_bitmap_widget_definition*)bitmap_widget;
+	if (widget->screen_sequence_indices[_screen_split_type_full] < 0)
+	{
+		// split screen only: the full screen only widget it replaces
+		widget = (s_hud_bitmap_widget_definition*)draw_hud_find_full_screen_counterpart(bitmap_widget, split_type);
+		if (!widget)
+		{
+			return false;
+		}
+	}
+
+	draw_hud_get_bitmap_data(local_render_user_index, widget, &full_bounds, &full_index, &full_width, &full_height, _screen_split_type_full);
+	// crosshairs: the same shape only (a crosshair's full screen sequence can be a different picture); meters and the
+	// motion sensor: within 30% (their split screen bitmaps were cropped a little differently)
+	const real32 shape_tolerance = bitmap_widget->anchor == _hud_anchor_crosshair ? 0.05f : 0.3f;
+	if (full_index == NONE
+		|| !draw_hud_full_screen_bitmap_fits(split_bounds, split_width, split_height, &full_bounds, full_width, full_height, shape_tolerance))
+	{
+		return false;
+	}
+
+	*out_bitmap_tag_index = widget->bitmap.index;
+	*out_bounds = full_bounds;
+	*out_bitmap_index = full_index;
+	return true;
+}
+
 static void __cdecl draw_hud_bitmap_widget(
 	int32 local_render_user_index,
 	s_new_hud_temporary_user_state* user_state,
@@ -440,38 +610,20 @@ static void __cdecl draw_hud_bitmap_widget(
 	if (bitmap_index == NONE)
 		return;
 
-	// LAN edition: in split screen the crosshair, motion sensor and shield meter widgets use their half/quarter screen
-	// sequences, small Xbox-era bitmaps that look blurry once the HUD is scaled up for PC resolutions. Draw the full
-	// screen bitmap instead, scaled down to the size the split screen bitmap would have been drawn at (so the motion
-	// sensor's blips still line up with it).
-	real32 crosshair_split_draw_ratio = 1.f;
-	if ((bitmap_widget->anchor == _hud_anchor_crosshair || bitmap_widget->anchor == _hud_anchor_motion_sensor
-		|| bitmap_widget->anchor == _hud_anchor_health_and_shield)
-		&& split_type != _screen_split_type_full)
+	// LAN edition: in split screen the crosshair, motion sensor and shield meter widgets use their half/quarter screen sequences,
+	// small Xbox-era bitmaps that look blurry once the HUD is scaled up for PC resolutions. Their full screen bitmap
+	// (the widget's own full screen sequence, or the full screen only widget it stands in for) is drawn instead, in the
+	// place and at the size the split screen bitmap would have been drawn (so the motion sensor's blips still line up).
+	datum bitmap_tag_index = bitmap_widget->bitmap.index;
+	real_rectangle2d full_bitmap_bounds = {};
+	int16 full_bitmap_index = NONE;
+	if (split_type != _screen_split_type_full && draw_hud_split_screen_uses_full_bitmap(bitmap_widget))
 	{
-		real_rectangle2d full_bounds;
-		int16 full_index = NONE;
-		int16 full_width = 0;
-		int16 full_height = 0;
-		draw_hud_get_bitmap_data(local_render_user_index, bitmap_widget, &full_bounds, &full_index, &full_width, &full_height, _screen_split_type_full);
-
-		const real32 split_drawn_width = bitmap_width * (bitmap_bounds.x1 - bitmap_bounds.x0);
-		const real32 split_drawn_height = bitmap_height * (bitmap_bounds.y1 - bitmap_bounds.y0);
-		const real32 full_drawn_width = full_width * (full_bounds.x1 - full_bounds.x0);
-		const real32 full_drawn_height = full_height * (full_bounds.y1 - full_bounds.y0);
-		if (full_index != NONE && split_drawn_width > 0.f && split_drawn_height > 0.f && full_drawn_width > split_drawn_width)
+		datum full_tag_index = NONE;
+		if (draw_hud_get_full_screen_bitmap(local_render_user_index, bitmap_widget, split_type, &bitmap_bounds, bitmap_width, bitmap_height,
+			&full_tag_index, &full_bitmap_bounds, &full_bitmap_index))
 		{
-			// same shape only, so a different picture in the full screen sequence is never squashed
-			const real32 width_ratio = split_drawn_width / full_drawn_width;
-			const real32 height_ratio = split_drawn_height / full_drawn_height;
-			if (fabsf(width_ratio - height_ratio) < 0.05f * width_ratio)
-			{
-				crosshair_split_draw_ratio = width_ratio;
-				bitmap_bounds = full_bounds;
-				bitmap_index = full_index;
-				bitmap_width = full_width;
-				bitmap_height = full_height;
-			}
+			bitmap_tag_index = full_tag_index;
 		}
 	}
 
@@ -526,15 +678,16 @@ static void __cdecl draw_hud_bitmap_widget(
 		(real32)screen_offset.y + offset_result.y
 	};
 
-	// the bitmap is drawn at hud_scale * crosshair_split_draw_ratio (1 except for split screen crosshairs, see above),
-	// its screen offset stays in hud units
-	const real32 bitmap_draw_scale = hud_scale * crosshair_split_draw_ratio;
-
 	real_point2d final_location;
-	final_location.x = (calc_offset.x * hud_scale) + ((bitmap_bounds.x0 - calc_registration.x) * bitmap_draw_scale) + anchor_point.x;
-	final_location.y = (calc_offset.y * hud_scale) + ((bitmap_bounds.y0 - calc_registration.y) * bitmap_draw_scale) + anchor_point.y;
-	hud_scale = bitmap_draw_scale;
+	final_location.x = (calc_offset.x * hud_scale) + ((bitmap_bounds.x0 - calc_registration.x) * hud_scale) + anchor_point.x;
+	final_location.y = (calc_offset.y * hud_scale) + ((bitmap_bounds.y0 - calc_registration.y) * hud_scale) + anchor_point.y;
 
+	// split screen: placed and sized as the split screen bitmap, drawn from the full screen one (see above)
+	if (full_bitmap_index != NONE)
+	{
+		bitmap_bounds = full_bitmap_bounds;
+		bitmap_index = full_bitmap_index;
+	}
 
 	if (bitmap_widget->flags.test(_bitmap_widget_flag_flip_horizontally))
 	{
@@ -645,7 +798,7 @@ static void __cdecl draw_hud_bitmap_widget(
 				bitmap_height,
 				hud_scale,
 				theta_result,
-				bitmap_widget->bitmap.index,
+				bitmap_tag_index,
 				bitmap_index,
 				&bitmap_bounds,
 				bitmap_widget->shader.index);
@@ -681,7 +834,7 @@ static void __cdecl draw_hud_bitmap_widget(
 				bitmap_height,
 				hud_scale,
 				theta_result,
-				bitmap_widget->bitmap.index,
+				bitmap_tag_index,
 				bitmap_index,
 				&bitmap_bounds,
 				bitmap_widget->shader.index);
@@ -703,7 +856,7 @@ static void __cdecl draw_hud_bitmap_widget(
 				bitmap_height,
 				hud_scale,
 				theta_result,
-				bitmap_widget->bitmap.index,
+				bitmap_tag_index,
 				bitmap_index,
 				&bitmap_bounds,
 				bitmap_widget->shader.index);
@@ -725,7 +878,7 @@ static void __cdecl draw_hud_bitmap_widget(
 				(int16)bitmap_size.y,
 				hud_scale,
 				theta_result,
-				bitmap_widget->bitmap.index,
+				bitmap_tag_index,
 				bitmap_index,
 				&bitmap_bounds,
 				bitmap_widget->shader.index);
@@ -745,7 +898,7 @@ static void __cdecl draw_hud_bitmap_widget(
 				(int16)bitmap_size.y,
 				hud_scale,
 				theta_result,
-				bitmap_widget->bitmap.index,
+				bitmap_tag_index,
 				bitmap_index,
 				&flipped_bounds,
 				bitmap_widget->shader.index);
@@ -766,7 +919,7 @@ static void __cdecl draw_hud_bitmap_widget(
 				(int16)bitmap_size.y,
 				hud_scale,
 				theta_result,
-				bitmap_widget->bitmap.index,
+				bitmap_tag_index,
 				bitmap_index,
 				&flipped_bounds,
 				bitmap_widget->shader.index);
@@ -786,7 +939,7 @@ static void __cdecl draw_hud_bitmap_widget(
 				(int16)bitmap_size.y,
 				hud_scale,
 				theta_result,
-				bitmap_widget->bitmap.index,
+				bitmap_tag_index,
 				bitmap_index,
 				&flipped_bounds,
 				bitmap_widget->shader.index);
