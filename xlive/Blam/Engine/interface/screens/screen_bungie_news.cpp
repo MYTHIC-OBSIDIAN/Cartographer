@@ -59,7 +59,7 @@ enum e_xbox_live_list_item
 #define k_xbox_live_list_item_data_index_offset 0x70	// c_list_item_widget: the item's data index (low 16 bits: absolute index)
 #define k_xbox_live_list_data_offset 0x70				// c_list_widget::m_list_data (protected)
 #define k_xbox_live_achievements_text L"Achievements"
-#define k_xbox_live_achievements_description L"View your locked and unlocked Achievements."
+#define k_xbox_live_achievements_description L"View your Games for Windows LIVE Achievements."
 
 /* globals */
 

@@ -199,8 +199,7 @@ c_squad_settings_list::c_squad_settings_list(int16 user_flags) :
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_map;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_variant;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_quick_options;
-		// LAN edition: no Switch to Co-op in an Xbox Live custom game lobby
-		SQUAD_ITEM_GET_NEW()->item_id = _item_switch_to_optimatch;
+		// LAN edition: no Switch to Co-op or Switch to Matchmaking in an Xbox Live custom game lobby
 		SQUAD_ITEM_GET_NEW()->item_id = _item_rename_squad;
 
 		if (user_interface_squad_local_peer_is_leader() && user_interface_squad_get_player_count() > 1)
@@ -225,7 +224,7 @@ c_squad_settings_list::c_squad_settings_list(int16 user_flags) :
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_level;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_difficulty;
 		SQUAD_ITEM_GET_NEW()->item_id = _item_switch_to_arranged;
-		SQUAD_ITEM_GET_NEW()->item_id = _item_switch_to_optimatch;
+		// LAN edition: no Switch to Matchmaking
 		break;
 	case _session_protocol_xbox_live_optimatch:
 		SQUAD_ITEM_GET_NEW()->item_id = _item_change_hopper;
