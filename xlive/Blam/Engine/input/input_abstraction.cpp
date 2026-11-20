@@ -112,6 +112,7 @@ typedef s_input_button* (__cdecl* t_input_abstraction_get_action_button)(s_input
 static t_input_abstraction_get_action_button p_input_abstraction_get_action_button;
 static s_input_button* __cdecl input_abstraction_get_action_button_hook(s_input_button* out_button, int32 action, int32 button_index, s_gamepad_input_preferences* preferences);
 static void __cdecl input_abstraction_get_prompt_device_preferences(e_controller_index controller_index, s_gamepad_input_preferences* preferences);
+static void __cdecl input_abstraction_prompt_fixup_logged(wchar_t* string, int32 size);
 
 /* public code */
 
@@ -122,8 +123,15 @@ void input_abstraction_patches_apply(void)
 	PatchCall(Memory::GetAddress(0x61FBD), input_abstraction_controller_plugged_hook); //inside input_abstraction_update_input_state
 	DETOUR_ATTACH(p_input_abstraction_get_action_button, Memory::GetAddress<t_input_abstraction_get_action_button>(0x5E589), input_abstraction_get_action_button_hook);
 	// the HUD's action prompts ("Press <look> to turn") pick the mouse or the thumbstick look action from the first
-	// controller's preferences
-	PatchCall(Memory::GetAddress(0x22FDCD), input_abstraction_get_prompt_device_preferences);
+	// controller's preferences (the action tokens' handler, and the look, move and turn tokens' handlers)
+	const uint32 k_prompt_preferences_calls[] = { 0x22E0D1, 0x22EA14, 0x22EAF0, 0x22EB7B, 0x22FDCD, 0x230283 };
+	for (uint32 index = 0; index < NUMBEROF(k_prompt_preferences_calls); index++)
+	{
+		PatchCall(Memory::GetAddress(k_prompt_preferences_calls[index]), input_abstraction_get_prompt_device_preferences);
+	}
+	// LAN edition (diagnostic): the HUD messages' text before and after its tokens are replaced
+	PatchCall(Memory::GetAddress(0x22D690), input_abstraction_prompt_fixup_logged);
+	PatchCall(Memory::GetAddress(0x22D8D3), input_abstraction_prompt_fixup_logged);
 	return;
 }
 
@@ -1221,6 +1229,71 @@ static void input_abstraction_mouse_set_default_mapping(s_gamepad_input_preferen
 	return;
 }
 
+// LAN edition (diagnostic): button prompt resolution written to lan_prompt_log.txt in the game's folder, the first 400
+// lines, so the split screen prompts' missing character can be traced
+static int32 g_prompt_log_lines = 0;
+static void prompt_log(const char* format, ...)
+{
+	if (g_prompt_log_lines >= 400)
+	{
+		return;
+	}
+	FILE* file = NULL;
+	if (fopen_s(&file, "lan_prompt_log.txt", "a") != 0 || file == NULL)
+	{
+		return;
+	}
+	va_list arguments;
+	va_start(arguments, format);
+	vfprintf(file, format, arguments);
+	va_end(arguments);
+	fputc('\n', file);
+	fclose(file);
+	g_prompt_log_lines++;
+	return;
+}
+
+static void prompt_log_string(const char* label, const wchar_t* string)
+{
+	char line[1024];
+	int32 length = sprintf_s(line, NUMBEROF(line), "%s:", label);
+	for (int32 index = 0; string != NULL && string[index] != L'\0' && index < 120 && length > 0 && length < (int32)NUMBEROF(line) - 8; index++)
+	{
+		const wchar_t character = string[index];
+		if (character >= 0x20 && character < 0x7F)
+		{
+			length += sprintf_s(line + length, NUMBEROF(line) - length, "%c", (char)character);
+		}
+		else
+		{
+			length += sprintf_s(line + length, NUMBEROF(line) - length, "<%04X>", (uint32)character);
+		}
+	}
+	prompt_log("%s", line);
+	return;
+}
+
+static void __cdecl input_abstraction_prompt_fixup_logged(wchar_t* string, int32 size)
+{
+	static wchar_t last_input[256] = {};
+	const bool log = string != NULL && wcsncmp(string, last_input, NUMBEROF(last_input) - 1) != 0;
+	if (log)
+	{
+		wcsncpy_s(last_input, string, _TRUNCATE);
+		prompt_log("-- local players %d, user %d, last used device c0..c3: %u %u %u %u",
+			(int32)local_player_count(), *Memory::GetAddress<int32*>(0x4E6800),
+			g_input_abstraction_globals->preferences[0].field_1658, g_input_abstraction_globals->preferences[1].field_1658,
+			g_input_abstraction_globals->preferences[2].field_1658, g_input_abstraction_globals->preferences[3].field_1658);
+		prompt_log_string("in ", string);
+	}
+	INVOKE(0x22F915, 0x0, input_abstraction_prompt_fixup_logged, string, size);
+	if (log)
+	{
+		prompt_log_string("out", string);
+	}
+	return;
+}
+
 // LAN edition: the button an action is bound to, as shown in the HUD's button prompts ("Press <button> to look"). The game
 // picks the binding for the device the player last used (field_1658: 1 gamepad, 0 keyboard and mouse); in split screen
 // the second to fourth players' prompts came out with their keyboard and mouse binding (drawn as the font's missing
@@ -1245,6 +1318,23 @@ static s_input_button* __cdecl input_abstraction_get_action_button_hook(s_input_
 	}
 	s_input_button* result = p_input_abstraction_get_action_button(out_button, action, button_index, preferences);
 	used->field_1658 = last_used_device;
+	char line[256];
+	sprintf_s(line, NUMBEROF(line), "   action %d index %d preferences %s%d (device %u, prefer gamepad %d) -> type %d key %u",
+		action, button_index, known_controller ? "controller " : "copy ", known_controller ? controller : 0, last_used_device, prefer_gamepad ? 1 : 0,
+		(int32)result->m_device_type, result->m_device_key);
+	static char last_lines[8][256] = {};
+	static int32 next_line = 0;
+	bool seen = false;
+	for (int32 index = 0; index < (int32)NUMBEROF(last_lines); index++)
+	{
+		seen = seen || strcmp(last_lines[index], line) == 0;
+	}
+	if (!seen)
+	{
+		strcpy_s(last_lines[next_line], line);
+		next_line = (next_line + 1) % (int32)NUMBEROF(last_lines);
+		prompt_log("%s", line);
+	}
 	return result;
 }
 
