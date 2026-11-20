@@ -6,6 +6,10 @@
 
 #include "achievements/achievement_list.h"
 #include "achievements/achievement_manager.h"
+#include "game/game.h"
+#include "game/game_statborg.h"
+#include "game/players.h"
+#include "H2MOD/Modules/EventHandler/EventHandler.hpp"
 #include "interface/user_interface_guide.h"
 #include "saved_games/saved_game_files.h"
 #include "saved_games/saved_game_files_async_windows.h"
@@ -187,8 +191,9 @@ static const wchar_t k_achievements_bin_name[] = L"cartographer_achievements";
 static const wchar_t k_achievement_times_bin_name[] = L"cartographer_achievement_times";
 static const uint64 k_achievements_all_mask = (1ull << k_achievement_type_count) - 1;
 
-// unlocked for everyone: they need to know other players' achievements (Ninja / Legend), which came from Xbox Live
-static const uint64 k_achievements_default_unlocked_mask =
+// they need to know other players' achievements (Ninja / Legend), which came from Xbox Live: instead they unlock with the
+// player's first multiplayer kill (System Link or splitscreen)
+static const uint64 k_achievements_first_kill_mask =
 	(1ull << _achievement_type_flaming_ninja) |
 	(1ull << _achievement_type_hired_gun);
 
@@ -223,7 +228,7 @@ struct s_achievements_profile
 
 static s_achievements_profile g_achievements_profiles[k_number_of_controllers];
 // unlocked while no profile is signed in: kept until the game closes
-static uint64 g_achievements_unsaved = k_achievements_default_unlocked_mask;
+static uint64 g_achievements_unsaved = 0;
 static uint64 g_achievements_unsaved_times[k_achievement_type_count] = {};
 static std::deque<int32> g_achievement_popups;				// achievement indices, oldest first
 
@@ -435,8 +440,60 @@ static int32 __cdecl achievements_post_enable_hook(void)
 
 /* public code */
 
+// Flaming Ninja and Hired Gun: the achievement player's (the primary profile's) first kill in a multiplayer game
+static void achievements_game_loop(void)
+{
+	if (!game_is_multiplayer())
+	{
+		return;
+	}
+	const s_achievements_profile* profile = achievements_profile_get_primary();
+	const uint64 unlocked = profile ? profile->unlocked : g_achievements_unsaved;
+	if ((unlocked & k_achievements_first_kill_mask) == k_achievements_first_kill_mask)
+	{
+		return;
+	}
+	const c_game_statborg* statborg = game_engine_get_statborg();
+	if (statborg == NULL)
+	{
+		return;
+	}
+
+	for (int32 user_index = 0; user_index < k_number_of_controllers; user_index++)
+	{
+		if (!players_user_is_active(user_index))
+		{
+			continue;
+		}
+		// with a profile signed in, only its own player's kills count
+		if (profile != NULL)
+		{
+			const e_controller_index controller = players_get_controller_index_from_user_index(user_index);
+			if (!VALID_INDEX(controller, k_number_of_controllers) || &g_achievements_profiles[controller] != profile)
+			{
+				continue;
+			}
+		}
+		const datum player_index = player_index_from_user_index(user_index);
+		if (player_index != NONE && statborg->get_player_stat(player_index, _statborg_entry_kills) > 0)
+		{
+			for (int32 index = 0; index < k_achievement_type_count; index++)
+			{
+				if (((k_achievements_first_kill_mask >> index) & 1) != 0)
+				{
+					achievements_unlock(index);
+				}
+			}
+			return;
+		}
+	}
+	return;
+}
+
 void achievements_apply_patches(void)
 {
+	EventHandler::register_callback(achievements_game_loop, EventType::game_loop, EventExecutionType::execute_after);
+
 	for (uint32 index = 0; index < k_number_of_controllers; index++)
 	{
 		g_achievements_profiles[index].enumerated_file_index = NONE;
@@ -492,7 +549,14 @@ void achievements_profile_sign_in(e_controller_index controller_index, uint32 en
 				csmemcpy(profile->unlock_times, times.unlock_times, sizeof(profile->unlock_times));
 			}
 		}
-		profile->unlocked |= k_achievements_default_unlocked_mask;
+		// earlier builds unlocked Flaming Ninja and Hired Gun for everyone (no unlock time): they now need a kill
+		for (int32 index = 0; index < k_achievement_type_count; index++)
+		{
+			if (((k_achievements_first_kill_mask >> index) & 1) != 0 && profile->unlock_times[index] == 0)
+			{
+				profile->unlocked &= ~(1ull << index);
+			}
+		}
 	}
 
 	achievements_list_refresh();
