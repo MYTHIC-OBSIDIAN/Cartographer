@@ -12,6 +12,7 @@
 #include "tag_files/tag_loader/tag_injection.h"
 #include "interface/user_interface_widget_list.h"
 #include "interface/user_interface_widget_list_item.h"
+#include "memory/data.h"
 #include "H2MOD/GUI/imgui_integration/imgui_handler.h"
 
 /* constants */
@@ -56,8 +57,9 @@ enum e_xbox_live_list_item
 #define k_xbox_live_list_original_browse_games 2
 #define k_xbox_live_list_original_create_new_game 3
 #define k_xbox_live_list_item_data_index_offset 0x70	// c_list_item_widget: the item's data index (low 16 bits: absolute index)
+#define k_xbox_live_list_data_offset 0x70				// c_list_widget::m_list_data (protected)
 #define k_xbox_live_achievements_text L"Achievements"
-#define k_xbox_live_achievements_description L"View your Achievements."
+#define k_xbox_live_achievements_description L"View your locked and unlocked Achievements."
 
 /* globals */
 
@@ -143,7 +145,14 @@ static void __fastcall xbox_live_list_handle_item_pressed_hook(c_list_widget* li
 	}
 	if (index == _xbox_live_list_item_create_new_game)
 	{
-		datum create_new_game = (*item_index & ~0xFFFF) | k_xbox_live_list_original_create_new_game;
+		// the original's item 3 by its own datum index (the handler looks the item up with datum_try_and_get, so the salt
+		// has to be item 3's, not this item's)
+		data_array* list_data = *(data_array**)((uint8*)list + k_xbox_live_list_data_offset);
+		datum create_new_game = datum_absolute_index_to_index(list_data, k_xbox_live_list_original_create_new_game);
+		if (create_new_game == NONE)
+		{
+			return;
+		}
 		g_lobby_opened_from_xbox_live_menu = true;
 		p_xbox_live_list_handle_item_pressed(list, event, &create_new_game);
 		return;

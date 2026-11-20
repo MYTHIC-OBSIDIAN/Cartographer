@@ -224,6 +224,30 @@ static void guide_text(const char* text, float x, float y, float width, float he
 	return;
 }
 
+// text centred on its digits' ink in a box (guide_text centres the font's whole line, which has room for descenders
+// below the digits, so a time looks low)
+static void guide_text_centred_on_digits(const char* text, float x, float y, float width, float height, float point_size, ImU32 color)
+{
+	ImFont* font = ImGuiHandler::GetGfwlFont();
+	const float size = point_size * k_guide_point_to_pixel * g_guide_scale;
+	const ImVec2 text_size = font->CalcTextSizeA(size, FLT_MAX, 0.f, text);
+	const ImFontGlyph* digit = font->FindGlyph((ImWchar)'0');
+
+	ImVec2 position = guide_point(x, y);
+	position.x += (width * g_guide_scale - text_size.x) * .5f;
+	if (digit != NULL && font->FontSize > 0.f)
+	{
+		const float glyph_scale = size / font->FontSize;
+		position.y += height * g_guide_scale * .5f - (digit->Y0 + digit->Y1) * .5f * glyph_scale;
+	}
+	else
+	{
+		position.y += (height * g_guide_scale - text_size.y) * .5f;
+	}
+	g_guide_draw_list->AddText(font, size, ImVec2(floorf(position.x + .5f), floorf(position.y + .5f)), guide_color(color, 1.f), text);
+	return;
+}
+
 static bool guide_point_inside(ImVec2 point, float x, float y, float width, float height)
 {
 	const ImVec2 minimum = guide_point(x, y);
@@ -807,7 +831,8 @@ namespace ImGuiHandler
 			if (GetTimeFormatEx(LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, NULL, NULL, time_wide, (int)NUMBEROF(time_wide)) != 0
 				&& WideCharToMultiByte(CP_UTF8, 0, time_wide, -1, time_text, sizeof(time_text), NULL, NULL) != 0)
 			{
-				guide_text(time_text, 842.f, bar_y, 90.f, 22.f, 9.f, k_guide_text_blue, _guide_align_center);
+				// centred in screen_time.png's cutout: its (20,0)-(106,19) (the row below is its faint edge)
+				guide_text_centred_on_digits(time_text, 822.f + 20.f, bar_y, 86.f, 19.f, 9.f, k_guide_text_blue);
 			}
 			const bool close_hovered = guide_point_inside(io.MousePos, 935.f, bar_y, 46.f, 18.f);
 			guide_image_stretched("SKIN", L"closex.png", 935.f + 13.f, bar_y + 0.f, 19.f, 19.f);
