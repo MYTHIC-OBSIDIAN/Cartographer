@@ -30,6 +30,7 @@ static const float k_guide_canvas_height = 768.f;
 static const float k_guide_scene_x = 50.f;						// AppHostElementId
 static const float k_guide_point_to_pixel = 1.55f;				// XUI point size to canvas pixels (Segoe UI)
 static const float k_guide_header_icon_scale = 0.75f;			// LAN edition: the Y button, the logo and the controller
+static const float k_guide_close_button_scale = 0.5f;			// LAN edition: the close button (red tab and X)
 
 enum
 {
@@ -834,15 +835,20 @@ namespace ImGuiHandler
 				// centred in screen_time.png's cutout: its (20,0)-(106,19) (the row below is its faint edge)
 				guide_text_centred_on_digits(time_text, 822.f + 20.f, bar_y, 86.f, 19.f, 9.f, k_guide_text_blue);
 			}
-			const bool close_hovered = guide_point_inside(io.MousePos, 935.f, bar_y, 46.f, 18.f);
+			// LAN edition: the close button at half size, still hanging from the top of the bar at the tab's centre (x 62.5
+			// of its 128x32 images, whose tab is (38,0)-(87,21))
+			const float close_scale = k_guide_close_button_scale;
+			const float close_pivot_x = 935.f - 39.f + 62.5f;
+			const bool close_hovered = guide_point_inside(io.MousePos, close_pivot_x - 46.f * close_scale * .5f, bar_y,
+				46.f * close_scale, 18.f * close_scale);
 			// CloseX (46x18) with its btn_v2_Exit visual: the red tab (btn_hud_close_normal / focus / press) and its X, each
 			// a 128x32 image at (-39, 0)
 			const float close_image_x = 935.f - 39.f;
 			const wchar_t* close_tab = close_hovered
 				? (ImGui::IsMouseDown(ImGuiMouseButton_Left) ? L"btn_hud_close_press.png" : L"btn_hud_close_focus.png")
 				: L"btn_hud_close_normal.png";
-			guide_image("SKIN", close_tab, close_image_x, bar_y, 128.f, 32.f);
-			guide_image("SKIN", L"btn_hud_close_x.png", close_image_x, bar_y, 128.f, 32.f);
+			guide_image_scaled("SKIN", close_tab, close_image_x, bar_y, 128.f, 32.f, 62.5f, 0.f, close_scale);
+			guide_image_scaled("SKIN", L"btn_hud_close_x.png", close_image_x, bar_y, 128.f, 32.f, 62.5f, 0.f, close_scale);
 
 			// controller bar
 			guide_image_scaled("XAM", L"header_controller.png", 138.f, controller_y, 90.f, 38.f, 45.f, 17.f, k_guide_header_icon_scale);

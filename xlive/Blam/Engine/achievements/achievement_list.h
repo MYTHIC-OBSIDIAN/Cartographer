@@ -40,7 +40,7 @@ enum e_achievement_type
 	_achievement_type_assassin,
 	_achievement_type_skewer_stopper,
 	_achievement_type_vigilante,
-	_achievement_type_air_traffic_controller,
+	_achievement_type_air_traffic_control,
 	_achievement_type_decorated_soldier,
 	_achievement_type_ninja,
 	_achievement_type_flaming_ninja,

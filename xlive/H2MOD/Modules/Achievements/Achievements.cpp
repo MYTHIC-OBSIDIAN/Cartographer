@@ -166,7 +166,7 @@ static char const* k_achievement_strings[] =
 	"Assassin|Melee an opponent from behind.",
 	"Skewer Stopper|Kill the sword carrier after they kill 5 or more times in a row with the sword.",
 	"Vigilante|Stop a Killing Spree of another player.",
-	"Air Traffic Controller|Blow up the Banshee in flight while manned, with grenades or the rocket launcher.",
+	"Air Traffic Control|Blow up the Banshee in flight while manned, with grenades or the rocket launcher.",
 	"Decorated Soldier|Get awarded at least 8 different medals in one non-team game.",
 	"Ninja|In a non-team game, kill 5 people by melee, from behind.",
 	"Flaming Ninja|Kill an opponent that has the Ninja achievement.",
