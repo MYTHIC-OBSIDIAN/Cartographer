@@ -88,7 +88,7 @@ enum
 
 	// the options dialogs' list, fitted inside the dialog frame below its header
 	k_y_menu_options_list_left = -230,
-	k_y_menu_options_list_bottom = -40,
+	k_y_menu_options_list_bottom = -40 + 2 * 37,		// the Skulls menu's list, two rows (37 units each) higher
 	k_y_menu_friends_options_visible_items = 4,
 
 	// the Y menu's button prompts (pane text 1): at the bottom of the screen, like Halo 2 Vista's other screens
@@ -115,7 +115,7 @@ static const real_vector2d k_y_menu_create_clan_bar_scale = { 2.342f, 2.f };	// 
 static const real_argb_color k_y_menu_create_clan_text_color = { 1.f, .70f, .74f, .79f };
 static const real_vector2d k_y_menu_player_border_scale = { 2.f, 2.f };	// the 268x22 border drawn about 616x51
 // the border's top left: round the top bar's emblem, name, rank, voice and status icons
-static const point2d k_y_menu_player_border_topleft = { -210, 386 };
+static const point2d k_y_menu_player_border_topleft = { -208, 382 };
 
 // the options dialogs' items (their strings are in the Y menu's string list, without string ids for these)
 static const wchar_t* const k_y_menu_friends_options[] =

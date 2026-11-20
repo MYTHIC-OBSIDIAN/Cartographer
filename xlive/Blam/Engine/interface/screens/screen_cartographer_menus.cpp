@@ -884,7 +884,28 @@ void* c_skulls_menu::load(c_screen_parameters* parameters)
 
 void c_skulls_menu::initialize(c_screen_parameters* screen_parameters)
 {
+	// LAN edition: the list one row (37 units) higher than the brightness_level dialog it borrows has it, for this
+	// screen only (the tag goes back as it was once the list is made)
+	s_list_reference* list = NULL;
+	const datum widget_datum = user_interface_get_screen_tag_index_by_id(this->m_screen_id);
+	if (widget_datum != NONE)
+	{
+		s_user_interface_screen_widget_definition* widget = user_interface_screen_widget_definition_get(widget_datum);
+		if (widget->panes.count > 0 && user_interface_widget_pane_get(&widget->panes, 0)->list_block.count > 0)
+		{
+			list = TAG_BLOCK_GET_ELEMENT(&user_interface_widget_pane_get(&widget->panes, 0)->list_block, 0, s_list_reference);
+		}
+	}
+	const int16 k_skulls_list_raise = 37;
+	if (list != NULL)
+	{
+		list->bottom_left.y = (int16)(list->bottom_left.y + k_skulls_list_raise);
+	}
 	c_screen_with_menu::initialize(screen_parameters);
+	if (list != NULL)
+	{
+		list->bottom_left.y = (int16)(list->bottom_left.y - k_skulls_list_raise);
+	}
 
 	m_header_text.set_text(L"Skulls");
 	c_text_widget* subheader_text_widget = get_screen_subheader_text();
