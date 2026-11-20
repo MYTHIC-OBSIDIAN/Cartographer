@@ -366,6 +366,7 @@
     <ClCompile Include="Blam\Engine\interface\screens\screen_single_player_difficulty_select.cpp" />
     <ClCompile Include="Blam\Engine\interface\screens\screen_single_player_level_select.cpp" />
     <ClCompile Include="Blam\Engine\interface\screens\screen_bungie_news.cpp" />
+    <ClCompile Include="Blam\Engine\interface\screens\screen_y_menu.cpp" />
     <ClCompile Include="Blam\Engine\interface\screens\screen_variant_game_engine_type.cpp" />
     <ClCompile Include="Blam\Engine\interface\screens\screen_about_dialog.cpp" />
     <ClCompile Include="Blam\Engine\interface\screens\screen_audio_settings.cpp" />
@@ -1138,6 +1139,7 @@
     <ClInclude Include="Blam\Engine\interface\screens\screen_single_player_difficulty_select.h" />
     <ClInclude Include="Blam\Engine\interface\screens\screen_single_player_level_select.h" />
     <ClInclude Include="Blam\Engine\interface\screens\screen_bungie_news.h" />
+    <ClInclude Include="Blam\Engine\interface\screens\screen_y_menu.h" />
     <ClInclude Include="Blam\Engine\interface\screens\screen_variant_game_engine_type.h" />
     <ClInclude Include="Blam\Engine\interface\screens\screen_about_dialog.h" />
     <ClInclude Include="Blam\Engine\interface\screens\screen_audio_settings.h" />

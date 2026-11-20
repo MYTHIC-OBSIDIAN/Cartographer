@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "screen_bungie_news.h"
+#include "screen_y_menu.h"
 
 #include "cache/cache_files.h"
 #include "interface/user_interface.h"
@@ -178,6 +179,21 @@ static void __fastcall xbox_live_list_handle_item_pressed_hook(c_list_widget* li
 	return;
 }
 
+// Y: the Y menu (vtable slot 12: handle_event)
+typedef bool(__thiscall* t_bungie_news_handle_event)(c_screen_widget* screen, s_event_record* event);
+static t_bungie_news_handle_event p_bungie_news_handle_event = NULL;
+
+static bool __fastcall bungie_news_handle_event_hook(c_screen_widget* screen, void*, s_event_record* event)
+{
+	if ((event->type == _user_interface_event_type_gamepad_button_pressed && event->component == _controller_component_button_y)
+		|| (event->type == _user_interface_event_type_keyboard_button_pressed && (int32)event->component == 'Y'))
+	{
+		c_screen_y_menu::open();
+		return true;
+	}
+	return p_bungie_news_handle_event(screen, event);
+}
+
 static void __fastcall bungie_news_update_hook(c_screen_widget* screen, void*)
 {
 	p_bungie_news_update(screen);
@@ -186,6 +202,13 @@ static void __fastcall bungie_news_update_hook(c_screen_widget* screen, void*)
 	if (c_screen_widget_pane_access::pane_index(screen) == _xbox_live_list_item_achievements)
 	{
 		bungie_news_set_text(screen->try_find_screen_text(_bungie_news_text_help), k_xbox_live_achievements_description);
+	}
+
+	// the collapsed Y menu's tab (bottom left): its text comes from the Y menu's strings
+	const int32 y_menu_text_index = c_screen_y_menu::collapsed_tab_text_index(c_screen_widget_pane_access::pane_index(screen));
+	if (y_menu_text_index != NONE)
+	{
+		bungie_news_set_text(screen->try_find_screen_text(y_menu_text_index), c_screen_y_menu::collapsed_tab_text());
 	}
 
 	// only set when different, so the texts aren't rebuilt every frame
@@ -251,6 +274,10 @@ void c_screen_bungie_news::apply_patches(void)
 	void** update_slot = (void**)Memory::GetAddressRelative(0x79BF84 + 3 * sizeof(void*));
 	p_bungie_news_update = (screen_update_t)*update_slot;
 	WritePointer((uint32)update_slot, (void*)bungie_news_update_hook);
+
+	void** handle_event_slot = (void**)Memory::GetAddressRelative(0x79BF84 + 12 * sizeof(void*));
+	p_bungie_news_handle_event = (t_bungie_news_handle_event)*handle_event_slot;
+	WritePointer((uint32)handle_event_slot, (void*)bungie_news_handle_event_hook);
 
 	// the list: vtable slot 24 (update_list_items), and the item pressed handler its constructor (0x61FDDC) puts in its
 	// slot (mov [edi+0x14], 0x61F958)

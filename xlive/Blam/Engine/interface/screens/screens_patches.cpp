@@ -3,6 +3,7 @@
 
 #include "screen_esrb_warning.h"
 #include "screen_bungie_news.h"
+#include "screen_y_menu.h"
 #include "screen_xbox_live_task_progress_dialog.h"
 #include "screen_4way_signin.h"
 #include "screen_main_menu.h"
@@ -32,6 +33,7 @@ void screens_apply_patches_on_map_load()
 	c_screen_button_settings_menu::apply_patches_on_ui_map_load();
 	c_screen_video_settings::apply_patches_on_map_load();
 	c_screen_bungie_news::apply_patches_on_map_load();
+	c_screen_y_menu::apply_patches_on_map_load();
 	nameplates_apply_patches_on_map_load();
 	digsite_apply_patches_on_map_load();
 }

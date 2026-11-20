@@ -1284,6 +1284,7 @@
     <ClCompile Include="Blam\Engine\interface\screens\screen_error_dialog.cpp" />
     <ClCompile Include="Blam\Engine\interface\screens\screen_audio_settings.cpp" />
     <ClCompile Include="Blam\Engine\interface\screens\screen_bungie_news.cpp" />
+    <ClCompile Include="Blam\Engine\interface\screens\screen_y_menu.cpp" />
     <ClCompile Include="Blam\Engine\interface\screens\screen_campaign_options_dialog.cpp" />
     <ClCompile Include="Blam\Engine\interface\screens\screen_gamma_setting.cpp" />
     <ClCompile Include="Blam\Engine\interface\screens\screen_lod_setting.cpp" />
@@ -1723,6 +1724,7 @@
     <ClInclude Include="Blam\Engine\interface\screens\screen_error_dialog.h" />
     <ClInclude Include="Blam\Engine\interface\screens\screen_audio_settings.h" />
     <ClInclude Include="Blam\Engine\interface\screens\screen_bungie_news.h" />
+    <ClInclude Include="Blam\Engine\interface\screens\screen_y_menu.h" />
     <ClInclude Include="Blam\Engine\interface\screens\screen_campaign_options_dialog.h" />
     <ClInclude Include="Blam\Engine\interface\screens\screen_esrb_warning.h" />
     <ClInclude Include="Blam\Engine\interface\screens\screen_gamma_setting.h" />
