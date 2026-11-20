@@ -8,6 +8,10 @@
 #include <string>
 #include <vector>
 
+/* constants */
+
+static const uint32 k_gfwl_offset_invalid = 0xFFFFFFFF;
+
 /* structures */
 
 struct s_gfwl_file
@@ -72,7 +76,7 @@ static bool gfwl_file_read(const wchar_t* path, std::vector<uint8>* out_data)
 	return result;
 }
 
-// RVA to file offset through the section table; NONE when outside every section
+// RVA to file offset through the section table; k_gfwl_offset_invalid when outside every section
 static uint32 gfwl_pe_rva_to_offset(const IMAGE_SECTION_HEADER* sections, uint32 section_count, uint32 rva)
 {
 	for (uint32 index = 0; index < section_count; index++)
@@ -84,7 +88,7 @@ static uint32 gfwl_pe_rva_to_offset(const IMAGE_SECTION_HEADER* sections, uint32
 			return section->PointerToRawData + (rva - section->VirtualAddress);
 		}
 	}
-	return NONE;
+	return k_gfwl_offset_invalid;
 }
 
 // indexes one XUIZ package: big-endian header "XUIZ", directory size at 0x10, file count at 0x14, then per file
@@ -164,7 +168,7 @@ static bool gfwl_dll_index(const std::vector<uint8>& dll)
 
 	const IMAGE_DATA_DIRECTORY* resource_directory = &nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE];
 	const uint32 resource_offset = gfwl_pe_rva_to_offset(sections, section_count, resource_directory->VirtualAddress);
-	if (resource_offset == NONE || resource_offset + sizeof(IMAGE_RESOURCE_DIRECTORY) > size)
+	if (resource_offset == k_gfwl_offset_invalid || resource_offset + sizeof(IMAGE_RESOURCE_DIRECTORY) > size)
 	{
 		return false;
 	}
@@ -247,7 +251,7 @@ static bool gfwl_dll_index(const std::vector<uint8>& dll)
 			}
 			const IMAGE_RESOURCE_DATA_ENTRY* data_entry = (const IMAGE_RESOURCE_DATA_ENTRY*)(resources + data_entry_offset);
 			const uint32 package_offset = gfwl_pe_rva_to_offset(sections, section_count, data_entry->OffsetToData);
-			if (package_offset == NONE || (uint64)package_offset + data_entry->Size > size)
+			if (package_offset == k_gfwl_offset_invalid || (uint64)package_offset + data_entry->Size > size)
 			{
 				continue;
 			}
