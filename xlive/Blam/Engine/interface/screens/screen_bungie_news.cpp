@@ -130,6 +130,21 @@ static void __fastcall xbox_live_list_update_list_items_hook(c_list_widget* list
 	return;
 }
 
+// the signed-in players' nameplate and rank (Cartographer's user properties) for the session: only the System Link
+// path refreshed them, so the Xbox Live lobby showed the profile's raw values until a System Link lobby had been opened
+static void xbox_live_update_network_properties(void)
+{
+	const uint16 signed_in = user_interface_controller_get_signed_in_controllers_mask();
+	for (uint32 controller = 0; controller < k_number_of_controllers; controller++)
+	{
+		if (TEST_BIT(signed_in, controller))
+		{
+			user_interface_controller_update_network_properties((e_controller_index)controller);
+		}
+	}
+	return;
+}
+
 static void __fastcall xbox_live_list_handle_item_pressed_hook(c_list_widget* list, void*, s_event_record* const* event, datum* item_index)
 {
 	const int16 index = DATUM_INDEX_TO_ABSOLUTE_INDEX(*item_index);
@@ -154,7 +169,9 @@ static void __fastcall xbox_live_list_handle_item_pressed_hook(c_list_widget* li
 			return;
 		}
 		g_lobby_opened_from_xbox_live_menu = true;
+		xbox_live_update_network_properties();
 		p_xbox_live_list_handle_item_pressed(list, event, &create_new_game);
+		xbox_live_update_network_properties();
 		return;
 	}
 	p_xbox_live_list_handle_item_pressed(list, event, item_index);
