@@ -301,6 +301,10 @@ public:
 void nameplates_apply_patches(void);
 void nameplates_apply_patches_on_map_load(void);
 
+// the rank chosen in the Rank menu (0 = Rank 1) and the user role of the nameplate chosen in the Nameplate menu
+int32 rank_get_selected(e_controller_index controller_index);
+int8 nameplate_get_user_role(e_controller_index controller_index);
+
 void* ui_load_cartographer_guide_menu();
 void* ui_load_skulls_menu();
 void* ui_load_cartographer_update_notice_menu();

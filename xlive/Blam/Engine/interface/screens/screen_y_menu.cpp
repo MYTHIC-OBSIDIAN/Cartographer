@@ -6,6 +6,8 @@
 #include "interface/user_interface_bitmap_block.h"
 #include "interface/user_interface_controller.h"
 #include "interface/user_interface_memory.h"
+#include "interface/user_interface_player_widget.h"
+#include "screen_cartographer_menus.h"
 #include "interface/user_interface_screen_widget_definition.h"
 #include "interface/user_interface_shared_globals.h"
 #include "interface/user_interface_widget_text.h"
@@ -24,6 +26,8 @@
 #define k_y_menu_string_list_tag "ui\\screens\\game_shell\\online_y_menu\\online_y_menu"
 #define k_bungie_news_widget_tag "ui\\screens\\game_shell\\bungie_news\\bungie_news"
 #define k_rank_icons_bitmap_tag "ui\\global_bitmaps\\rank_icons"
+#define k_pregame_lobby_widget_tag "ui\\screens\\game_shell\\pregame_lobby\\pregame_lobby"
+#define k_y_menu_clan_rank L" : Overlord"
 
 // the Y menu's own (Xbox resolution) bitmaps; the others (ui\global_bitmaps) are Halo 2 Vista's
 static const char* const k_y_menu_xbox_bitmap_tags[] =
@@ -56,6 +60,15 @@ enum
 	k_y_menu_pane_tab_text_index = 3,
 	k_y_menu_default_text_count = 1,
 
+	// the signed-in player in the bar at the top right (the Xbox's ymenu_yourself player skin is replaced by the
+	// pregame lobby's, Halo 2 Vista's): its emblem at the bar's left, room for the voice and status icons on its right
+	k_y_menu_player_left = -190,
+	k_y_menu_player_bottom = 320,
+
+	// the options dialogs' list, fitted inside the dialog frame below its header
+	k_y_menu_options_list_left = -365,
+	k_y_menu_options_list_bottom = 80,
+
 	// the collapsed tab (y_menu_compact) is 60 pixels high, drawn at twice its size
 	k_y_menu_collapsed_tab_height = 60 * k_y_menu_scale,
 
@@ -83,10 +96,7 @@ static const wchar_t* const k_y_menu_clan_options[] =
 	L"Create Clan",
 };
 static const char k_y_menu_options_list_name[] = "y menu options list";
-enum
-{
-	k_y_menu_friends_option_view_your_stats = 1,	// k_y_menu_friends_options[1]
-};
+
 
 /* globals */
 
@@ -314,6 +324,7 @@ c_screen_y_menu::c_screen_y_menu(e_user_interface_channel_type channel_type, e_u
 
 void c_screen_y_menu::update(void)
 {
+	this->update_player();
 	c_screen_widget::update();
 	this->update_header();
 	return;
@@ -391,6 +402,34 @@ void c_screen_y_menu::initialize(c_screen_parameters* parameters)
 const void* c_screen_y_menu::load_proc(void) const
 {
 	return c_screen_y_menu::load;
+}
+
+void c_screen_y_menu::update_player(void)
+{
+	// the signed-in player (the profile on the first signed-in controller) with the nameplate and rank chosen in the
+	// profile settings, and ": Overlord" after the name on the Clan tab
+	static s_player_configuration player;
+	const e_controller_index controller = first_controller();
+	if (!VALID_INDEX(controller, k_number_of_controllers))
+	{
+		return;
+	}
+	s_player_identifier identifier;
+	user_interface_controller_get_user_properties(controller, &identifier, &player);
+	if (this->m_pane_index == k_y_menu_clan_pane)
+	{
+		wchar_t name[NUMBEROF(player.name)];
+		swprintf_s(name, NUMBEROF(name), L"%.*s%s", (int)NUMBEROF(player.name), player.name, k_y_menu_clan_rank);
+		wcsncpy_s(player.name, name, _TRUNCATE);
+	}
+
+	c_player_widget_representation representation;
+	representation.set_player_name_from_configuration(&player);
+	representation.set_appearance(&player.appearance);
+	representation.set_player_rank(rank_get_selected(controller));
+	representation.set_user_role(nameplate_get_user_role(controller));
+	this->apply_new_representations_to_players(&representation, 1);
+	return;
 }
 
 void c_screen_y_menu::scale_pane_bitmaps(void)
@@ -531,12 +570,38 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 		}
 
 		const datum rank_icons = tag_loaded(_tag_group_bitmap, k_rank_icons_bitmap_tag);
+		const s_player_block_reference* lobby_player = NULL;
+		const datum lobby_datum = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_pregame_lobby_widget_tag);
+		if (lobby_datum != NONE)
+		{
+			s_user_interface_screen_widget_definition* lobby = user_interface_screen_widget_definition_get(lobby_datum);
+			if (lobby->panes.count > 0 && user_interface_widget_pane_get(&lobby->panes, 0)->player_blocks.count > 0)
+			{
+				lobby_player = TAG_BLOCK_GET_ELEMENT(&user_interface_widget_pane_get(&lobby->panes, 0)->player_blocks, 0, s_player_block_reference);
+			}
+		}
 		for (int32 pane_index = 0; pane_index < y_menu->panes.count; pane_index++)
 		{
 			s_window_pane_reference* pane = user_interface_widget_pane_get(&y_menu->panes, pane_index);
 			pane->list_block.count = 0;
 			pane->buttons.count = 0;
-			pane->player_blocks.count = 0;
+
+			// the signed-in player (see update): the pregame lobby's player skin, one row
+			if (lobby_player != NULL && pane->player_blocks.count > 0)
+			{
+				s_player_block_reference* player = TAG_BLOCK_GET_ELEMENT(&pane->player_blocks, 0, s_player_block_reference);
+				*player = *lobby_player;
+				player->bottomleft.x = k_y_menu_player_left;
+				player->bottomleft.y = k_y_menu_player_bottom;
+				player->maximum_player_count = 1;
+				player->row_count = 1;
+				player->column_count = 1;
+				pane->player_blocks.count = 1;
+			}
+			else
+			{
+				pane->player_blocks.count = 0;
+			}
 
 			// the collapsed tab ("<Y> FRIENDS" on y_menu_compact) the Y menu opens from: on the Xbox it animates away as the
 			// menu opens; without that animation it sat over the tab title, so it's left out
@@ -577,6 +642,16 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 		if (original)
 		{
 			y_menu_scale_widget_tag(options, false);
+		}
+		for (int32 pane_index = 0; pane_index < options->panes.count; pane_index++)
+		{
+			s_window_pane_reference* pane = user_interface_widget_pane_get(&options->panes, pane_index);
+			for (int32 list_index = 0; list_index < pane->list_block.count; list_index++)
+			{
+				s_list_reference* list = TAG_BLOCK_GET_ELEMENT(&pane->list_block, list_index, s_list_reference);
+				list->bottom_left.x = k_y_menu_options_list_left;
+				list->bottom_left.y = k_y_menu_options_list_bottom;
+			}
 		}
 	}
 
@@ -688,14 +763,7 @@ void c_y_menu_options_list::update_list_items(c_list_item_widget* item, int32 sk
 
 void c_y_menu_options_list::handle_item_pressed_event(s_event_record* const& event, datum* item_index)
 {
-	// View Your Stats: nothing (there are no Xbox Live stats offline)
-	if (m_type == _y_menu_options_friends && DATUM_INDEX_TO_ABSOLUTE_INDEX(*item_index) == k_y_menu_friends_option_view_your_stats)
-	{
-		return;
-	}
-
-	// offline there are no friends or clans to act on: back to the Y menu
-	user_interface_back_out_from_channel(this->get_parent_channel(), this->get_parent_render_window());
+	// offline there are no friends, clans or Xbox Live stats to act on: like View Your Stats, every option does nothing
 	return;
 }
 

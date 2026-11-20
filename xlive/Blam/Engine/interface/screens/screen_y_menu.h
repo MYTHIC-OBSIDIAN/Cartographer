@@ -43,6 +43,8 @@ public:
 	virtual const void* load_proc(void) const override;
 
 private:
+	// the signed-in player in the bar at the top right
+	void update_player(void);
 	// after a tab loads: its Xbox bitmaps at twice their size
 	void scale_pane_bitmaps(void);
 	// the gamertag in the tab's header ("<gamertag>'s Friends")

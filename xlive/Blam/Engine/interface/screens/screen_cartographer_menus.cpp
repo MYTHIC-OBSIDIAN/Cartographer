@@ -1068,7 +1068,7 @@ const void* c_nameplates_menu::load_proc(void) const
 #define k_rank_list_name "rank list"
 
 // the rank is saved in the player profile (cartographer profile v4) of the controller, as rank - 1
-static int32 rank_get_selected(e_controller_index controller_index)
+int32 rank_get_selected(e_controller_index controller_index)
 {
 	if (controller_index < 0 || controller_index >= k_number_of_controllers)
 	{
@@ -1209,7 +1209,7 @@ const void* c_rank_menu::load_proc(void) const
 #define k_profile_edit_screen_widget_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile_menu"
 
 // the lobby shows nameplate bitmap (user role - 1), role 0 and 1 both show the default one
-static int8 nameplate_get_user_role(e_controller_index controller_index)
+int8 nameplate_get_user_role(e_controller_index controller_index)
 {
 	const int32 nameplate = nameplate_get_selected(controller_index);
 	return (int8)(nameplate == 0 ? 0 : nameplate + 1);
