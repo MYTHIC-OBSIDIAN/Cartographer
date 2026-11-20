@@ -182,11 +182,46 @@ static PDIRECT3DTEXTURE9 home_menu_texture_create(uint64 image_id)
 		return NULL;
 	}
 
+	// the game's device is Direct3D 9Ex: a D3DPOOL_DEFAULT texture can't be written unless it is dynamic (D3DX can't load
+	// into a plain one). Decode into system memory, then copy into a dynamic default pool texture, like ImGui's font
+	LPDIRECT3DDEVICE9 device = rasterizer_dx9_device_get_interface();
+	PDIRECT3DTEXTURE9 decoded = NULL;
+	if (FAILED(D3DXCreateTextureFromFileInMemoryEx(device, png, png_size,
+		D3DX_DEFAULT_NONPOW2, D3DX_DEFAULT_NONPOW2, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_SYSTEMMEM,
+		D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, NULL, NULL, &decoded)))
+	{
+		return NULL;
+	}
+
+	D3DSURFACE_DESC description;
 	PDIRECT3DTEXTURE9 texture = NULL;
-	const HRESULT result = D3DXCreateTextureFromFileInMemoryEx(rasterizer_dx9_device_get_interface(), png, png_size,
-		D3DX_DEFAULT_NONPOW2, D3DX_DEFAULT_NONPOW2, 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT,
-		D3DX_FILTER_NONE, D3DX_FILTER_NONE, 0, NULL, NULL, &texture);
-	return result == S_OK ? texture : NULL;
+	if (SUCCEEDED(decoded->GetLevelDesc(0, &description))
+		&& SUCCEEDED(device->CreateTexture(description.Width, description.Height, 1, D3DUSAGE_DYNAMIC, D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT, &texture, NULL)))
+	{
+		D3DLOCKED_RECT source;
+		D3DLOCKED_RECT destination;
+		bool copied = false;
+		if (SUCCEEDED(decoded->LockRect(0, &source, NULL, D3DLOCK_READONLY)))
+		{
+			if (SUCCEEDED(texture->LockRect(0, &destination, NULL, D3DLOCK_DISCARD)))
+			{
+				for (uint32 row = 0; row < description.Height; row++)
+				{
+					csmemcpy((uint8*)destination.pBits + row * destination.Pitch, (const uint8*)source.pBits + row * source.Pitch, description.Width * 4);
+				}
+				texture->UnlockRect(0);
+				copied = true;
+			}
+			decoded->UnlockRect(0);
+		}
+		if (!copied)
+		{
+			texture->Release();
+			texture = NULL;
+		}
+	}
+	decoded->Release();
+	return texture;
 }
 
 static void home_menu_textures_create(void)
