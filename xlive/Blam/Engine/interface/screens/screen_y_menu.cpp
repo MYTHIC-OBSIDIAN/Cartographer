@@ -46,7 +46,10 @@ enum
 	k_y_menu_player_icons_depth_bias = 2,
 	k_y_menu_player_depth_bias = 10,
 	k_y_menu_player_rank_depth_bias = 11,		// the rank icon over the rest of the player
+	k_y_menu_player_name_shadow_depth_bias = 9,	// the name's drop shadow, under the name
+	k_y_menu_player_name_shadow_offset = 2,		// units right and down
 };
+static const real_argb_color k_y_menu_player_name_shadow_color = { 1.f, 0.f, 0.f, 0.f };
 // the Create Clan row's pictures in the LAN edition mainmenu.map (digsite build_mainmenu.py, appended to multiplayer49 by
 // digsite_apply_patches_on_map_load): the Seventh Column emblem on a steel blue square, and the row's blue bar
 #define k_y_menu_create_clan_bitmap_tag "ui\\code_global_bitmaps\\multiplayer49"
@@ -182,6 +185,8 @@ static int32 g_y_menu_create_clan_bar_index = NONE;
 // per Y menu pane: the top bar's player border bitmap block index (NONE when not added)
 static int32 g_y_menu_player_border_index[k_y_menu_maximum_panes];
 static int32 g_y_menu_create_clan_text_index = NONE;
+// per Y menu pane: the text block of the player name's drop shadow (NONE when not added)
+static int32 g_y_menu_player_name_shadow_index[k_y_menu_maximum_panes];
 // the tab the Y menu opens on
 static int32 g_y_menu_open_pane = 0;
 
@@ -590,7 +595,8 @@ void c_screen_y_menu::update_player(void)
 void c_screen_y_menu::update_player_bar(void)
 {
 	// after the widgets' own update, so this frame is drawn with it: no nameplate (the player's bar is the border's
-	// fill instead), and the fill in the player's primary colour (the border picture's fill is white, its line black)
+	// fill instead), and the fill in the player's primary colour (the border picture's fill is see-through white like
+	// the Xbox's ymenu_yourself bar, so the colour is mixed with the blue tab under it as it was there; its line black)
 	c_player_widget* player_widget = this->try_find_player_widget(0);
 	if (player_widget != NULL)
 	{
@@ -599,6 +605,25 @@ void c_screen_y_menu::update_player_bar(void)
 		if (nameplate != NULL)
 		{
 			nameplate->set_visible(false);
+		}
+
+		// the name's drop shadow: the name's text, 2 units right of and below it (widget bounds are the screen's, either
+		// way up)
+		c_text_widget* name = (c_text_widget*)reinterpret_cast<c_user_interface_widget*>(player_widget)->try_find_child(_widget_type_text, 0, true);
+		c_text_widget* shadow = VALID_INDEX(this->m_pane_index, k_y_menu_maximum_panes) && g_y_menu_player_name_shadow_index[this->m_pane_index] != NONE
+			? this->try_find_text_widget(g_y_menu_player_name_shadow_index[this->m_pane_index] + k_y_menu_default_text_count)
+			: NULL;
+		if (name != NULL && shadow != NULL)
+		{
+			y_menu_set_text(shadow, name->get_interface()->get_raw_string());
+			rectangle2d bounds;
+			name->get_bounds(&bounds);
+			const int16 down = (int16)(bounds.top > bounds.bottom ? -k_y_menu_player_name_shadow_offset : k_y_menu_player_name_shadow_offset);
+			bounds.top = (int16)(bounds.top + down);
+			bounds.bottom = (int16)(bounds.bottom + down);
+			bounds.left = (int16)(bounds.left + k_y_menu_player_name_shadow_offset);
+			bounds.right = (int16)(bounds.right + k_y_menu_player_name_shadow_offset);
+			shadow->set_bounds(&bounds);
 		}
 	}
 
@@ -772,6 +797,7 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 	for (int32 index = 0; index < k_y_menu_maximum_panes; index++)
 	{
 		g_y_menu_player_border_index[index] = NONE;
+		g_y_menu_player_name_shadow_index[index] = NONE;
 	}
 
 	// the Y menu: its lists and player blocks would need Xbox Live players and the Level column's rank icon a selected
@@ -901,6 +927,29 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 				text->text_color = k_y_menu_create_clan_text_color;
 				text->text_bounds = { (int16)(k_y_menu_create_clan_top - 4), (int16)(k_y_menu_create_clan_bar_left + 20), (int16)(k_y_menu_create_clan_top - 38), (int16)(k_y_menu_create_clan_bar_left + 800) };
 				g_y_menu_create_clan_text_index = text_index;
+			}
+
+			// the player name's black drop shadow: a copy of the player skin's name text, in black, under it (its string
+			// and place follow the name each update, see update_player_bar)
+			if (pane_index < k_y_menu_maximum_panes && y_menu_player_skin != NONE && pane->player_blocks.count > 0)
+			{
+				const s_tag_block* skin_texts = (const s_tag_block*)((uint8*)tag_get(_tag_group_user_interface_list_skin_definition, y_menu_player_skin) + 0x1C);
+				if (skin_texts->count > 0)
+				{
+					const int32 text_index = pane->text_blocks.count;
+					tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 1);
+					s_text_block_reference* shadow = TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, text_index, s_text_block_reference);
+					*shadow = *TAG_BLOCK_GET_ELEMENT(skin_texts, 0, s_text_block_reference);
+					shadow->text_color = k_y_menu_player_name_shadow_color;
+					shadow->string = _string_id_invalid;
+					shadow->render_depth_bias = k_y_menu_player_name_shadow_depth_bias;
+					// the name's bounds in the skin are from the player's bottom left
+					shadow->text_bounds.top = (int16)(shadow->text_bounds.top + k_y_menu_player_bottom - k_y_menu_player_name_shadow_offset);
+					shadow->text_bounds.bottom = (int16)(shadow->text_bounds.bottom + k_y_menu_player_bottom - k_y_menu_player_name_shadow_offset);
+					shadow->text_bounds.left = (int16)(shadow->text_bounds.left + k_y_menu_player_left + k_y_menu_player_name_shadow_offset);
+					shadow->text_bounds.right = (int16)(shadow->text_bounds.right + k_y_menu_player_left + k_y_menu_player_name_shadow_offset);
+					g_y_menu_player_name_shadow_index[pane_index] = text_index;
+				}
 			}
 
 			const datum compact_tab = tag_loaded(_tag_group_bitmap, k_y_menu_xbox_bitmap_tags[2]);
