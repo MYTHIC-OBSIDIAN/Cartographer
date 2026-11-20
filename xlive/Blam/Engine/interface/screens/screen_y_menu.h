@@ -47,6 +47,8 @@ private:
 	void update_create_clan(void);
 	// the signed-in player in the bar at the top right
 	void update_player(void);
+	// after the widgets update: the bar's border filled with the player's primary colour, no nameplate
+	void update_player_bar(void);
 	// after a tab loads: its Xbox bitmaps at twice their size
 	void scale_pane_bitmaps(void);
 	// the gamertag in the tab's header ("<gamertag>'s Friends")

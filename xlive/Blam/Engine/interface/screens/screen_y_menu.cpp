@@ -2,6 +2,7 @@
 #include "screen_y_menu.h"
 
 #include "cache/cache_files.h"
+#include "game/game_globals.h"
 #include "bitmaps/bitmap_group.h"
 #include "interface/hud.h"
 #include "interface/user_interface_bitmap_block.h"
@@ -33,6 +34,8 @@
 #define k_y_menu_player_skin_tag "ui\\player_skins\\ymenu_yourself"
 #define k_y_menu_player_border_frame 12	// multiplayer49 extra picture: the black border round the top bar's player
 #define k_live_icons_small_bitmap_tag "ui\\global_bitmaps\\live_icons_sm"
+#define k_rank_icons_small_bitmap_tag "ui\\global_bitmaps\\rank_icons_sm"
+#define k_y_menu_player_nameplate_bitmap_index 0	// the player skin's nameplate (the lobby's item_background_lobby)
 
 // the top bar's draw order (widgets at the same depth are drawn in order of their render depth bias): the menu's
 // translucent bars, the border, the voice and status icons, then the player's emblem, nameplate, name and rank on top
@@ -42,6 +45,7 @@ enum
 	k_y_menu_player_border_depth_bias = 1,
 	k_y_menu_player_icons_depth_bias = 2,
 	k_y_menu_player_depth_bias = 10,
+	k_y_menu_player_rank_depth_bias = 11,		// the rank icon over the rest of the player
 };
 // the Create Clan row's pictures in the LAN edition mainmenu.map (digsite build_mainmenu.py, appended to multiplayer49 by
 // digsite_apply_patches_on_map_load): the Seventh Column emblem on a steel blue square, and the row's blue bar
@@ -116,8 +120,8 @@ static const real_vector2d k_y_menu_create_clan_bar_scale = { 2.342f, 2.f };	// 
 static const real_argb_color k_y_menu_create_clan_text_color = { 1.f, .70f, .74f, .79f };
 static const real_vector2d k_y_menu_player_border_scale = { 2.f, 2.f };	// the 307x22 border drawn 614x44
 // the border's top left: round the top bar's emblem, name, rank, voice and status icons, centred on the top bar's blue
-// tab (the tabs bitmap's blue part, inside its outline: 396 to 334 high, -220 to 416 across); its fill has a hole where
-// the nameplate is drawn (46 units in from its left, 4 down from its top), see the digsite map build
+// tab (the tabs bitmap's blue part, inside its outline: 396 to 334 high, -220 to 416 across); its white fill is drawn in
+// the player's primary colour, in place of the nameplate (see update_player_bar)
 static const point2d k_y_menu_player_border_topleft = { -208, 387 };
 
 // the options dialogs' items (their strings are in the Y menu's string list, without string ids for these)
@@ -355,6 +359,10 @@ static datum y_menu_player_skin_patch(void)
 		bitmap->animation_index = (e_ui_animation_index)0;
 		bitmap->intro_animation_delay = 0;
 		bitmap->render_depth_bias = k_y_menu_player_depth_bias;
+		if (bitmap->bitmap_tag.index != NONE && bitmap->bitmap_tag.index == tag_loaded(_tag_group_bitmap, k_rank_icons_small_bitmap_tag))
+		{
+			bitmap->render_depth_bias = k_y_menu_player_rank_depth_bias;
+		}
 	}
 	for (int32 index = 0; index < y_menu_huds->count; index++)
 	{
@@ -460,6 +468,7 @@ void c_screen_y_menu::update(void)
 {
 	this->update_player();
 	c_screen_widget::update();
+	this->update_player_bar();
 	this->update_header();
 	this->update_create_clan();
 	return;
@@ -575,6 +584,46 @@ void c_screen_y_menu::update_player(void)
 	representation.set_player_rank(rank_get_selected(controller));
 	representation.set_user_role(nameplate_get_user_role(controller));
 	this->apply_new_representations_to_players(&representation, 1);
+	return;
+}
+
+void c_screen_y_menu::update_player_bar(void)
+{
+	// after the widgets' own update, so this frame is drawn with it: no nameplate (the player's bar is the border's
+	// fill instead), and the fill in the player's primary colour (the border picture's fill is white, its line black)
+	c_player_widget* player_widget = this->try_find_player_widget(0);
+	if (player_widget != NULL)
+	{
+		c_user_interface_widget* nameplate =
+			reinterpret_cast<c_user_interface_widget*>(player_widget)->try_find_child(_widget_type_bitmap, k_y_menu_player_nameplate_bitmap_index, true);
+		if (nameplate != NULL)
+		{
+			nameplate->set_visible(false);
+		}
+	}
+
+	if (!VALID_INDEX(this->m_pane_index, k_y_menu_maximum_panes) || g_y_menu_player_border_index[this->m_pane_index] == NONE)
+	{
+		return;
+	}
+	c_bitmap_widget* border = this->try_find_bitmap_widget(g_y_menu_player_border_index[this->m_pane_index]);
+	const e_controller_index controller = first_controller();
+	if (border == NULL || !VALID_INDEX(controller, k_number_of_controllers))
+	{
+		return;
+	}
+
+	static s_player_configuration player;
+	s_player_identifier identifier;
+	user_interface_controller_get_user_properties(controller, &identifier, &player);
+	const int32 primary_color_index = player.appearance.change_color_index[0];
+	const s_game_globals* game_globals = scenario_get_game_globals();
+	real_rgb_color fill = *global_real_rgb_white;
+	if (game_globals != NULL && VALID_INDEX(primary_color_index, game_globals->profile_colors.count))
+	{
+		fill = *TAG_BLOCK_GET_ELEMENT(&game_globals->profile_colors, primary_color_index, real_rgb_color);
+	}
+	reinterpret_cast<c_user_interface_widget*>(border)->set_change_color(&fill);
 	return;
 }
 
