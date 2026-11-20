@@ -132,6 +132,9 @@ void input_abstraction_patches_apply(void)
 	// LAN edition (diagnostic): the HUD messages' text before and after its tokens are replaced
 	PatchCall(Memory::GetAddress(0x22D690), input_abstraction_prompt_fixup_logged);
 	PatchCall(Memory::GetAddress(0x22D8D3), input_abstraction_prompt_fixup_logged);
+	// and the training prompts' ("<look> to turn" next to the waypoint)
+	PatchCall(Memory::GetAddress(0xB67E3), input_abstraction_prompt_fixup_logged);
+	PatchCall(Memory::GetAddress(0xB68BD), input_abstraction_prompt_fixup_logged);
 	return;
 }
 
