@@ -19,10 +19,6 @@
 #include "Networking/panorama/panorama_friends.h"
 
 #include "shell/shell.h"
-#include "cache/cache_files.h"
-#include "interface/user_interface_screen_widget_definition.h"
-
-#include "H2MOD/GUI/imgui_integration/imgui_handler.h"
 
 /* enums */
 
@@ -44,12 +40,11 @@ enum e_main_menu_list_items : uint16
 	//_item_settings,
 	//_item_quit,
 
-	// LAN edition: Guide removed, Split-screen and Achievements (the Home menu) added
+	// LAN edition: Guide removed, Split-screen added
 	_item_campaign = 0,
 	_item_xbox_live,
 	_item_splitscreen,
 	_item_system_link,
-	_item_achievements,
 	_item_settings,
 	_item_quit,
 
@@ -181,9 +176,6 @@ void c_main_menu_list::update_list_items(c_list_item_widget* item, int32 skin_in
 			// LAN edition: fixed label (the map's string reads "Network")
 			item_text->set_text(L"SYSTEM LINK");
 			break;
-		case _item_achievements:
-			item_text->set_text(L"ACHIEVEMENTS");
-			break;
 		case _item_settings:
 			item_text->set_text_from_string_id(_string_id_settings);
 			break;
@@ -233,9 +225,6 @@ void c_main_menu_list::handle_item_pressed_event(s_event_record* const& event, d
 		break;
 	case _item_system_link:
 		handle_item_system_link(event);
-		break;
-	case _item_achievements:
-		handle_item_achievements(event);
 		break;
 	case _item_settings:
 		handle_item_settings(event);
@@ -359,20 +348,6 @@ void c_main_menu_list::handle_item_settings(s_event_record* const& event)
 	params.initialize_default_user(FLAG(event->controller), _user_interface_channel_type_gameshell_screen, _window_4, c_screen_settings::load);
 	params.execute_load_function();
 
-	return;
-}
-
-// LAN edition: the achievements (the Home menu: the original Games for Windows - LIVE Guide's achievement screens when
-// the player's xlive.dll is there)
-void c_main_menu_list::handle_item_achievements(s_event_record* const& event)
-{
-	(void)event;
-#ifndef IMGUI_DISABLE
-	if (!ImGuiHandler::IsWindowActive(k_home_menu_window_name))
-	{
-		ImGuiHandler::ImHomeMenu::Toggle();
-	}
-#endif
 	return;
 }
 
@@ -500,50 +475,10 @@ static bool __cdecl screen_show_screen_4way_signin_xbox_live_callback(void)
 }
 
 
-// the main menu screen (halo2.exe 0x40B6CA) keeps its list as its last member, at +0xA60
-#define k_main_menu_screen_list_offset 0xA60
-
-// the screen's destructor calls the original list destructor directly, which only knows 6 rows: destroy ours instead
-static void __fastcall c_main_menu_list_destroy(c_main_menu_list* list, void*)
-{
-	list->~c_main_menu_list();
-	return;
-}
-
 void c_main_menu_list::apply_instance_patches()
 {
 	if (shell_is_dedicated_server())
 		return;
 
 	PatchCall(Memory::GetAddress(0xB724), jmp_c_main_menu_list); //replace our c_main_menu_list inside c_screen_main_menu ctor
-
-	// LAN edition: 7 rows. The screen is allocated (c_screen_main_menu::load, push 0xE40) with room for our bigger list
-	WriteValue<uint32>(Memory::GetAddress(0xB7E1), k_main_menu_screen_list_offset + sizeof(c_main_menu_list));
-	PatchCall(Memory::GetAddress(0xB776), c_main_menu_list_destroy);
-}
-
-void c_main_menu_list::apply_patches_on_map_load()
-{
-	// the main menu's list shows 7 rows (it showed 6); the rows build up from the bottom left, about 20 apart, so the
-	// bottom moves down half a row to keep the menu centred where it was
-	const datum widget_datum = tag_loaded(_tag_group_user_interface_screen_widget_definition, "ui\\screens\\game_shell\\main_menu_screen\\main_menu");
-	if (widget_datum == NONE)
-	{
-		return;
-	}
-	s_user_interface_screen_widget_definition* widget = user_interface_screen_widget_definition_get(widget_datum);
-	for (int32 pane_index = 0; pane_index < widget->panes.count; pane_index++)
-	{
-		s_window_pane_reference* pane = user_interface_widget_pane_get(&widget->panes, pane_index);
-		for (int32 list_index = 0; list_index < pane->list_block.count; list_index++)
-		{
-			s_list_reference* list = TAG_BLOCK_GET_ELEMENT(&pane->list_block, list_index, s_list_reference);
-			if (list->num_visible_items == 6)
-			{
-				list->num_visible_items = k_no_of_visible_items_for_main_menu;
-				list->bottom_left.y = (int16)(list->bottom_left.y - 10);
-			}
-		}
-	}
-	return;
 }

@@ -32,7 +32,6 @@ void screens_apply_patches_on_map_load()
 	c_screen_button_settings_menu::apply_patches_on_ui_map_load();
 	c_screen_video_settings::apply_patches_on_map_load();
 	c_screen_bungie_news::apply_patches_on_map_load();
-	c_main_menu_list::apply_patches_on_map_load();
 	nameplates_apply_patches_on_map_load();
 	digsite_apply_patches_on_map_load();
 }

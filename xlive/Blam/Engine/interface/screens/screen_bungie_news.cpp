@@ -8,6 +8,9 @@
 #include "interface/user_interface_screen_widget_definition.h"
 #include "interface/user_interface_shared_globals.h"
 #include "tag_files/tag_loader/tag_injection.h"
+#include "interface/user_interface_widget_list.h"
+#include "interface/user_interface_widget_list_item.h"
+#include "H2MOD/GUI/imgui_integration/imgui_handler.h"
 
 /* constants */
 
@@ -36,10 +39,34 @@ enum e_bungie_news_text
 #define k_bungie_news_latest_news L"Latest news:"
 #define k_bungie_news_message L"They say all good things must come to an end. Well, we say that totally sucks! Thanks for treating our old gal right for all these years. And thanks a million for playing. <3, Bungie."
 
+// LAN edition: the list (halo2.exe list class at screen +0xA60, vtable 0x7D0544) was Quickmatch, Custom Match, Browse
+// Games, Create New Game (item / pane 0-3). Now it is Quickmatch, Custom Match, Create New Game, Achievements: Create
+// New Game moves up (its pane with it) and Browse Games' place opens the achievements (the Home menu)
+enum e_xbox_live_list_item
+{
+	_xbox_live_list_item_quickmatch = 0,
+	_xbox_live_list_item_custom_match,
+	_xbox_live_list_item_create_new_game,		// the original's item 3
+	_xbox_live_list_item_achievements,			// the original's item 2, Browse Games
+	k_xbox_live_list_item_count
+};
+
+#define k_xbox_live_list_original_browse_games 2
+#define k_xbox_live_list_original_create_new_game 3
+#define k_xbox_live_list_item_data_index_offset 0x70	// c_list_item_widget: the item's data index (low 16 bits: absolute index)
+#define k_xbox_live_achievements_text L"Achievements"
+#define k_xbox_live_achievements_description L"View your Achievements."
+
 /* globals */
 
 typedef void(__thiscall* screen_update_t)(c_screen_widget* screen);
 static screen_update_t p_bungie_news_update = NULL;
+
+typedef void(__thiscall* t_xbox_live_list_update_list_items)(c_list_widget* list, c_list_item_widget* item, int32 skin_index);
+static t_xbox_live_list_update_list_items p_xbox_live_list_update_list_items = NULL;
+
+typedef void(__thiscall* t_xbox_live_list_handle_item_pressed)(c_list_widget* list, s_event_record* const* event, datum* item_index);
+static t_xbox_live_list_handle_item_pressed p_xbox_live_list_handle_item_pressed = NULL;
 
 /* private code */
 
@@ -56,9 +83,79 @@ static void bungie_news_set_text(c_text_widget* text, const wchar_t* value)
 	}
 }
 
+// c_screen_widget's current pane (protected)
+struct c_screen_widget_pane_access : public c_screen_widget
+{
+	static int16 pane_index(const c_screen_widget* screen)
+	{
+		return static_cast<const c_screen_widget_pane_access*>(screen)->m_pane_index;
+	}
+};
+
+static int16* xbox_live_list_item_index(c_list_item_widget* item)
+{
+	return (int16*)((uint8*)item + k_xbox_live_list_item_data_index_offset);
+}
+
+// the list's item text: the original's for its items (with their own strings), "Achievements" for Browse Games' place
+static void __fastcall xbox_live_list_update_list_items_hook(c_list_widget* list, void*, c_list_item_widget* item, int32 skin_index)
+{
+	int16* index = xbox_live_list_item_index(item);
+	switch (*index)
+	{
+	case _xbox_live_list_item_create_new_game:
+		*index = k_xbox_live_list_original_create_new_game;
+		p_xbox_live_list_update_list_items(list, item, skin_index);
+		*index = _xbox_live_list_item_create_new_game;
+		break;
+	case _xbox_live_list_item_achievements:
+	{
+		c_text_widget* text = item->try_find_text_widget(0);
+		if (text != NULL)
+		{
+			text->set_text(k_xbox_live_achievements_text);
+		}
+		break;
+	}
+	default:
+		p_xbox_live_list_update_list_items(list, item, skin_index);
+		break;
+	}
+	return;
+}
+
+static void __fastcall xbox_live_list_handle_item_pressed_hook(c_list_widget* list, void*, s_event_record* const* event, datum* item_index)
+{
+	const int16 index = DATUM_INDEX_TO_ABSOLUTE_INDEX(*item_index);
+	if (index == _xbox_live_list_item_achievements)
+	{
+#ifndef IMGUI_DISABLE
+		if (!ImGuiHandler::IsWindowActive(k_home_menu_window_name))
+		{
+			ImGuiHandler::ImHomeMenu::Toggle();
+		}
+#endif
+		return;
+	}
+	if (index == _xbox_live_list_item_create_new_game)
+	{
+		datum create_new_game = (*item_index & ~0xFFFF) | k_xbox_live_list_original_create_new_game;
+		p_xbox_live_list_handle_item_pressed(list, event, &create_new_game);
+		return;
+	}
+	p_xbox_live_list_handle_item_pressed(list, event, item_index);
+	return;
+}
+
 static void __fastcall bungie_news_update_hook(c_screen_widget* screen, void*)
 {
 	p_bungie_news_update(screen);
+
+	// the Achievements item's description (its pane is Browse Games')
+	if (c_screen_widget_pane_access::pane_index(screen) == _xbox_live_list_item_achievements)
+	{
+		bungie_news_set_text(screen->try_find_screen_text(_bungie_news_text_help), k_xbox_live_achievements_description);
+	}
 
 	// only set when different, so the texts aren't rebuilt every frame
 	bungie_news_set_text(screen->get_screen_header_text(), k_bungie_news_header);
@@ -79,6 +176,15 @@ void c_screen_bungie_news::apply_patches(void)
 	void** update_slot = (void**)Memory::GetAddressRelative(0x79BF84 + 3 * sizeof(void*));
 	p_bungie_news_update = (screen_update_t)*update_slot;
 	WritePointer((uint32)update_slot, (void*)bungie_news_update_hook);
+
+	// the list: vtable slot 24 (update_list_items), and the item pressed handler its constructor (0x61FDDC) puts in its
+	// slot (mov [edi+0x14], 0x61F958)
+	void** list_update_slot = (void**)Memory::GetAddressRelative(0x7D0544 + 24 * sizeof(void*));
+	p_xbox_live_list_update_list_items = (t_xbox_live_list_update_list_items)*list_update_slot;
+	WritePointer((uint32)list_update_slot, (void*)xbox_live_list_update_list_items_hook);
+
+	p_xbox_live_list_handle_item_pressed = (t_xbox_live_list_handle_item_pressed)Memory::GetAddressRelative(0x61F958);
+	WriteValue<uint32>(Memory::GetAddressRelative(0x61FE5A), (uint32)xbox_live_list_handle_item_pressed_hook);
 }
 
 void c_screen_bungie_news::apply_patches_on_map_load(void)
@@ -90,6 +196,17 @@ void c_screen_bungie_news::apply_patches_on_map_load(void)
 	}
 	s_user_interface_screen_widget_definition* widget = user_interface_screen_widget_definition_get(widget_datum);
 	const datum logo_bitmap = tag_loaded(_tag_group_bitmap, k_bungie_news_logo_bitmap_tag);
+
+	// Create New Game moved up a place in the list: its pane (the original's 3) swaps with Browse Games' (2), which is
+	// now the Achievements item's
+	if (widget->panes.count > k_xbox_live_list_original_create_new_game)
+	{
+		s_window_pane_reference* browse_games = user_interface_widget_pane_get(&widget->panes, k_xbox_live_list_original_browse_games);
+		s_window_pane_reference* create_new_game = user_interface_widget_pane_get(&widget->panes, k_xbox_live_list_original_create_new_game);
+		const s_window_pane_reference swap = *browse_games;
+		*browse_games = *create_new_game;
+		*create_new_game = swap;
+	}
 
 	// every pane (one per list item) has the same panel; their text blocks may be shared, so move each block once
 	void* done_text_blocks[8] = {};
