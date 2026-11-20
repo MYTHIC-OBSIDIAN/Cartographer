@@ -330,9 +330,9 @@ namespace ImGuiHandler
 				gfwl_assets_play_sound("SKIN", L"NotifyPopup.wav");
 			}
 
-			// bottom centre, scaled with the screen height (the 360-wide visual is about 450 pixels wide at 720p)
+			// bottom centre, scaled with the screen height (the 360-wide visual is 338 pixels wide at 720p)
 			const ImGuiIO& io = ImGui::GetIO();
-			const float scale = io.DisplaySize.y / 576.f;
+			const float scale = io.DisplaySize.y / 768.f;
 			const ImVec2 origin(
 				(io.DisplaySize.x - k_toast_width * scale) * .5f,
 				io.DisplaySize.y * .88f - k_toast_height * scale);

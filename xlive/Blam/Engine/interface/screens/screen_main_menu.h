@@ -5,7 +5,9 @@
 
 /* macro defines */
 
-#define k_no_of_visible_items_for_main_menu 6
+// LAN edition: 7 (Achievements added); the main menu screen is allocated with room for the extra row and its tag's list
+// shows 7 rows (c_main_menu_list::apply_instance_patches / apply_patches_on_map_load)
+#define k_no_of_visible_items_for_main_menu 7
 
 /* classes */
 
@@ -30,6 +32,7 @@ public:
 	
 	void c_main_menu_list_ctor(int16 user_flags);
 	static void apply_instance_patches();
+	static void apply_patches_on_map_load();
 
 	// c_main_menu_list virtual functions
 
@@ -39,6 +42,6 @@ public:
 	virtual void update_list_items(c_list_item_widget* item, int32 skin_index) override;
 
 };
-ASSERT_STRUCT_SIZE(c_main_menu_list, 0x3E0);
+ASSERT_STRUCT_SIZE(c_main_menu_list, 0x3E0 + 0x84);	// the original's 6 rows + 1
 
 

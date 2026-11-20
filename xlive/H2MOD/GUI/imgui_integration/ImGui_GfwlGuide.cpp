@@ -509,15 +509,19 @@ static void guide_draw_list(float scene_y, const s_guide_input* input)
 	char count[64];
 	sprintf_s(count, "%d of %d Unlocked", unlocked_count, (int32)k_achievement_type_count);
 	guide_text(count, x + 29.f, scene_y + 99.f, 380.f, 24.f, 11.f, k_guide_text_gray);
+	// LAN edition: the Y button is half the scene's width (128 of 255, the size of its btn_ListHeadPosLast visual), at the
+	// same right edge; the sort order text ends just before it
+	const float sort_x = x + 652.f + 255.f - 128.f;
+	const float sort_width = 128.f;
 	guide_text(g_guide_sort == _guide_sort_date ? "Achievements sorted by date" : "Achievements sorted by gamerscore",
-		x + 291.f, scene_y + 100.f, 354.f, 33.f, 10.f, k_guide_text_gray, _guide_align_right);
+		sort_x - 8.f - 354.f, scene_y + 100.f, 354.f, 33.f, 10.f, k_guide_text_gray, _guide_align_right);
 
 	// the Y button (btn_ListHeadPosLast)
 	const ImVec2 mouse = ImGui::GetIO().MousePos;
-	const bool sort_hovered = guide_point_inside(mouse, x + 652.f, scene_y + 94.f, 255.f, 34.f);
-	guide_nine_grid("SKIN", sort_hovered ? L"btn_list_header_posE_focus.png" : L"btn_list_header_posE_normal.png", x + 652.f, scene_y + 94.f, 255.f, 34.f, 5.f);
-	guide_image("SKIN", sort_hovered ? L"Ybutton_Focus.png" : L"Ybutton_Normal.png", x + 652.f + 3.f, scene_y + 94.f + 3.f, 28.f, 28.f);
-	guide_text("Change Sort Order", x + 652.f + 36.f, scene_y + 94.f, 210.f, 34.f, 10.f, k_guide_text_blue);
+	const bool sort_hovered = guide_point_inside(mouse, sort_x, scene_y + 94.f, sort_width, 34.f);
+	guide_nine_grid("SKIN", sort_hovered ? L"btn_list_header_posE_focus.png" : L"btn_list_header_posE_normal.png", sort_x, scene_y + 94.f, sort_width, 34.f, 5.f);
+	guide_image_stretched("SKIN", sort_hovered ? L"Ybutton_Focus.png" : L"Ybutton_Normal.png", sort_x + 3.f, scene_y + 94.f + 6.f, 22.f, 22.f);
+	guide_text("Change Sort Order", sort_x + 26.f, scene_y + 94.f, sort_width - 28.f, 34.f, 7.5f, k_guide_text_blue);
 
 	// rows (ListAchievements / btn_Achievements): 870x42, 43 apart, from (2, 2) in the 874x351 list at (17, 129)
 	const float list_x = x + 17.f + 2.f;

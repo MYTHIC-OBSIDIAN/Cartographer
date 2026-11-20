@@ -19,6 +19,8 @@
 #include "Networking/panorama/panorama_friends.h"
 
 #include "shell/shell.h"
+#include "cache/cache_files.h"
+#include "interface/user_interface_screen_widget_definition.h"
 
 #include "H2MOD/GUI/imgui_integration/imgui_handler.h"
 
@@ -498,10 +500,50 @@ static bool __cdecl screen_show_screen_4way_signin_xbox_live_callback(void)
 }
 
 
+// the main menu screen (halo2.exe 0x40B6CA) keeps its list as its last member, at +0xA60
+#define k_main_menu_screen_list_offset 0xA60
+
+// the screen's destructor calls the original list destructor directly, which only knows 6 rows: destroy ours instead
+static void __fastcall c_main_menu_list_destroy(c_main_menu_list* list, void*)
+{
+	list->~c_main_menu_list();
+	return;
+}
+
 void c_main_menu_list::apply_instance_patches()
 {
 	if (shell_is_dedicated_server())
 		return;
 
 	PatchCall(Memory::GetAddress(0xB724), jmp_c_main_menu_list); //replace our c_main_menu_list inside c_screen_main_menu ctor
+
+	// LAN edition: 7 rows. The screen is allocated (c_screen_main_menu::load, push 0xE40) with room for our bigger list
+	WriteValue<uint32>(Memory::GetAddress(0xB7E1), k_main_menu_screen_list_offset + sizeof(c_main_menu_list));
+	PatchCall(Memory::GetAddress(0xB776), c_main_menu_list_destroy);
+}
+
+void c_main_menu_list::apply_patches_on_map_load()
+{
+	// the main menu's list shows 7 rows (it showed 6); the rows build up from the bottom left, about 20 apart, so the
+	// bottom moves down half a row to keep the menu centred where it was
+	const datum widget_datum = tag_loaded(_tag_group_user_interface_screen_widget_definition, "ui\\screens\\game_shell\\main_menu_screen\\main_menu");
+	if (widget_datum == NONE)
+	{
+		return;
+	}
+	s_user_interface_screen_widget_definition* widget = user_interface_screen_widget_definition_get(widget_datum);
+	for (int32 pane_index = 0; pane_index < widget->panes.count; pane_index++)
+	{
+		s_window_pane_reference* pane = user_interface_widget_pane_get(&widget->panes, pane_index);
+		for (int32 list_index = 0; list_index < pane->list_block.count; list_index++)
+		{
+			s_list_reference* list = TAG_BLOCK_GET_ELEMENT(&pane->list_block, list_index, s_list_reference);
+			if (list->num_visible_items == 6)
+			{
+				list->num_visible_items = k_no_of_visible_items_for_main_menu;
+				list->bottom_left.y = (int16)(list->bottom_left.y - 10);
+			}
+		}
+	}
+	return;
 }
