@@ -564,8 +564,8 @@ static void guide_draw_list(float scene_y, const s_guide_input* input)
 		}
 	}
 
-	// scroll position (the list's scroll bar track, 16 wide at 874)
-	if (k_achievement_type_count > k_guide_list_visible_rows)
+	// scroll position (the list's scroll bar track, 16 wide at 874); there are more achievements than visible rows
+	static_assert(k_achievement_type_count > k_guide_list_visible_rows, "the list scrolls");
 	{
 		const float track_y = scene_y + 129.f + 16.f;
 		const float track_height = 318.f;
