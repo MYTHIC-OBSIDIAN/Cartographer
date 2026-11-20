@@ -246,9 +246,9 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 	{
 		s_user_interface_screen_widget_definition* y_menu = user_interface_screen_widget_definition_get(y_menu_datum);
 		// panes can share blocks: each is scaled once (and only the original Xbox tag, so never twice)
-		const void* scaled_blocks[3 * k_y_menu_maximum_panes] = {};
+		int32 scaled_blocks[3 * k_y_menu_maximum_panes] = {};
 		int32 scaled_count = 0;
-		auto first_time = [&](const void* block) -> bool
+		auto first_time = [&](int32 block) -> bool
 		{
 			for (int32 index = 0; index < scaled_count; index++)
 			{
