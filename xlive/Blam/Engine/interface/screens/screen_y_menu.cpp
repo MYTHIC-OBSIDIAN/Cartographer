@@ -29,6 +29,9 @@
 #define k_bungie_news_widget_tag "ui\\screens\\game_shell\\bungie_news\\bungie_news"
 #define k_rank_icons_bitmap_tag "ui\\global_bitmaps\\rank_icons"
 #define k_pregame_lobby_widget_tag "ui\\screens\\game_shell\\pregame_lobby\\pregame_lobby"
+#define k_pregame_lobby_player_skin_tag "ui\\player_skins\\player_skin_lobby"
+#define k_y_menu_player_skin_tag "ui\\player_skins\\ymenu_yourself"
+#define k_y_menu_player_border_frame 12	// multiplayer49 extra picture: the black border round the top bar's player
 // the Create Clan row's pictures in the LAN edition mainmenu.map (digsite build_mainmenu.py, appended to multiplayer49 by
 // digsite_apply_patches_on_map_load): the Seventh Column emblem on a steel blue square, and the row's blue bar
 #define k_y_menu_create_clan_bitmap_tag "ui\\code_global_bitmaps\\multiplayer49"
@@ -97,6 +100,9 @@ enum
 static const real_vector2d k_y_menu_xbox_bitmap_scale = { 2.f, 2.f };
 
 static const real_vector2d k_y_menu_create_clan_bar_scale = { 2.f, 2.f };	// the 366x36 bar drawn 842x83
+static const real_vector2d k_y_menu_player_border_scale = { 2.f, 2.f };	// the 268x22 border drawn about 616x51
+// the border's top left: round the top bar's emblem, name, rank, voice and status icons
+static const point2d k_y_menu_player_border_topleft = { -210, 386 };
 
 // the options dialogs' items (their strings are in the Y menu's string list, without string ids for these)
 static const wchar_t* const k_y_menu_friends_options[] =
@@ -153,6 +159,8 @@ static rectangle2d g_y_menu_collapsed_text_offset = {};
 static uint32 g_y_menu_xbox_bitmaps[k_y_menu_maximum_panes];
 // the Clan tab's Create Clan row: its icon bitmap and text block indices (NONE when not added)
 static int32 g_y_menu_create_clan_bar_index = NONE;
+// per Y menu pane: the top bar's player border bitmap block index (NONE when not added)
+static int32 g_y_menu_player_border_index[k_y_menu_maximum_panes];
 static int32 g_y_menu_create_clan_text_index = NONE;
 // the tab the Y menu opens on
 static int32 g_y_menu_open_pane = 0;
@@ -290,6 +298,54 @@ static void y_menu_set_text(c_text_widget* text, const wchar_t* value)
 		text->set_text(value);
 	}
 	return;
+}
+
+// the Y menu's own player skin (ymenu_yourself, made for the Xbox) given the pregame lobby skin's elements (Halo 2
+// Vista's emblem, name, nameplate and rank) without their fade in, so the top bar's player shows at once at full
+// strength; NONE when either skin is missing
+static datum y_menu_player_skin_patch(void)
+{
+	const datum lobby_skin = tag_loaded(_tag_group_user_interface_list_skin_definition, k_pregame_lobby_player_skin_tag);
+	const datum y_menu_skin = tag_loaded(_tag_group_user_interface_list_skin_definition, k_y_menu_player_skin_tag);
+	if (lobby_skin == NONE || y_menu_skin == NONE)
+	{
+		return NONE;
+	}
+	uint8* lobby = (uint8*)tag_get(_tag_group_user_interface_list_skin_definition, lobby_skin);
+	uint8* y_menu = (uint8*)tag_get(_tag_group_user_interface_list_skin_definition, y_menu_skin);
+	s_tag_block* lobby_texts = (s_tag_block*)(lobby + 0x1C);
+	s_tag_block* lobby_bitmaps = (s_tag_block*)(lobby + 0x24);
+	s_tag_block* lobby_huds = (s_tag_block*)(lobby + 0x2C);
+	s_tag_block* y_menu_texts = (s_tag_block*)(y_menu + 0x1C);
+	s_tag_block* y_menu_bitmaps = (s_tag_block*)(y_menu + 0x24);
+	s_tag_block* y_menu_huds = (s_tag_block*)(y_menu + 0x2C);
+	if (lobby_texts->count != y_menu_texts->count || lobby_bitmaps->count != y_menu_bitmaps->count || lobby_huds->count != y_menu_huds->count)
+	{
+		return NONE;
+	}
+
+	for (int32 index = 0; index < y_menu_texts->count; index++)
+	{
+		s_text_block_reference* text = TAG_BLOCK_GET_ELEMENT(y_menu_texts, index, s_text_block_reference);
+		*text = *TAG_BLOCK_GET_ELEMENT(lobby_texts, index, s_text_block_reference);
+		text->animation_index = (e_animation_index)0;
+		text->intro_animation_delay_milliseconds = 0;
+	}
+	for (int32 index = 0; index < y_menu_bitmaps->count; index++)
+	{
+		s_bitmap_block_reference* bitmap = TAG_BLOCK_GET_ELEMENT(y_menu_bitmaps, index, s_bitmap_block_reference);
+		*bitmap = *TAG_BLOCK_GET_ELEMENT(lobby_bitmaps, index, s_bitmap_block_reference);
+		bitmap->animation_index = (e_ui_animation_index)0;
+		bitmap->intro_animation_delay = 0;
+	}
+	for (int32 index = 0; index < y_menu_huds->count; index++)
+	{
+		s_hud_block_reference* hud = TAG_BLOCK_GET_ELEMENT(y_menu_huds, index, s_hud_block_reference);
+		*hud = *TAG_BLOCK_GET_ELEMENT(lobby_huds, index, s_hud_block_reference);
+		hud->animation_index = (e_animation_index)0;
+		hud->intro_animation_delay_milliseconds = 0;
+	}
+	return y_menu_skin;
 }
 
 // doubles a tag's positions (each block once: panes can share them)
@@ -518,6 +574,15 @@ void c_screen_y_menu::scale_pane_bitmaps(void)
 		}
 	}
 
+	if (VALID_INDEX(this->m_pane_index, k_y_menu_maximum_panes) && g_y_menu_player_border_index[this->m_pane_index] != NONE)
+	{
+		c_bitmap_widget* border = this->try_find_bitmap_widget(g_y_menu_player_border_index[this->m_pane_index]);
+		if (border != NULL)
+		{
+			border->set_render_scale(&k_y_menu_player_border_scale);
+		}
+	}
+
 	if (this->m_pane_index == k_y_menu_clan_pane && g_y_menu_create_clan_bar_index != NONE)
 	{
 		c_bitmap_widget* bar = this->try_find_bitmap_widget(g_y_menu_create_clan_bar_index);
@@ -636,6 +701,10 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 	csmemset(g_y_menu_xbox_bitmaps, 0, sizeof(g_y_menu_xbox_bitmaps));
 	g_y_menu_create_clan_bar_index = NONE;
 	g_y_menu_create_clan_text_index = NONE;
+	for (int32 index = 0; index < k_y_menu_maximum_panes; index++)
+	{
+		g_y_menu_player_border_index[index] = NONE;
+	}
 
 	// the Y menu: its lists and player blocks would need Xbox Live players and the Level column's rank icon a selected
 	// player, so they're left out
@@ -653,6 +722,7 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 
 		const datum rank_icons = tag_loaded(_tag_group_bitmap, k_rank_icons_bitmap_tag);
 		const s_player_block_reference* lobby_player = NULL;
+		const datum y_menu_player_skin = y_menu_player_skin_patch();
 		const datum lobby_datum = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_pregame_lobby_widget_tag);
 		if (lobby_datum != NONE)
 		{
@@ -673,6 +743,10 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 			{
 				s_player_block_reference* player = TAG_BLOCK_GET_ELEMENT(&pane->player_blocks, 0, s_player_block_reference);
 				*player = *lobby_player;
+				if (y_menu_player_skin != NONE)
+				{
+					player->skin.index = y_menu_player_skin;
+				}
 				player->bottomleft.x = k_y_menu_player_left;
 				player->bottomleft.y = k_y_menu_player_bottom;
 				player->maximum_player_count = 1;
@@ -683,6 +757,23 @@ void c_screen_y_menu::apply_patches_on_map_load(void)
 			else
 			{
 				pane->player_blocks.count = 0;
+			}
+
+			// the black border round the top bar's player (the multiplayer49 extra picture, see the digsite map build),
+			// added to the pane's own copy of its bitmap blocks
+			const datum pictures = tag_loaded(_tag_group_bitmap, k_y_menu_create_clan_bitmap_tag);
+			if (pane_index < k_y_menu_maximum_panes && pane->bitmap_blocks.count > 1 && pictures != NONE
+				&& bitmap_group_get(pictures)->bitmaps.count > k_y_menu_player_border_frame)
+			{
+				const int32 border_index = pane->bitmap_blocks.count;
+				tag_injection_extend_block(&pane->bitmap_blocks, sizeof(s_bitmap_block_reference), 1);
+				s_bitmap_block_reference* border = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, border_index, s_bitmap_block_reference);
+				*border = *TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, 1, s_bitmap_block_reference);
+				border->bitmap_tag.group = _tag_group_bitmap;
+				border->bitmap_tag.index = pictures;
+				border->initial_sprite_frame = k_y_menu_player_border_frame;
+				border->topleft = k_y_menu_player_border_topleft;
+				g_y_menu_player_border_index[pane_index] = border_index;
 			}
 
 			// the collapsed tab ("<Y> FRIENDS" on y_menu_compact) the Y menu opens from: on the Xbox it animates away as the
