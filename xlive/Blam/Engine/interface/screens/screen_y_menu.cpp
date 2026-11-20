@@ -6,6 +6,7 @@
 #include "interface/user_interface_controller.h"
 #include "interface/user_interface_memory.h"
 #include "interface/user_interface_screen_widget_definition.h"
+#include "interface/user_interface_shared_globals.h"
 #include "tag_files/tag_loader/tag_injection.h"
 #include "text/text_group.h"
 
@@ -26,7 +27,7 @@ enum
 
 /* globals */
 
-static string_id g_y_menu_collapsed_string = 0;
+static string_id g_y_menu_collapsed_string = _string_id_invalid;
 static bool g_y_menu_collapsed_text_loaded = false;
 static wchar_t g_y_menu_collapsed_text[128] = L"";
 static int32 g_y_menu_collapsed_text_index[16];			// per Xbox Live menu pane: the tab text's block index
@@ -129,7 +130,7 @@ int32 c_screen_y_menu::collapsed_tab_text_index(int32 pane_index)
 
 const wchar_t* c_screen_y_menu::collapsed_tab_text(void)
 {
-	if (!g_y_menu_collapsed_text_loaded && g_y_menu_collapsed_string != 0)
+	if (!g_y_menu_collapsed_text_loaded && g_y_menu_collapsed_string != _string_id_invalid)
 	{
 		const datum strings = tag_loaded(_tag_group_multilingual_unicode_string_list, k_y_menu_string_list_tag);
 		if (strings != NONE)
@@ -145,7 +146,7 @@ const wchar_t* c_screen_y_menu::collapsed_tab_text(void)
 
 void c_screen_y_menu::apply_patches_on_map_load(void)
 {
-	g_y_menu_collapsed_string = 0;
+	g_y_menu_collapsed_string = _string_id_invalid;
 	g_y_menu_collapsed_text_loaded = false;
 	g_y_menu_collapsed_text[0] = L'\0';
 	for (int32 index = 0; index < (int32)NUMBEROF(g_y_menu_collapsed_text_index); index++)
