@@ -5,6 +5,7 @@
 #include "cache/cache_files.h"
 #include "interface/user_interface.h"
 #include "interface/user_interface_controller.h"
+#include "interface/user_interface_utilities.h"
 #include "networking/online/online_account_xbox.h"
 #include "interface/user_interface_widget_text.h"
 #include "interface/user_interface_widget_window.h"
@@ -191,6 +192,17 @@ static bool __fastcall bungie_news_handle_event_hook(c_screen_widget* screen, vo
 		c_screen_y_menu::open();
 		return true;
 	}
+	// the mouse on the collapsed tab at the bottom left
+	if (event->type == _user_interface_event_type_mouse_button_left_click)
+	{
+		point2d cursor;
+		user_interface_get_cursor_position_scaled(&cursor);
+		if (c_screen_y_menu::collapsed_tab_contains(&cursor))
+		{
+			c_screen_y_menu::open();
+			return true;
+		}
+	}
 	return p_bungie_news_handle_event(screen, event);
 }
 
@@ -286,6 +298,9 @@ void c_screen_bungie_news::apply_patches(void)
 
 	// backing out of an Xbox Live lobby opened from this menu comes back here
 	PatchCall(Memory::GetAddressRelative(0x6175DC), recover_from_disconnection_xbox_live_menu_available);
+
+	// the Y menu's button prompts clickable with the mouse (in c_screen_widget::post_initialize_button_keys)
+	PatchCall(Memory::GetAddressRelative(0x610C12), c_screen_y_menu::button_key_text_index);
 }
 
 void c_screen_bungie_news::apply_patches_on_map_load(void)

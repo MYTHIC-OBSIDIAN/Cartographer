@@ -13,6 +13,7 @@
 #include "saved_games/cartographer_player_profile/cartographer_player_profile.h"
 #include "interface/user_interface_screen_widget_definition.h"
 #include "interface/user_interface_shared_globals.h"
+#include "interface/user_interface_utilities.h"
 #include "interface/user_interface_widget_text.h"
 #include "memory/data.h"
 #include "rasterizer/rasterizer_globals.h"
@@ -113,6 +114,15 @@ enum
 	// "<Y> FRIENDS": the controller glyph is drawn in the body text font (whose glyphs change with the Button Glyphs
 	// setting), the label after it in the title font
 	k_y_menu_tab_glyph_width = 40,
+
+	// the mouse: the collapsed tab's dark part (y_menu_compact's first 200 of 529 pixels, drawn at twice its size), and
+	// the open Y menu's tab title (the tabs bitmap's dark part, the first 192 of its 529 pixels: its left half's arrow
+	// goes to the previous tab, the rest to the next)
+	k_y_menu_collapsed_tab_click_width = 200 * k_y_menu_scale,
+	k_y_menu_tab_title_left = -640,
+	k_y_menu_tab_title_right = -640 + 192 * k_y_menu_scale,
+	k_y_menu_tab_title_top = 408,
+	k_y_menu_tab_title_bottom = 408 - 38 * k_y_menu_scale,
 };
 static const real_vector2d k_y_menu_xbox_bitmap_scale = { 2.f, 2.f };
 
@@ -171,6 +181,9 @@ static bool g_y_menu_collapsed_text_loaded = false;
 static wchar_t g_y_menu_collapsed_text[128] = L"";
 // per Xbox Live menu pane: the collapsed tab's bitmap and text block indices
 static int32 g_y_menu_collapsed_bitmap_index[k_y_menu_maximum_xbox_live_menu_panes];
+// where the collapsed tab was last placed (for the mouse), when it is shown
+static rectangle2d g_y_menu_collapsed_tab_bounds = {};
+static bool g_y_menu_collapsed_tab_shown = false;
 static int32 g_y_menu_collapsed_text_index[k_y_menu_maximum_xbox_live_menu_panes];
 static int32 g_y_menu_collapsed_glyph_index[k_y_menu_maximum_xbox_live_menu_panes];
 // the collapsed tab's text, relative to the tab's top left
@@ -476,6 +489,21 @@ void c_screen_y_menu::update(void)
 
 bool c_screen_y_menu::handle_event(s_event_record* event)
 {
+	// the mouse on the tab title: its left arrow the previous tab, the rest the next (the button prompts at the bottom
+	// are clickable like other screens', see button_key_text_index)
+	if (event->type == _user_interface_event_type_mouse_button_left_click)
+	{
+		point2d cursor;
+		user_interface_get_cursor_position_scaled(&cursor);
+		if (cursor.x >= k_y_menu_tab_title_left && cursor.x <= k_y_menu_tab_title_right
+			&& cursor.y <= k_y_menu_tab_title_top && cursor.y >= k_y_menu_tab_title_bottom)
+		{
+			s_event_record tab = *event;
+			tab.type = cursor.x < (k_y_menu_tab_title_left + k_y_menu_tab_title_right) / 2 ? _user_interface_event_type_tab_left : _user_interface_event_type_tab_right;
+			return this->handle_event(&tab);
+		}
+	}
+
 	// left and right: the next tab, wrapping round
 	if (event->type == _user_interface_event_type_tab_left || event->type == _user_interface_event_type_tab_right)
 	{
@@ -704,8 +732,27 @@ void c_screen_y_menu::update_header(void)
 	return;
 }
 
+bool c_screen_y_menu::collapsed_tab_contains(const point2d* point)
+{
+	const rectangle2d* tab = &g_y_menu_collapsed_tab_bounds;
+	return g_y_menu_collapsed_tab_shown && point != NULL
+		&& point->x >= tab->left && point->x <= tab->right && point->y <= tab->top && point->y >= tab->bottom;
+}
+
+int32 __cdecl c_screen_y_menu::button_key_text_index(int32 screen_id)
+{
+	// the screens whose button prompts (made clickable with the mouse) aren't the screen's own button key text: the Y
+	// menu's are its tabs' text block 1 (after its one default text)
+	if (screen_id == _screen_y_menugameshell)
+	{
+		return k_y_menu_button_key_text_index + k_y_menu_default_text_count;
+	}
+	return INVOKE(0x20F2DB, 0x0, c_screen_y_menu::button_key_text_index, screen_id);
+}
+
 void c_screen_y_menu::update_collapsed_tab(c_screen_widget* xbox_live_menu, int32 pane_index)
 {
+	g_y_menu_collapsed_tab_shown = false;
 	if (!VALID_INDEX(pane_index, k_y_menu_maximum_xbox_live_menu_panes) || g_y_menu_collapsed_bitmap_index[pane_index] == NONE)
 	{
 		return;
@@ -723,6 +770,8 @@ void c_screen_y_menu::update_collapsed_tab(c_screen_widget* xbox_live_menu, int3
 		if (edges)
 		{
 			y_menu_widget_move_to(tab, left, top);
+			g_y_menu_collapsed_tab_bounds = { top, left, bottom, (int16)(left + k_y_menu_collapsed_tab_click_width) };
+			g_y_menu_collapsed_tab_shown = true;
 		}
 	}
 

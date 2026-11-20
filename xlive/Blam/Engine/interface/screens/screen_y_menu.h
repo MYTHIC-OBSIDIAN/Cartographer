@@ -34,6 +34,13 @@ public:
 	// twice its size, with its text
 	static void update_collapsed_tab(c_screen_widget* xbox_live_menu, int32 pane_index);
 
+	// the mouse: whether a point (user interface units, from the screen's centre) is on the collapsed tab
+	static bool collapsed_tab_contains(const point2d* point);
+
+	// replaces halo2.exe+0x20F2DB (the text block a screen's clickable button prompts are in, when its tag says it has its
+	// own): the Y menu's footer
+	static int32 __cdecl button_key_text_index(int32 screen_id);
+
 	c_screen_y_menu(e_user_interface_channel_type channel_type, e_user_interface_render_window window_index, uint16 user_flags);
 
 	virtual ~c_screen_y_menu() = default;
