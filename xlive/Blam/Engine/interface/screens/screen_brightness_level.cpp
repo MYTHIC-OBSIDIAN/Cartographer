@@ -3,6 +3,7 @@
 
 #include "interface/user_interface.h"
 #include "interface/user_interface_screen_widget_definition.h"
+#include "interface/user_interface_widget_window.h"
 
 // LAN edition: the brightness level list one row (37 units) higher than its tag has it, for this screen only (the tag
 // goes back as it was once the screen has loaded, the other screens that borrow the brightness_level dialog keep it)
