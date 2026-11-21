@@ -11,6 +11,13 @@ enum
 	k_no_of_visible_items_for_button_glyphs = 3
 };
 
+/* prototypes */
+
+// the controller pictures that follow the glyph style: the thumbstick settings screen's (the original Xbox's Duke with
+// the Original Xbox glyphs); on map load, and after the style changes
+void button_glyphs_controller_pictures_apply_on_map_load(void);
+void button_glyphs_controller_pictures_update(void);
+
 /* classes */
 
 class c_button_glyphs_edit_list : public c_list_widget

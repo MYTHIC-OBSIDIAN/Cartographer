@@ -22,6 +22,7 @@
 #include "screen_video_settings.h"
 #include "screen_resolution.h"
 #include "screen_cartographer_menus.h"
+#include "screen_button_glyphs_setting.h"
 
 void screens_apply_patches_on_map_load()
 {
@@ -35,6 +36,7 @@ void screens_apply_patches_on_map_load()
 	c_screen_bungie_news::apply_patches_on_map_load();
 	nameplates_apply_patches_on_map_load();
 	digsite_apply_patches_on_map_load();
+	button_glyphs_controller_pictures_apply_on_map_load();
 	// after digsite: the Y menu's Create Clan row uses the extra multiplayer49 pictures it adds
 	c_screen_y_menu::apply_patches_on_map_load();
 }

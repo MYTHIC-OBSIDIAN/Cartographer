@@ -3,6 +3,9 @@
 
 #include "interface/user_interface.h"
 #include "interface/user_interface_memory.h"
+#include "interface/user_interface_screen_widget_definition.h"
+#include "interface/user_interface_shared_globals.h"
+#include "cache/cache_files.h"
 #include "interface/user_interface_widget_text.h"
 #include "memory/data.h"
 #include "text/font_group.h"
@@ -33,7 +36,65 @@ static e_button_glyph_style button_glyphs_get_style(void)
 	return IN_RANGE(H2Config_button_glyphs, 0, k_button_glyph_style_count - 1) ? (e_button_glyph_style)H2Config_button_glyphs : _button_glyph_style_xbox_360;
 }
 
+// the thumbstick settings screen's controller picture (the thumbsticks bitmap: frame 0 the Xbox 360 controller, frame 1
+// the original Xbox's Duke), as its tag has each of its bitmap blocks, so the picture can follow the glyph style
+#define k_thumbstick_settings_screen_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\thumbstick_settings"
+#define k_thumbsticks_bitmap_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\thumbsticks"
+enum
+{
+	k_thumbsticks_duke_frame = 1,
+	k_maximum_thumbstick_pictures = 32,
+};
+
+struct s_thumbstick_picture
+{
+	s_bitmap_block_reference* block;
+	int16 initial_sprite_frame;
+};
+static s_thumbstick_picture g_thumbstick_pictures[k_maximum_thumbstick_pictures];
+static int32 g_thumbstick_picture_count = 0;
+
 /* public code */
+
+void button_glyphs_controller_pictures_apply_on_map_load(void)
+{
+	g_thumbstick_picture_count = 0;
+	const datum screen_index = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_thumbstick_settings_screen_tag);
+	const datum thumbsticks = tag_loaded(_tag_group_bitmap, k_thumbsticks_bitmap_tag);
+	if (screen_index == NONE || thumbsticks == NONE)
+	{
+		return;
+	}
+
+	s_user_interface_screen_widget_definition* screen = user_interface_screen_widget_definition_get(screen_index);
+	for (int32 pane_index = 0; pane_index < screen->panes.count; pane_index++)
+	{
+		s_window_pane_reference* pane = user_interface_widget_pane_get(&screen->panes, pane_index);
+		for (int32 index = 0; index < pane->bitmap_blocks.count && g_thumbstick_picture_count < k_maximum_thumbstick_pictures; index++)
+		{
+			s_bitmap_block_reference* block = user_interface_widget_pane_get_bitmap(&pane->bitmap_blocks, index);
+			if (block->bitmap_tag.index == thumbsticks)
+			{
+				g_thumbstick_pictures[g_thumbstick_picture_count].block = block;
+				g_thumbstick_pictures[g_thumbstick_picture_count].initial_sprite_frame = block->initial_sprite_frame;
+				g_thumbstick_picture_count++;
+			}
+		}
+	}
+	button_glyphs_controller_pictures_update();
+	return;
+}
+
+void button_glyphs_controller_pictures_update(void)
+{
+	// the Original Xbox glyphs: the Duke on every pane; otherwise each pane's own picture
+	const bool original_xbox = button_glyphs_get_style() == _button_glyph_style_original_xbox;
+	for (int32 index = 0; index < g_thumbstick_picture_count; index++)
+	{
+		g_thumbstick_pictures[index].block->initial_sprite_frame = original_xbox ? (int16)k_thumbsticks_duke_frame : g_thumbstick_pictures[index].initial_sprite_frame;
+	}
+	return;
+}
 
 c_button_glyphs_edit_list::c_button_glyphs_edit_list(uint16 user_flags) :
 	c_list_widget(user_flags),
@@ -82,6 +143,7 @@ void c_button_glyphs_edit_list::handle_item_pressed_event(s_event_record* const&
 		H2Config_button_glyphs = item_index;
 		SaveH2Config();
 		font_table_set_button_glyph_style((e_button_glyph_style)item_index);
+		button_glyphs_controller_pictures_update();
 	}
 
 	user_interface_back_out_from_channel(this->get_parent_channel(), this->get_parent_render_window());
