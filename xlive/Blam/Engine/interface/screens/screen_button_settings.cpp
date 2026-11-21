@@ -513,10 +513,12 @@ void c_screen_button_settings_menu::apply_patches_on_ui_map_load()
 	{
 		//addon text blocks
 		tag_injection_extend_block(&jumpy_pane->text_blocks, sizeof(s_text_block_reference), k_number_of_jumpy_pane_text_addons);
+		// LAN edition: all of the standard pane's texts (this copied the bitmap blocks' size and count, so only the first
+		// few labels were the standard pane's and the rest kept the unused pane's Xbox positions)
 		csmemcpy(
 			tag_block_get_address(&jumpy_pane->text_blocks),
 			tag_block_get_address(&standard_pane->text_blocks),
-			sizeof(s_bitmap_block_reference) * standard_pane->bitmap_blocks.count
+			sizeof(s_text_block_reference) * standard_pane->text_blocks.count
 		);
 	}
 
