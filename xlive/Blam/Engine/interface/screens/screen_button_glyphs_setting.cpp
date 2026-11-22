@@ -357,11 +357,51 @@ static void button_settings_diagram_update(e_controller_picture picture)
 	return;
 }
 
+// the profile menu's picture for Controller Settings (the edit_profile bitmap's first, the Xbox 360 controller): with
+// the Xbox S glyphs the Xbox's Controller S (bitmap 6, added by the map build)
+#define k_edit_profile_menu_screen_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile_menu"
+#define k_edit_profile_bitmap_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile"
+enum
+{
+	k_edit_profile_controller_frame = 0,
+	k_edit_profile_xbox_s_frame = 6,
+	k_maximum_edit_profile_controller_pictures = 8,
+};
+static s_bitmap_block_reference* g_edit_profile_controller_pictures[k_maximum_edit_profile_controller_pictures];
+static int32 g_edit_profile_controller_picture_count = 0;
+
+static void edit_profile_controller_picture_apply_on_map_load(void)
+{
+	g_edit_profile_controller_picture_count = 0;
+	const datum screen_index = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_edit_profile_menu_screen_tag);
+	const datum edit_profile = tag_loaded(_tag_group_bitmap, k_edit_profile_bitmap_tag);
+	if (screen_index == NONE || edit_profile == NONE || bitmap_group_get(edit_profile)->bitmaps.count <= k_edit_profile_xbox_s_frame)
+	{
+		return;
+	}
+
+	s_user_interface_screen_widget_definition* screen = user_interface_screen_widget_definition_get(screen_index);
+	for (int32 pane_index = 0; pane_index < screen->panes.count; pane_index++)
+	{
+		s_window_pane_reference* pane = user_interface_widget_pane_get(&screen->panes, pane_index);
+		for (int32 index = 0; index < pane->bitmap_blocks.count && g_edit_profile_controller_picture_count < k_maximum_edit_profile_controller_pictures; index++)
+		{
+			s_bitmap_block_reference* block = user_interface_widget_pane_get_bitmap(&pane->bitmap_blocks, index);
+			if (block->bitmap_tag.index == edit_profile && block->initial_sprite_frame == k_edit_profile_controller_frame)
+			{
+				g_edit_profile_controller_pictures[g_edit_profile_controller_picture_count++] = block;
+			}
+		}
+	}
+	return;
+}
+
 /* public code */
 
 void button_glyphs_controller_pictures_apply_on_map_load(void)
 {
 	button_settings_diagram_apply_on_map_load();
+	edit_profile_controller_picture_apply_on_map_load();
 
 	g_thumbstick_picture_count = 0;
 	g_thumbstick_moved_widget_count = 0;
@@ -446,6 +486,11 @@ void button_glyphs_controller_pictures_update(void)
 		: style == _button_glyph_style_xbox_s ? _controller_picture_xbox_s
 		: _controller_picture_xbox_360;
 	button_settings_diagram_update(picture);
+	for (int32 index = 0; index < g_edit_profile_controller_picture_count; index++)
+	{
+		g_edit_profile_controller_pictures[index]->initial_sprite_frame =
+			picture == _controller_picture_xbox_s ? (int16)k_edit_profile_xbox_s_frame : (int16)k_edit_profile_controller_frame;
+	}
 
 	const bool original_xbox = picture != _controller_picture_xbox_360;
 	const bool xbox_s = picture == _controller_picture_xbox_s && g_thumbsticks_has_xbox_s;
