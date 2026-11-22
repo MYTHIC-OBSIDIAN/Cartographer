@@ -358,27 +358,33 @@ static void button_settings_diagram_update(e_controller_picture picture)
 }
 
 // the profile menu's picture for Controller Settings (the edit_profile bitmap's first, the Xbox 360 controller): with
-// the Xbox Duke or Xbox S glyphs the Xbox's Controller S (bitmap 6, added by the map build; the Xbox has no Duke one)
+// the Xbox S glyphs the Xbox's Controller S (bitmap 6), with the Xbox Duke glyphs the Duke (bitmap 8; both added by the
+// map build, the Duke the Controller S without it)
 #define k_edit_profile_menu_screen_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile_menu"
 #define k_edit_profile_bitmap_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile"
 enum
 {
 	k_edit_profile_controller_frame = 0,
 	k_edit_profile_xbox_s_frame = 6,
+	k_edit_profile_duke_frame = 8,
 	k_maximum_edit_profile_controller_pictures = 8,
 };
 static s_bitmap_block_reference* g_edit_profile_controller_pictures[k_maximum_edit_profile_controller_pictures];
 static int32 g_edit_profile_controller_picture_count = 0;
+static bool g_edit_profile_has_duke = false;
 
 static void edit_profile_controller_picture_apply_on_map_load(void)
 {
 	g_edit_profile_controller_picture_count = 0;
+	g_edit_profile_has_duke = false;
 	const datum screen_index = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_edit_profile_menu_screen_tag);
 	const datum edit_profile = tag_loaded(_tag_group_bitmap, k_edit_profile_bitmap_tag);
 	if (screen_index == NONE || edit_profile == NONE || bitmap_group_get(edit_profile)->bitmaps.count <= k_edit_profile_xbox_s_frame)
 	{
 		return;
 	}
+
+	g_edit_profile_has_duke = bitmap_group_get(edit_profile)->bitmaps.count > k_edit_profile_duke_frame;
 
 	s_user_interface_screen_widget_definition* screen = user_interface_screen_widget_definition_get(screen_index);
 	for (int32 pane_index = 0; pane_index < screen->panes.count; pane_index++)
@@ -486,10 +492,13 @@ void button_glyphs_controller_pictures_update(void)
 		: style == _button_glyph_style_xbox_s ? _controller_picture_xbox_s
 		: _controller_picture_xbox_360;
 	button_settings_diagram_update(picture);
+	const int16 edit_profile_frame =
+		picture == _controller_picture_xbox_360 ? (int16)k_edit_profile_controller_frame
+		: picture == _controller_picture_duke && g_edit_profile_has_duke ? (int16)k_edit_profile_duke_frame
+		: (int16)k_edit_profile_xbox_s_frame;
 	for (int32 index = 0; index < g_edit_profile_controller_picture_count; index++)
 	{
-		g_edit_profile_controller_pictures[index]->initial_sprite_frame =
-			picture != _controller_picture_xbox_360 ? (int16)k_edit_profile_xbox_s_frame : (int16)k_edit_profile_controller_frame;
+		g_edit_profile_controller_pictures[index]->initial_sprite_frame = edit_profile_frame;
 	}
 
 	const bool original_xbox = picture != _controller_picture_xbox_360;

@@ -965,7 +965,7 @@ static const s_digsite_extra_picture_target k_digsite_extra_picture_targets[] =
 	{ "ui\\screens\\game_shell\\4way_multiplayer_signin\\controller_signin", 7, 1, 3, 174, 142 },
 	{ "ui\\screens\\game_shell\\settings_screen\\player_profile\\thumbsticks", 8, 1, 2, 512, 512 },
 	{ "ui\\screens\\game_shell\\settings_screen\\player_profile\\button_config", 9, 1, 2, 512, 512 },
-	{ "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile", 10, 2, 6, 512, 512 },
+	{ "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile", 10, 3, 6, 512, 512 },
 };
 
 void digsite_apply_patches_on_map_load(void)
@@ -1011,8 +1011,8 @@ void digsite_apply_patches_on_map_load(void)
 	// pictures for other bitmaps, added after their own: the 4-way sign-in's Xbox 360 controller (extra picture 7,
 	// controller_signin 3, see controller_signin_bitmap_for_button_glyphs), and the Xbox's Controller S thumbstick
 	// picture and button diagram (8 and 9: thumbsticks 2 and button_config 2) and profile menu pictures (10 and 11:
-	// edit_profile 6, the Controller S, see screen_button_glyphs_setting.cpp, and 7, the speakers for Voice Output, see
-	// screen_cartographer_menus.cpp)
+	// edit_profile 6, the Controller S, and 8, the Duke, see screen_button_glyphs_setting.cpp, and 7, the speakers for
+	// Voice Output, see screen_cartographer_menus.cpp)
 	for (uint32 index = 0; index < NUMBEROF(k_digsite_extra_picture_targets); index++)
 	{
 		const s_digsite_extra_picture_target* target = &k_digsite_extra_picture_targets[index];
