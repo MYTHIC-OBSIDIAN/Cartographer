@@ -1490,11 +1490,12 @@ static void __fastcall profile_edit_list_handle_item_pressed(void* list, void* e
 	}
 }
 
-// the list has room for 3 item widgets (screen + 0xA60 + 0xB0): 5 item widgets placed after the screen object (which is
-// allocated bigger for them) show 5 items at a time, the list scrolling through the rest
+// the list has room for 3 item widgets (screen + 0xA60 + 0xB0): 7 item widgets placed after the screen object (which is
+// allocated bigger for them) show 7 items at a time, the list scrolling through the rest
 #define k_profile_edit_screen_size 0xCB8
 #define k_profile_edit_list_offset 0xA60
-#define k_profile_edit_list_item_count 5
+#define k_profile_edit_list_item_count 7
+#define k_profile_edit_list_rows_moved_up 3	// the stock list shows 4 rows (3 items), so 3 more rows above it
 #define k_profile_edit_list_item_spacing 46
 #define k_list_item_widget_size 0x84
 
@@ -1809,7 +1810,7 @@ void nameplates_apply_patches_on_map_load(void)
 		logo_callout->text_bounds = { 350, -165, 300, 10 };
 	}
 
-	// 5 visible list items, and the list moved up by one item so the last item (Keyboard/Mouse) sits where the 4th did
+	// 7 visible list items, and the list moved up by three items so the 7th sits where the stock list's 4th row did
 	// (default list skin items are 46 units apart: text bounds 38 to -8; y is up)
 	// the panes are copies of each other and share their list blocks, so move each list reference once
 	s_list_reference* moved_lists[16];
@@ -1829,7 +1830,7 @@ void nameplates_apply_patches_on_map_load(void)
 			}
 			if (!already_moved && moved_list_count < (int32)NUMBEROF(moved_lists))
 			{
-				list->bottom_left.y = (int16)(list->bottom_left.y + k_profile_edit_list_item_spacing);
+				list->bottom_left.y = (int16)(list->bottom_left.y + k_profile_edit_list_rows_moved_up * k_profile_edit_list_item_spacing);
 				moved_lists[moved_list_count++] = list;
 			}
 		}
