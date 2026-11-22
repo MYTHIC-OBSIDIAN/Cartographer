@@ -1224,12 +1224,11 @@ const void* c_rank_menu::load_proc(void) const
 
 // the Xbox's player profile options (screens whose tags the PC map kept): each a choice saved in a byte of the edited player
 // profile that the PC game doesn't use (s_saved_game_player_profile, after the subtitle setting at 0x1179)
-// the Xbox's strings (its voice_through_tv screen's; the voice_mask and xbox_live_appear_offline tags still carry the handicap
-// screen's description, so they get their profile menu descriptions)
+// the Xbox's screens as the Xbox shows them (its code sets the options and the Voice Masking and Online Status descriptions)
 static const s_profile_option_menu_definition k_profile_voice_output_menu =
 {
 	_screen_pp_voice_thru_tv, 0x117A, 4,
-	{ L"Default", L"All Voice Through Xbox Communicator", L"All Voice Through TV", L"Voice Disabled" },
+	{ L"Mixed", L"Speakers Only", L"Xbox Communicator Only", L"Disable Voice" },
 	{ 0, 1, 2, 3 },
 	L"VOICE OUTPUT",
 	L"Team chat plays on the Xbox Communicator, proximity on the speakers. You can override this.",
@@ -1240,15 +1239,15 @@ static const s_profile_option_menu_definition k_profile_voice_masking_menu =
 	{ L"Disabled", L"Enabled" },
 	{ 0, 1 },
 	L"VOICE MASKING",
-	L"Disguise your voice in multiplayer games with an anonymous voice mask.",
+	L"When enabled this option will mask your voice to other players.",
 };
 static const s_profile_option_menu_definition k_profile_online_status_menu =
 {
 	_screen_pp_appear_offline, 0x117C, 2,
-	{ L"Enabled", L"Disabled" },
+	{ L"Appear Offline", L"Appear Online" },
 	{ 1, 0 },	// appear offline
 	L"ONLINE STATUS",
-	L"Set your status to appear offline when you want to be left alone.",
+	L"This will make you appear as if you're not signed in to Xbox Live.",
 };
 
 static uint8* profile_option_get(const s_profile_option_menu_definition* definition)
