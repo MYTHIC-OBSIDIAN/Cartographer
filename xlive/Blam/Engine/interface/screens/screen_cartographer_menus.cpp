@@ -1224,26 +1224,31 @@ const void* c_rank_menu::load_proc(void) const
 
 // the Xbox's player profile options (screens whose tags the PC map kept): each a choice saved in a byte of the edited player
 // profile that the PC game doesn't use (s_saved_game_player_profile, after the subtitle setting at 0x1179)
+// the Xbox's strings (its voice_through_tv screen's; the voice_mask and xbox_live_appear_offline tags still carry the handicap
+// screen's description, so they get their profile menu descriptions)
 static const s_profile_option_menu_definition k_profile_voice_output_menu =
 {
 	_screen_pp_voice_thru_tv, 0x117A, 4,
-	{ L"Default", L"Speakers Only", L"Headset Only", L"Disabled" },
-	L"Voice Output",
-	L"Play multiplayer voice through your headset or through your system speakers.",
+	{ L"Default", L"All Voice Through Xbox Communicator", L"All Voice Through TV", L"Voice Disabled" },
+	{ 0, 1, 2, 3 },
+	L"VOICE OUTPUT",
+	L"Team chat plays on the Xbox Communicator, proximity on the speakers. You can override this.",
 };
 static const s_profile_option_menu_definition k_profile_voice_masking_menu =
 {
 	_screen_pp_choose_voice_mask, 0x117B, 2,
-	{ L"Default", L"Anonymous" },
-	L"Voice Masking",
-	L"Disguise your voice so your boss will never know it is you who smacked him down.",
+	{ L"Disabled", L"Enabled" },
+	{ 0, 1 },
+	L"VOICE MASKING",
+	L"Disguise your voice in multiplayer games with an anonymous voice mask.",
 };
 static const s_profile_option_menu_definition k_profile_online_status_menu =
 {
 	_screen_pp_appear_offline, 0x117C, 2,
-	{ L"Online", L"Appear Offline" },
-	L"Online Status",
-	L"Appear Offline. When you call in sick on November 9, no one needs to know your little secret.",
+	{ L"Enabled", L"Disabled" },
+	{ 1, 0 },	// appear offline
+	L"ONLINE STATUS",
+	L"Set your status to appear offline when you want to be left alone.",
 };
 
 static uint8* profile_option_get(const s_profile_option_menu_definition* definition)
@@ -1299,7 +1304,7 @@ void c_profile_option_list::handle_item_pressed_event(s_event_record* const& eve
 	if (value != nullptr && option >= 0 && option < m_definition->option_count)
 	{
 		// kept with the edited profile, saved when the player profile screen is left
-		*value = (uint8)option;
+		*value = m_definition->values[option];
 	}
 	user_interface_back_out_from_channel(this->get_parent_channel(), this->get_parent_render_window());
 }
@@ -1360,9 +1365,12 @@ void c_profile_option_menu::post_initialize()
 	c_screen_with_menu::post_initialize();
 
 	const uint8* value = profile_option_get(m_definition);
-	if (value != nullptr && *value < m_definition->option_count)
+	for (int32 option = 0; value != nullptr && option < m_definition->option_count; option++)
 	{
-		m_option_list.set_focused_item_index(*value);
+		if (m_definition->values[option] == *value)
+		{
+			m_option_list.set_focused_item_index(option);
+		}
 	}
 }
 
@@ -1527,45 +1535,63 @@ static void __fastcall profile_edit_list_destructor(void* list, void* edx)
 	INVOKE_TYPE(0x23B7CA, 0x0, void(__thiscall*)(void*), list);
 }
 
-// the Xbox's panes for its items, after its picture (edit_profile bitmap: the Xbox's speakers, added by the map build, and
-// the headset, the Xbox Live figure and the television the PC map kept) and its texts (bounds: the Xbox's, at the PC
-// pictures' size and place)
+// the Xbox's panes for its items (the Xbox mainmenu.map's edit_profile_menu panes 2 to 5): its picture (edit_profile bitmap:
+// the Xbox's speakers, added by the map build, and the headset, the Xbox Live figure and the television the PC map kept),
+// description and callouts, with their animations. The places are the Xbox's at the PC pictures' size: the PC Appearance
+// pane draws the helmet 2.3 times the Xbox's size (512x512 at 1.15 scale for 256x256) from (-480, 370) where the Xbox
+// draws it from (-186, 152), so an Xbox (x, y) is (-480 + 2.3 (x + 186), 370 + 2.3 (y - 152))
+struct s_profile_edit_pane_callout
+{
+	const wchar_t* text;
+	rectangle2d bounds;
+	int16 animation_index;
+};
 struct s_profile_edit_pane_texts
 {
 	int16 item;
 	int16 picture_frame;
+	point2d picture_topleft;
 	const wchar_t* description;
-	const wchar_t* callout_1;
-	rectangle2d callout_1_bounds;
-	const wchar_t* callout_2;
-	rectangle2d callout_2_bounds;
+	int16 description_animation_index;
+	s_profile_edit_pane_callout callouts[2];
 };
-#define k_profile_edit_binary_callout L"0001001\r\n0101010\r\n1000101\r\n0101001\r\n0001001\r\n0101010\r\n1000101\r\n0101001"
 static const s_profile_edit_pane_texts k_profile_edit_pane_texts[] =
 {
 	{
-		_profile_edit_item_voice_output, 7,
-		L"Play multiplayer voice through your headset or through your system speakers.",
-		L"People will think you are a psycho arguing with himself in the middle of your living room.", { 300, 20, 190, 330 },
-		L"", { 0, 0, 0, 0 },
+		// the Xbox's top left (-190, 154); callout (48, -196, 0, -86)
+		_profile_edit_item_voice_output, 7, { -489, 375 },
+		L"Play multiplayer voice through your headset or through your system speakers.", 14,
+		{
+			{ L"If toast always lands butter-side down, and cats always land on their feet, what happens if you strap toast on the back of a cat --and drop it?", { 131, -503, 20, -250 }, 5 },
+			{ L"", { 0, 0, 0, 0 }, 14 },
+		},
 	},
 	{
-		_profile_edit_item_voice_masking, 3,
-		L"Disguise your voice in multiplayer games with an anonymous voice mask.",
-		L"The only water stuff item!!! soffish will be woken up by water and look so alive!! As bath-toy is also very fun.", { 232, -485, 108, -330 },
-		L"This soffish do not eat. Real fishes might hurt human body. soffish is 100% harmless.", { 122, -165, 32, 40 },
+		// the Xbox's top left (-190, 154); callouts (94, -192, 40, -125) and (46, -53, 7, 26)
+		_profile_edit_item_voice_masking, 3, { -489, 375 },
+		L"Disguise your voice in multiplayer games with an anonymous voice mask.", 7,
+		{
+			{ L"People will think you are a psycho arguing with himself in the middle of your living room.", { 237, -494, 112, -340 }, 14 },
+			{ L"Disguise your voice so your boss will never know it is you who smacked him down.", { 126, -174, 36, 8 }, 16 },
+		},
 	},
 	{
-		_profile_edit_item_online_status, 4,
-		L"Set your status to appear offline when you want to be left alone.",
-		L"Online\r\nOffline\r\nVoice\r\nMuted\r\nRank\r\nStatus\r\nMessage\r\nRequest\r\nInvite\r\nParty\r\nClan", { 255, -140, 20, -60 },
-		k_profile_edit_binary_callout, { 204, -52, 20, 28 },
+		// the Xbox's top left (-186, 152); callouts (102, -38, 0, -12) and (80, 0, 0, 35)
+		_profile_edit_item_online_status, 4, { -480, 370 },
+		L"Set your status to appear offline when you want to be left alone.", 2,
+		{
+			{ L"Online\r\nOffline\r\nVoice\r\nMuted\r\nRank\r\nStatus\r\nMessage\r\nRequest\r\nInvite\r\nParty\r\nClan", { 255, -140, 20, -80 }, 14 },
+			{ L"Appear Offline. When you call in sick on November 9, no one needs to know your little secret.", { 204, -52, 20, 28 }, 10 },
+		},
 	},
 	{
-		_profile_edit_item_subtitles, 5,
-		L"Control whether or not subtitles are shown during cinematics.",
-		L"If toast always lands butter-side down, and cats always land on their feet, what happens if you strap toast on the back of a cat --and drop it?", { 300, 40, 160, 330 },
-		k_profile_edit_binary_callout, { 204, -52, 20, 28 },
+		// the Xbox's top left (-186, 152); callouts (133, -191, 15, -165) and (80, 0, 0, 35)
+		_profile_edit_item_subtitles, 5, { -480, 370 },
+		L"Control whether or not subtitles are shown during cinematics.", 9,
+		{
+			{ L"The only water stuff item!!! soffish will be woken up by water and look so alive!! As bath-toy is also very fun.", { 326, -492, 55, -432 }, 6 },
+			{ L"This soffish do not eat. Real fishes might hurt human body. soffish is 100% harmless.", { 204, -52, 20, 28 }, 14 },
+		},
 	},
 };
 #define k_profile_edit_speakers_frame 7
@@ -1592,7 +1618,7 @@ static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_
 	const s_profile_edit_pane_texts* texts = profile_edit_pane_texts_get(pane_index);
 	if (texts != nullptr)
 	{
-		const wchar_t* strings[] = { texts->description, texts->callout_1, texts->callout_2 };
+		const wchar_t* strings[] = { texts->description, texts->callouts[0].text, texts->callouts[1].text };
 		for (int32 index = 0; index < (int32)NUMBEROF(strings); index++)
 		{
 			c_text_widget* text = screen->try_find_screen_text(index);
@@ -1720,13 +1746,19 @@ void nameplates_apply_patches_on_map_load(void)
 			if (block->bitmap_tag.index == edit_profile_bitmap && block->initial_sprite_frame == k_profile_edit_appearance_picture_frame)
 			{
 				block->initial_sprite_frame = (texts->picture_frame == k_profile_edit_speakers_frame && !have_speakers) ? 3 : texts->picture_frame;
+				block->topleft = texts->picture_topleft;
 			}
 		}
 		tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 0);
 		if (pane->text_blocks.count > 2)
 		{
-			TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, 1, s_text_block_reference)->text_bounds = texts->callout_1_bounds;
-			TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, 2, s_text_block_reference)->text_bounds = texts->callout_2_bounds;
+			TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, 0, s_text_block_reference)->animation_index = (e_animation_index)texts->description_animation_index;
+			for (int32 callout = 0; callout < 2; callout++)
+			{
+				s_text_block_reference* text = TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, 1 + callout, s_text_block_reference);
+				text->text_bounds = texts->callouts[callout].bounds;
+				text->animation_index = (e_animation_index)texts->callouts[callout].animation_index;
+			}
 		}
 	}
 

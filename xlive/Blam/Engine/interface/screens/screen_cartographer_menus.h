@@ -308,6 +308,7 @@ struct s_profile_option_menu_definition
 	uint32 profile_offset;					// in s_saved_game_player_profile
 	int32 option_count;
 	const wchar_t* options[k_maximum_profile_option_count];
+	uint8 values[k_maximum_profile_option_count];	// saved for each option
 	const wchar_t* header;
 	const wchar_t* description;
 };

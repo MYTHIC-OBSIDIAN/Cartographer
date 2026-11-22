@@ -34,8 +34,9 @@ void screens_apply_patches_on_map_load()
 	c_screen_button_settings_menu::apply_patches_on_ui_map_load();
 	c_screen_video_settings::apply_patches_on_map_load();
 	c_screen_bungie_news::apply_patches_on_map_load();
-	nameplates_apply_patches_on_map_load();
+	// the digsite pictures first: the profile menu's panes use the ones added to edit_profile
 	digsite_apply_patches_on_map_load();
+	nameplates_apply_patches_on_map_load();
 	button_glyphs_controller_pictures_apply_on_map_load();
 	// after digsite: the Y menu's Create Clan row uses the extra multiplayer49 pictures it adds
 	c_screen_y_menu::apply_patches_on_map_load();
