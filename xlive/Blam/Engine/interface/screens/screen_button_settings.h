@@ -7,7 +7,7 @@
 
 enum
 {
-	k_no_of_visible_items_for_button_settings = 4 + 1
+	k_no_of_visible_items_for_button_settings = 4	// LAN edition: no Jumpy
 };
 
 /* classes */

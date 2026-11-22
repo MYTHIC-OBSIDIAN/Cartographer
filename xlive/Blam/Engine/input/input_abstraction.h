@@ -48,7 +48,7 @@ enum e_button_preset_types : int8
 	_button_preset_boxer,
 	_button_preset_green_thumb,
 	//_button_preset_unused4,
-	_button_preset_jumpy,
+	_button_preset_jumpy,		// LAN edition: removed; profiles saved with it get the default layout
 	_button_preset_unused5,
 };
 

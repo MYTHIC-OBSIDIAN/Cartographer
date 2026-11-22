@@ -24,9 +24,7 @@ enum e_button_list_items : uint16
 	_item_south_paw,
 	_item_boxer,
 	_item_green_thumb,
-	
-	//custom addons
-	_item_jumpy,
+	// LAN edition: no Jumpy layout
 
 	k_total_no_of_button_list_items
 };
@@ -44,57 +42,6 @@ enum e_button_screen_panes
 	_button_screen_pane_unused7,//copy_of_green_thumb	
 
 	k_total_no_of_button_settings_pane,
-};
-
-enum e_jumpy_pane_text_blocks
-{
-	_jumpy_pane_text_help,
-	_jumpy_pane_text_button_throw_grenade,
-	_jumpy_pane_text_button_crouch,
-	_jumpy_pane_text_button_score,
-	_jumpy_pane_text_button_pause,
-	_jumpy_pane_text_button_fire,
-	_jumpy_pane_text_button_flashlight,//_jumpy_pane_text_button_reload
-	_jumpy_pane_text_button_switch_weapons,
-	_jumpy_pane_text_button_reload,//_jumpy_pane_text_button_melee
-	_jumpy_pane_text_button_swap_grenades,//_jumpy_pane_text_button_jump
-	_jumpy_pane_text_button_jump,//_jumpy_pane_text_button_flashlight
-	_jumpy_pane_text_button_melee,//_jumpy_pane_text_button_swap_grenades
-	_jumpy_pane_text_button_zoom,
-
-	//addtions
-	_jumpy_pane_text_button_swap_left,
-	k_jumpy_pane_texts_count,
-
-	k_orignal_jumpy_pane_texts_count =13,
-	k_number_of_jumpy_pane_text_addons = k_jumpy_pane_texts_count- k_orignal_jumpy_pane_texts_count
-
-};
-
-enum e_jumpy_ingame_pane_text_blocks
-{
-	_jumpy_ig_pane_text_help,
-	_jumpy_ig_pane_text_button_throw_grenade,
-	_jumpy_ig_pane_text_button_crouch,
-	_jumpy_ig_pane_text_button_score,
-	_jumpy_ig_pane_text_button_pause,
-	_jumpy_ig_pane_text_button_fire,
-	_jumpy_ig_pane_text_button_flashlight,//_jumpy_pane_text_button_reload
-	_jumpy_ig_pane_text_button_switch_weapons,
-	_jumpy_ig_pane_text_button_reload,//_jumpy_pane_text_button_melee
-	_jumpy_ig_pane_text_button_swap_grenades,//_jumpy_pane_text_button_jump
-	_jumpy_ig_pane_text_button_jump,//_jumpy_pane_text_button_flashlight
-	_jumpy_ig_pane_text_button_melee,//_jumpy_pane_text_button_swap_grenades
-	_jumpy_ig_pane_text_button_zoom,
-
-	//addtions
-	_jumpy_ig_pane_text_header,
-	_jumpy_ig_pane_text_button_swap_left,
-	k_jumpy_ig_pane_texts_count,
-
-	k_orignal_jumpy_ig_pane_texts_count = 13,
-	k_number_of_jumpy_ingame_pane_text_addons = k_jumpy_ig_pane_texts_count - k_orignal_jumpy_ig_pane_texts_count
-
 };
 
 enum e_button_settings_bitmap_blocks
@@ -120,27 +67,6 @@ enum e_button_settings_ingame_bitmap_blocks //qtr_screen
 	_button_settings_ingame_bitmap_button_config,
 
 	k_number_of_button_settings_ingame_bitmap_blocks
-};
-
-enum e_jumpy_ingame_pane_bitmap_blocks //qtr_screen
-{
-	_jumpy_ig_pane_bitmap_ul_07,
-	_jumpy_ig_pane_bitmap_br_07,
-	_jumpy_ig_pane_bitmap_dialog1,
-	_jumpy_ig_pane_bitmap_dialog2,
-	_jumpy_ig_pane_bitmap_settings_framing,
-	_jumpy_ig_pane_bitmap_settings_framing2,
-	_jumpy_ig_pane_bitmap_arrows_up,
-	_jumpy_ig_pane_bitmap_arrows_down,
-
-	//addtions
-	_jumpy_ig_pane_bitmap_settings_framing3,
-	_jumpy_ig_pane_bitmap_button_config,
-	k_jumpy_ig_pane_bitmaps_count,
-
-	k_orignal_jumpy_ig_pane_bitmaps_count = 8,
-	k_number_of_jumpy_ingame_pane_bitmap_addons = k_jumpy_ig_pane_bitmaps_count - k_orignal_jumpy_ig_pane_bitmaps_count
-
 };
 
 enum e_button_settings_multilingual_unicode_string_list
@@ -184,18 +110,6 @@ enum e_button_settings_multilingual_unicode_string_list
 
 static char const k_main_widget_tag_path[] = "ui\\screens\\game_shell\\settings_screen\\player_profile\\button_settings";
 
-static const wchar_t *const k_jumpy_text_button_swap_left_string[k_language_count]
-{
-	L"Swap Left Weapon",
-	L"左武器の交換",
-	L"Linke Waffe tauschen",
-	L"Échanger l'arme gauche",
-	L"Cambiar arma izquierda",
-	L"Scambia arma sinistra",
-	L"왼쪽 무기 교체",
-	L"交换左武器",
-	L"Trocar Arma Esquerda"
-};
 
 /* globals */
 
@@ -260,9 +174,6 @@ void c_button_settings_edit_list::update_list_items(c_list_item_widget* item, in
 		case _item_green_thumb:
 			item_text->set_text_from_string_id(g_strings_array[_string_id_l_green_thumb]);
 			break;
-		case _item_jumpy:
-			item_text->set_text_from_string_id(g_strings_array[_string_id_l_jumpy]);
-			break;
 		default:
 			item_text->set_text_from_string_id(_string_id_invalid);
 			break;
@@ -289,9 +200,6 @@ void c_button_settings_edit_list::handle_item_pressed_event(s_event_record* cons
 		break;
 	case _item_green_thumb:
 		selected_preset = _button_preset_green_thumb;
-		break;
-	case _item_jumpy:
-		selected_preset = _button_preset_jumpy;
 		break;
 	default:
 		selected_preset = _button_preset_default;
@@ -387,9 +295,6 @@ void c_screen_button_settings_menu::post_initialize()
 		case _button_preset_green_thumb:
 			this->m_button_settings_list.set_focused_item_index(_item_green_thumb);
 			break;
-		case _button_preset_jumpy:
-			this->m_button_settings_list.set_focused_item_index(_item_jumpy);
-			break;
 		default:
 			this->m_button_settings_list.set_focused_item_index(_item_standard);
 
@@ -400,23 +305,6 @@ void c_screen_button_settings_menu::post_initialize()
 
 void c_screen_button_settings_menu::post_initialize_button_keys()
 {
-	// this function is executed once upon every pane creation
-	// thus can be used as on_pane_switch hook
-
-	if (this->m_pane_index == _button_screen_pane_jumpy
-		|| DATUM_INDEX_TO_ABSOLUTE_INDEX(this->m_button_settings_list.get_old_data_index()) == _item_jumpy)
-	{
-		c_text_widget* swap_left_text = this->try_find_screen_text(
-			m_using_qtr_arrows ? _jumpy_ig_pane_text_button_swap_left : _jumpy_pane_text_button_swap_left);
-
-		if (swap_left_text)
-		{
-			swap_left_text->set_text(k_jumpy_text_button_swap_left_string[get_current_language()]);
-		}
-
-	}
-
-	// call orignal function now
 	c_screen_widget::post_initialize_button_keys();
 }
 
@@ -495,7 +383,6 @@ void c_screen_button_settings_menu::apply_patches_on_ui_map_load()
 	s_user_interface_screen_widget_definition const* main_widget_tag = user_interface_screen_widget_definition_get(main_widget_datum_index);
 	s_window_pane_reference const* standard_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _button_screen_pane_standard);
 	s_window_pane_reference const* south_paw_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _button_screen_pane_south_paw);
-	s_window_pane_reference* jumpy_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _button_screen_pane_jumpy);
 
 	s_list_reference* standard_list = user_interface_widget_pane_get_list(&standard_pane->list_block, 0);
 	s_list_reference* south_paw_list = user_interface_widget_pane_get_list(&south_paw_pane->list_block, 0);
@@ -503,52 +390,8 @@ void c_screen_button_settings_menu::apply_patches_on_ui_map_load()
 	standard_list->num_visible_items = k_no_of_visible_items_for_button_settings;
 	south_paw_list->num_visible_items = k_no_of_visible_items_for_button_settings;		//_button_screen_pane_south_paw to _button_screen_pane_unused7 all use same s_list_reference tag_block
 
-	//fixup bitmap blocks
-	if (standard_pane->bitmap_blocks.count)
-	{
-		csmemcpy(tag_block_get_address(&jumpy_pane->bitmap_blocks), tag_block_get_address(&standard_pane->bitmap_blocks), sizeof(s_bitmap_block_reference) * standard_pane->bitmap_blocks.count);
-	}
-
-	if (standard_pane->text_blocks.count)
-	{
-		//addon text blocks
-		tag_injection_extend_block(&jumpy_pane->text_blocks, sizeof(s_text_block_reference), k_number_of_jumpy_pane_text_addons);
-		// LAN edition: all of the standard pane's texts (this copied the bitmap blocks' size and count, so only the first
-		// few labels were the standard pane's and the rest kept the unused pane's Xbox positions)
-		csmemcpy(
-			tag_block_get_address(&jumpy_pane->text_blocks),
-			tag_block_get_address(&standard_pane->text_blocks),
-			sizeof(s_text_block_reference) * standard_pane->text_blocks.count
-		);
-	}
-
-
-	//start adjusting texts for jumpy
+	// the list's names (LAN edition: no Jumpy layout, its pane is left as the tag has it)
 	string_list_get_string_id_list(main_widget_tag->string_list_tag.index, g_strings_array, NUMBEROF(g_strings_array));
-	
-	s_text_block_reference* flashlight_text_block = user_interface_widget_pane_get_text(&jumpy_pane->text_blocks, _jumpy_pane_text_button_flashlight);
-	s_text_block_reference* swap_grenade_text_block = user_interface_widget_pane_get_text(&jumpy_pane->text_blocks, _jumpy_pane_text_button_swap_grenades);
-	s_text_block_reference* swap_left_text_block = user_interface_widget_pane_get_text(&jumpy_pane->text_blocks, _jumpy_pane_text_button_swap_left);
-
-	user_interface_widget_pane_get_text(&jumpy_pane->text_blocks, _jumpy_pane_text_help)->string = g_strings_array[_string_id_l_jumpy_help];
-	user_interface_widget_pane_get_text(&jumpy_pane->text_blocks, _jumpy_pane_text_button_reload)->string = g_strings_array[_string_id_l_button_reload];
-	user_interface_widget_pane_get_text(&jumpy_pane->text_blocks, _jumpy_pane_text_button_melee)->string = g_strings_array[_string_id_l_button_melee];
-	user_interface_widget_pane_get_text(&jumpy_pane->text_blocks, _jumpy_pane_text_button_jump)->string = g_strings_array[_string_id_l_button_jump];
-
-	flashlight_text_block->string = g_strings_array[_string_id_l_button_flashlight];
-	swap_grenade_text_block->string = g_strings_array[_string_id_l_button_swap_grenades];
-
-	// Reposition
-	
-	flashlight_text_block->text_bounds = { -60 ,-600,-100,-266 };
-	swap_grenade_text_block->text_bounds = { -280,-550,-420,-216 };
-
-	// Additional texts to be added
-	
-	*swap_left_text_block = *swap_grenade_text_block;
-	swap_left_text_block->string = _string_id_invalid;
-	swap_left_text_block->text_bounds = { -175,296,-215,640 };
-	
 	return;
 }
 
@@ -563,50 +406,9 @@ void c_screen_button_settings_menu::apply_patches_on_mp_map_load(void)
 		return;
 	}
 
+	// the list's names (LAN edition: no Jumpy layout, its pane is left as the tag has it)
 	s_user_interface_screen_widget_definition const* main_widget_tag = user_interface_screen_widget_definition_get(main_widget_datum_index);
-	s_window_pane_reference const* standard_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _button_screen_pane_standard);
-	s_window_pane_reference* jumpy_pane = user_interface_widget_pane_get(&main_widget_tag->panes, _button_screen_pane_jumpy);
-
-	if (standard_pane->bitmap_blocks.count)
-	{
-		//add & fixup bitmap blocks
-		tag_injection_extend_block(&jumpy_pane->bitmap_blocks, sizeof(s_bitmap_block_reference), k_number_of_jumpy_ingame_pane_bitmap_addons);
-		csmemcpy(tag_block_get_address(&jumpy_pane->bitmap_blocks), tag_block_get_address(&standard_pane->bitmap_blocks), sizeof(s_bitmap_block_reference) * standard_pane->bitmap_blocks.count);
-	}
-
-	if (standard_pane->text_blocks.count)
-	{
-		//addon text blocks
-		tag_injection_extend_block(&jumpy_pane->text_blocks, sizeof(s_text_block_reference), k_number_of_jumpy_ingame_pane_text_addons);
-		csmemcpy(tag_block_get_address(&jumpy_pane->text_blocks), tag_block_get_address(&standard_pane->text_blocks), sizeof(s_text_block_reference) * standard_pane->text_blocks.count);
-	}
-
-	// start adjusting texts for jumpy
-
 	string_list_get_string_id_list(main_widget_tag->string_list_tag.index, g_strings_array, NUMBEROF(g_strings_array));
-	
-	TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_help, s_text_block_reference)->string = g_strings_array[_string_id_l_jumpy_help];
-	TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_button_reload, s_text_block_reference)->string = g_strings_array[_string_id_l_button_reload];
-	TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_button_melee, s_text_block_reference)->string = g_strings_array[_string_id_l_button_melee];
-	TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_button_jump, s_text_block_reference)->string = g_strings_array[_string_id_l_button_jump];
-	TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_button_flashlight, s_text_block_reference)->string = g_strings_array[_string_id_l_button_flashlight];
-	TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_button_swap_grenades, s_text_block_reference)->string = g_strings_array[_string_id_l_button_swap_grenades];
-	TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_header, s_text_block_reference)->string = g_strings_array[_string_id_l_jumpy_ingame];
-
-	// reposition
-	
-	TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_button_flashlight, s_text_block_reference)->text_bounds = { 40 ,-540, 0, -170 };
-	TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_button_swap_grenades, s_text_block_reference)->text_bounds = { -180, -520, -320, -216 };
-
-	// additional texts to be added
-
-	s_text_block_reference* swap_left_reference = TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_button_swap_left, s_text_block_reference);
-	s_text_block_reference* swap_grenade_reference = TAG_BLOCK_GET_ELEMENT(&jumpy_pane->text_blocks, _jumpy_ig_pane_text_button_swap_grenades, s_text_block_reference);
-
-	csmemcpy(swap_left_reference, swap_grenade_reference, sizeof(s_text_block_reference));
-	swap_left_reference->string = _string_id_invalid;
-	swap_left_reference->text_bounds = { -75, 326, -115, 640 };
-
 	return;
 }
 

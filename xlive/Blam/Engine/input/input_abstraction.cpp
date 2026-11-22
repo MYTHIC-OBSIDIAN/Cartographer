@@ -91,7 +91,6 @@ static void input_abstraction_gamepad_add_boxer_preset_controls(s_gamepad_input_
 
 static void input_abstraction_gamepad_add_greenthumb_preset_controls(s_gamepad_input_preferences* preference);
 
-static void input_abstraction_gamepad_add_jumpy_preset_controls(s_gamepad_input_preferences* preference);
 
 static void input_abstraction_gamepad_set_default_stick_controls(s_gamepad_input_preferences* preference, e_joystick_preset_types thumbstick_layout);
 
@@ -255,6 +254,7 @@ void __cdecl input_abstraction_get_default_preferences(s_gamepad_input_preferenc
 		switch (button_preset_type)
 		{
 		case _button_preset_default:
+		case _button_preset_jumpy:	// LAN edition: no Jumpy layout; profiles that had it get the default one
 			input_abstraction_gamepad_add_default_preset_controls(preference);
 			break;
 		case _button_preset_south_paw:
@@ -265,9 +265,6 @@ void __cdecl input_abstraction_get_default_preferences(s_gamepad_input_preferenc
 			break;
 		case _button_preset_green_thumb:
 			input_abstraction_gamepad_add_greenthumb_preset_controls(preference);
-			break;
-		case _button_preset_jumpy:
-			input_abstraction_gamepad_add_jumpy_preset_controls(preference);
 			break;
 		default:
 			unreachable();
@@ -1012,46 +1009,6 @@ static void input_abstraction_gamepad_add_greenthumb_preset_controls(s_gamepad_i
 	preference->game_controls_to_hardware[_button_vehicle_primary_fire].add_button(_input_device_type_gamepad, _gamepad_analog_button_right_trigger, 0, false);
 	preference->game_controls_to_hardware[_button_banshee_bomb].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, 0, false);
 	preference->game_controls_to_hardware[_button_scope_zoom].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, 0, false);
-	preference->game_controls_to_hardware[_button_dual_wield_secondary_fire].add_button(_input_device_type_gamepad, _gamepad_analog_button_left_trigger, 0, false);
-	preference->game_controls_to_hardware[_button_vehicle_secondary_fire].add_button(_input_device_type_gamepad, _gamepad_analog_button_left_trigger, 0, false);
-	return;
-}
-
-static void input_abstraction_gamepad_add_jumpy_preset_controls(s_gamepad_input_preferences* preference)
-{
-	preference->game_controls_to_hardware[_button_jump].add_button(_input_device_type_gamepad, _gamepad_binary_button_left_shoulder, 0, false);
-	preference->game_controls_to_hardware[_button_trick].add_button(_input_device_type_gamepad, _gamepad_binary_button_left_shoulder, 0, false);
-	preference->game_controls_to_hardware[_button_brake].add_button(_input_device_type_gamepad, _gamepad_binary_button_left_shoulder, 0, false);
-	preference->game_controls_to_hardware[_button_switch_grenade].add_button(_input_device_type_gamepad, _gamepad_binary_button_dpad_right, 0, false);
-	preference->game_controls_to_hardware[_button_switch_grenade].add_button(_input_device_type_gamepad, _gamepad_binary_button_a, 0, false);
-	preference->game_controls_to_hardware[_button_flip_vehicle].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, 0, false);
-	preference->game_controls_to_hardware[_button_reload].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, 0, false);
-	preference->game_controls_to_hardware[_button_exit_vehicle].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, 0, false);
-	preference->game_controls_to_hardware[_button_touch_device].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, k_key_hold_threshold_msec, false);
-	preference->game_controls_to_hardware[_button_enter_vehicle].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, k_key_hold_threshold_msec, false);
-	preference->game_controls_to_hardware[_button_board_vehicle].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, k_key_hold_threshold_msec, false);
-	preference->game_controls_to_hardware[_button_evict_from_vehicle].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, k_key_hold_threshold_msec, false);
-	preference->game_controls_to_hardware[_button_trade_weapon].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, k_key_hold_threshold_msec, false);
-	preference->game_controls_to_hardware[_button_pick_up_primary_weapon].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, k_key_hold_threshold_msec, false);
-	preference->game_controls_to_hardware[_button_pick_up_primary_multiplayer_weapon].add_button(_input_device_type_gamepad, _gamepad_binary_button_b, k_key_hold_threshold_msec, false);
-	preference->game_controls_to_hardware[_button_put_away_secondary_weapon].add_button(_input_device_type_gamepad, _gamepad_binary_button_y, 0, false);
-	preference->game_controls_to_hardware[_button_put_away_or_drop_secondary_weapon].add_button(_input_device_type_gamepad, _gamepad_binary_button_y, 0, false);
-	preference->game_controls_to_hardware[_button_switch_weapon].add_button(_input_device_type_gamepad, _gamepad_binary_button_y, 0, false);
-	preference->game_controls_to_hardware[_button_pick_up_secondary_weapon].add_button(_input_device_type_gamepad, _gamepad_binary_button_a, k_key_hold_threshold_msec, false);
-	preference->game_controls_to_hardware[_button_pick_up_secondary_multiplayer_weapon].add_button(_input_device_type_gamepad, _gamepad_binary_button_a, k_key_hold_threshold_msec, false);
-	preference->game_controls_to_hardware[_button_team_voice].add_button(_input_device_type_gamepad, _gamepad_binary_button_dpad_up, 0, false);
-	preference->game_controls_to_hardware[_button_flashlight].add_button(_input_device_type_gamepad, _gamepad_binary_button_dpad_up, 0, false);
-
-
-	preference->game_controls_to_hardware[_button_melee_attack].add_button(_input_device_type_gamepad, _gamepad_binary_button_right_shoulder, 0, false);
-	preference->game_controls_to_hardware[_button_throw_grenade].add_button(_input_device_type_gamepad, _gamepad_analog_button_left_trigger, 0, false);
-	preference->game_controls_to_hardware[_button_speed_boost].add_button(_input_device_type_gamepad, _gamepad_analog_button_left_trigger, 0, false);
-	preference->game_controls_to_hardware[_button_e_brake].add_button(_input_device_type_gamepad, _gamepad_analog_button_left_trigger, 0, false);
-	preference->game_controls_to_hardware[_button_fire].add_button(_input_device_type_gamepad, _gamepad_analog_button_right_trigger, 0, false);
-	preference->game_controls_to_hardware[_button_dual_wield_primary_fire].add_button(_input_device_type_gamepad, _gamepad_analog_button_right_trigger, 0, false);
-	preference->game_controls_to_hardware[_button_vehicle_primary_fire].add_button(_input_device_type_gamepad, _gamepad_analog_button_right_trigger, 0, false);
-	preference->game_controls_to_hardware[_button_banshee_bomb].add_button(_input_device_type_gamepad, _gamepad_binary_button_right_shoulder, 0, false);
-	preference->game_controls_to_hardware[_button_scope_zoom].add_button(_input_device_type_gamepad, _gamepad_binary_button_right_thumb, 0, false);
 	preference->game_controls_to_hardware[_button_dual_wield_secondary_fire].add_button(_input_device_type_gamepad, _gamepad_analog_button_left_trigger, 0, false);
 	preference->game_controls_to_hardware[_button_vehicle_secondary_fire].add_button(_input_device_type_gamepad, _gamepad_analog_button_left_trigger, 0, false);
 	return;

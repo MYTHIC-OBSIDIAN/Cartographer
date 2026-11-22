@@ -23,11 +23,6 @@ enum e_controller_list_items : uint16
 	k_total_no_of_controller_list_items
 };
 
-enum
-{
-	_string_id_l_jumpy = 0x5001A09
-};
-
 
 CLASS_HOOK_DECLARE_LABEL(c_controller_settings_edit_list_update_list_items, c_controller_settings_edit_list::update_list_items);
 void c_controller_settings_edit_list::update_list_items(c_list_item_widget* item, int32 skin_index)
@@ -68,6 +63,7 @@ void c_controller_settings_edit_list::update_list_items(c_list_item_widget* item
 				switch (player_profile->input_preferences.controller_button_layout)
 				{
 				case _button_preset_default:
+				case _button_preset_jumpy:	// LAN edition: no Jumpy layout (the default one is used)
 					value_string = _string_id_default;
 					break;
 				case _button_preset_south_paw:
@@ -78,10 +74,6 @@ void c_controller_settings_edit_list::update_list_items(c_list_item_widget* item
 					break;
 				case _button_preset_green_thumb:
 					value_string = _string_id_green_thumb;
-					break;
-					//add jumpy text value to controller_settings menu
-				case _button_preset_jumpy:
-					value_string = (string_id)_string_id_l_jumpy;
 					break;
 				}
 				break;

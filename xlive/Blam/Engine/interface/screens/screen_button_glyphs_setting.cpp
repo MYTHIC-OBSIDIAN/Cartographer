@@ -129,7 +129,7 @@ enum
 {
 	k_button_config_duke_frame = 1,
 	k_button_config_duke_width = 576,
-	k_button_settings_diagram_panes = 5,		// Default, Southpaw, Boxer, Green Thumb, Jumpy
+	k_button_settings_diagram_panes = 4,		// Default, Southpaw, Boxer, Green Thumb
 	k_maximum_button_settings_moved_widgets = 96,
 	k_button_label_maximum_top = 200,			// the panes' help text is above this
 	k_button_label_centre_tolerance = 6,
@@ -150,8 +150,6 @@ enum e_duke_button
 	_duke_button_left_thumbstick,
 	_duke_button_back,
 	_duke_button_start,
-	_duke_button_dpad_upper,		// Jumpy's flashlight and swap grenades labels (the d-pad, no line)
-	_duke_button_dpad_lower,
 	k_duke_button_count
 };
 
@@ -176,8 +174,6 @@ static const s_duke_button_label k_duke_button_labels[k_duke_button_count] =
 	{ { -69, -640, -109, -261 }, true },
 	{ { -196, -640, -236, -275 }, true },
 	{ { -238, -640, -278, -275 }, true },
-	{ { -130, -640, -170, -275 }, true },
-	{ { -282, -640, -322, -275 }, true },
 };
 
 // the Xbox 360 diagram's label centres: left side and right side
@@ -230,8 +226,7 @@ static e_duke_button duke_button_from_xbox_360_label(const rectangle2d* bounds)
 			return places[index].button;
 		}
 	}
-	// Jumpy's d-pad labels (flashlight, swap grenades), on the left with no line
-	return !left_side ? k_duke_button_count : centre > -200 ? _duke_button_dpad_upper : _duke_button_dpad_lower;
+	return k_duke_button_count;
 }
 
 static void button_settings_diagram_apply_on_map_load(void)
