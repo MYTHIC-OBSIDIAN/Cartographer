@@ -59,8 +59,8 @@ static e_button_glyph_style button_glyphs_get_style(void)
 }
 
 // the thumbstick settings screen's controller picture (the thumbsticks bitmap: frame 0 the Xbox 360 controller, frame 1
-// the original Xbox's Duke), so the picture can follow the glyph style. On the Duke the thumbsticks are elsewhere: each
-// stick's arrows and labels move with it
+// the original Xbox's Duke, frame 2 the Xbox's Controller S, added by the map build), so the picture can follow the glyph
+// style. On the original Xbox controllers the thumbsticks are elsewhere: each stick's arrows and labels move with it
 #define k_thumbstick_settings_screen_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\thumbstick_settings"
 #define k_thumbsticks_bitmap_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\thumbsticks"
 #define k_thumbstick_arrows_bitmap_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\thumbstick_arrows"
@@ -68,6 +68,7 @@ enum
 {
 	k_thumbsticks_xbox_360_frame = 0,
 	k_thumbsticks_duke_frame = 1,
+	k_thumbsticks_xbox_s_frame = 2,
 	k_maximum_thumbstick_pictures = 16,
 	k_maximum_thumbstick_moved_widgets = 128,
 
@@ -78,6 +79,9 @@ enum
 // the Duke's sticks from the Xbox 360 controller's (the pictures share the same top left), in user interface units
 static const point2d k_duke_left_stick_offset = { -16, -43 };
 static const point2d k_duke_right_stick_offset = { 44, -79 };
+// and the Controller S's (measured from the centres of the pictures' stick rings)
+static const point2d k_xbox_s_left_stick_offset = { 12, -43 };
+static const point2d k_xbox_s_right_stick_offset = { -14, -50 };
 
 struct s_thumbstick_picture
 {
@@ -119,22 +123,26 @@ static void thumbstick_moved_widget_add(s_bitmap_block_reference* bitmap, s_text
 	return;
 }
 
-// the button layout screen: with the Xbox Duke or Xbox S glyphs its diagram is the Duke with leader lines (the map build puts it
-// in the button_config bitmap's second slot, 576x448, drawn with its top left at (-288, 64)), and each pane's labels go
-// to the Xbox's places at the ends of its lines. The labels are found by where the Xbox 360 diagram has them (the centre
-// of their bounds, and their side)
+// the button layout screen: with the Xbox Duke glyphs its diagram is the Duke with leader lines (the map build puts it in
+// the button_config bitmap's second slot, 576x448, drawn with its top left at (-288, 64)), with the Xbox S glyphs the
+// Xbox's Controller S diagram (bitmap 2, 512x512, added by the map build: the Xbox's at twice its size, at twice its top
+// left), and each pane's labels go to the places at the ends of its lines. The labels are found by where the Xbox 360
+// diagram has them (the centre of their bounds, and their side)
 #define k_button_settings_screen_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\button_settings"
 #define k_button_config_bitmap_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\button_config"
 enum
 {
 	k_button_config_duke_frame = 1,
 	k_button_config_duke_width = 576,
+	k_button_config_xbox_s_frame = 2,
+	k_button_config_xbox_s_width = 512,
 	k_button_settings_diagram_panes = 4,		// Default, Southpaw, Boxer, Green Thumb
 	k_maximum_button_settings_moved_widgets = 96,
 	k_button_label_maximum_top = 200,			// the panes' help text is above this
 	k_button_label_centre_tolerance = 6,
 };
 static const point2d k_duke_button_diagram_topleft = { -288, 64 };
+static const point2d k_xbox_s_button_diagram_topleft = { -254, 52 };
 
 enum e_duke_button
 {
@@ -175,6 +183,22 @@ static const s_duke_button_label k_duke_button_labels[k_duke_button_count] =
 	{ { -196, -640, -236, -275 }, true },
 	{ { -238, -640, -278, -275 }, true },
 };
+// the Controller S's: the Xbox's label bounds at twice their size (each reaching the screen's edge)
+static const s_duke_button_label k_xbox_s_button_labels[k_duke_button_count] =
+{
+	{ { 72, -640, 32, -90 }, true },		// left trigger
+	{ { 72, 82, 32, 640 }, false },			// right trigger
+	{ { -188, 260, -228, 640 }, false },	// white
+	{ { -144, 254, -184, 640 }, false },	// black
+	{ { -16, 208, -56, 640 }, false },		// Y
+	{ { -58, 228, -98, 640 }, false },		// B
+	{ { -102, 242, -142, 640 }, false },	// A
+	{ { 26, 186, -14, 640 }, false },		// X
+	{ { -232, 260, -312, 640 }, false },	// right thumbstick
+	{ { -68, -640, -108, -220 }, true },	// left thumbstick
+	{ { -110, -640, -150, -232 }, true },	// back
+	{ { -148, -640, -188, -240 }, true },	// start
+};
 
 // the Xbox 360 diagram's label centres: left side and right side
 struct s_xbox_360_label_place
@@ -212,6 +236,16 @@ struct s_button_settings_moved_widget
 };
 static s_button_settings_moved_widget g_button_settings_moved_widgets[k_maximum_button_settings_moved_widgets];
 static int32 g_button_settings_moved_widget_count = 0;
+static bool g_button_config_has_xbox_s = false;
+static bool g_thumbsticks_has_xbox_s = false;
+
+// the controller pictured for the glyph style (the Xbox S's pictures only when the map has them, otherwise the Duke's)
+enum e_controller_picture
+{
+	_controller_picture_xbox_360,
+	_controller_picture_duke,
+	_controller_picture_xbox_s,
+};
 
 static e_duke_button duke_button_from_xbox_360_label(const rectangle2d* bounds)
 {
@@ -232,6 +266,7 @@ static e_duke_button duke_button_from_xbox_360_label(const rectangle2d* bounds)
 static void button_settings_diagram_apply_on_map_load(void)
 {
 	g_button_settings_moved_widget_count = 0;
+	g_button_config_has_xbox_s = false;
 	const datum screen_index = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_button_settings_screen_tag);
 	const datum button_config = tag_loaded(_tag_group_bitmap, k_button_config_bitmap_tag);
 	if (screen_index == NONE || button_config == NONE)
@@ -246,6 +281,8 @@ static void button_settings_diagram_apply_on_map_load(void)
 	{
 		return;
 	}
+	g_button_config_has_xbox_s = bitmap_group_get(button_config)->bitmaps.count > k_button_config_xbox_s_frame
+		&& bitmap_group_get_bitmap(button_config, k_button_config_xbox_s_frame)->width == k_button_config_xbox_s_width;
 
 	s_user_interface_screen_widget_definition* screen = user_interface_screen_widget_definition_get(screen_index);
 	for (int32 pane_index = 0; pane_index < screen->panes.count && pane_index < k_button_settings_diagram_panes; pane_index++)
@@ -290,16 +327,21 @@ static void button_settings_diagram_apply_on_map_load(void)
 	return;
 }
 
-static void button_settings_diagram_update(bool original_xbox)
+static void button_settings_diagram_update(e_controller_picture picture)
 {
+	const bool original_xbox = picture != _controller_picture_xbox_360;
+	const bool xbox_s = picture == _controller_picture_xbox_s && g_button_config_has_xbox_s;
+	const point2d topleft = xbox_s ? k_xbox_s_button_diagram_topleft : k_duke_button_diagram_topleft;
+	const int16 frame = xbox_s ? (int16)k_button_config_xbox_s_frame : (int16)k_button_config_duke_frame;
+	const s_duke_button_label* labels = xbox_s ? k_xbox_s_button_labels : k_duke_button_labels;
 	for (int32 index = 0; index < g_button_settings_moved_widget_count; index++)
 	{
 		const s_button_settings_moved_widget* widget = &g_button_settings_moved_widgets[index];
 		if (widget->bitmap != NULL)
 		{
-			widget->bitmap->initial_sprite_frame = original_xbox ? (int16)k_button_config_duke_frame : widget->frame;
-			widget->bitmap->topleft.x = original_xbox ? k_duke_button_diagram_topleft.x : widget->bounds.v[0];
-			widget->bitmap->topleft.y = original_xbox ? k_duke_button_diagram_topleft.y : widget->bounds.v[1];
+			widget->bitmap->initial_sprite_frame = original_xbox ? frame : widget->frame;
+			widget->bitmap->topleft.x = original_xbox ? topleft.x : widget->bounds.v[0];
+			widget->bitmap->topleft.y = original_xbox ? topleft.y : widget->bounds.v[1];
 			continue;
 		}
 
@@ -309,7 +351,7 @@ static void button_settings_diagram_update(bool original_xbox)
 			widget->text->text_flags = widget->text_flags;
 			continue;
 		}
-		const s_duke_button_label* label = &k_duke_button_labels[widget->button];
+		const s_duke_button_label* label = &labels[widget->button];
 		widget->text->text_bounds = label->bounds;
 		const int32 justification = label->left_side ? text_flag_right_justify_text : text_flag_left_justify_text;
 		widget->text->text_flags = (e_text_flags)((widget->text_flags & ~(text_flag_left_justify_text | text_flag_right_justify_text)) | justification);
@@ -325,6 +367,7 @@ void button_glyphs_controller_pictures_apply_on_map_load(void)
 
 	g_thumbstick_picture_count = 0;
 	g_thumbstick_moved_widget_count = 0;
+	g_thumbsticks_has_xbox_s = false;
 	const datum thumbstick_arrows = tag_loaded(_tag_group_bitmap, k_thumbstick_arrows_bitmap_tag);
 	const datum screen_index = tag_loaded(_tag_group_user_interface_screen_widget_definition, k_thumbstick_settings_screen_tag);
 	const datum thumbsticks = tag_loaded(_tag_group_bitmap, k_thumbsticks_bitmap_tag);
@@ -332,6 +375,8 @@ void button_glyphs_controller_pictures_apply_on_map_load(void)
 	{
 		return;
 	}
+
+	g_thumbsticks_has_xbox_s = bitmap_group_get(thumbsticks)->bitmaps.count > k_thumbsticks_xbox_s_frame;
 
 	s_user_interface_screen_widget_definition* screen = user_interface_screen_widget_definition_get(screen_index);
 	for (int32 pane_index = 0; pane_index < screen->panes.count; pane_index++)
@@ -395,19 +440,28 @@ void button_glyphs_controller_pictures_apply_on_map_load(void)
 
 void button_glyphs_controller_pictures_update(void)
 {
-	// the Xbox Duke and Xbox S glyphs: the Duke on every pane (the game has no Controller S pictures for these screens);
-	// otherwise each pane's own picture
+	// the Xbox Duke and Xbox S glyphs: that controller on every pane (the Controller S's pictures from the Xbox's
+	// mainmenu.map, when the map has them, otherwise the Duke's); otherwise each pane's own picture
 	const e_button_glyph_style style = button_glyphs_get_style();
-	const bool original_xbox = style == _button_glyph_style_xbox_duke || style == _button_glyph_style_xbox_s;
-	button_settings_diagram_update(original_xbox);
+	const e_controller_picture picture =
+		style == _button_glyph_style_xbox_duke ? _controller_picture_duke
+		: style == _button_glyph_style_xbox_s ? _controller_picture_xbox_s
+		: _controller_picture_xbox_360;
+	button_settings_diagram_update(picture);
+
+	const bool original_xbox = picture != _controller_picture_xbox_360;
+	const bool xbox_s = picture == _controller_picture_xbox_s && g_thumbsticks_has_xbox_s;
+	const int16 frame = xbox_s ? (int16)k_thumbsticks_xbox_s_frame : (int16)k_thumbsticks_duke_frame;
+	const point2d left_offset = xbox_s ? k_xbox_s_left_stick_offset : k_duke_left_stick_offset;
+	const point2d right_offset = xbox_s ? k_xbox_s_right_stick_offset : k_duke_right_stick_offset;
 	for (int32 index = 0; index < g_thumbstick_picture_count; index++)
 	{
-		g_thumbstick_pictures[index].block->initial_sprite_frame = original_xbox ? (int16)k_thumbsticks_duke_frame : g_thumbstick_pictures[index].initial_sprite_frame;
+		g_thumbstick_pictures[index].block->initial_sprite_frame = original_xbox ? frame : g_thumbstick_pictures[index].initial_sprite_frame;
 	}
 	for (int32 index = 0; index < g_thumbstick_moved_widget_count; index++)
 	{
 		const s_thumbstick_moved_widget* widget = &g_thumbstick_moved_widgets[index];
-		const point2d offset = !original_xbox ? point2d{ 0, 0 } : widget->right_stick ? k_duke_right_stick_offset : k_duke_left_stick_offset;
+		const point2d offset = !original_xbox ? point2d{ 0, 0 } : widget->right_stick ? right_offset : left_offset;
 		if (widget->text != NULL)
 		{
 			widget->text->text_bounds.top = (int16)(widget->bounds.top + offset.y);
