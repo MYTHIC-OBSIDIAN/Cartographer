@@ -558,5 +558,6 @@ const wchar_t* c_screen_button_glyphs_menu::get_header_string()
 
 const wchar_t* c_screen_button_glyphs_menu::get_option_string()
 {
-	return k_button_glyphs_options_string[button_glyphs_get_style()];
+	// the names are in the list's order, not the styles'
+	return k_button_glyphs_options_string[button_glyphs_list_index_from_style(button_glyphs_get_style())];
 }
