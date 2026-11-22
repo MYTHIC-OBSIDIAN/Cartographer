@@ -9,6 +9,7 @@
 #include "bitmaps/bitmap_group.h"
 #include "cache/cache_files.h"
 #include "game/game_globals.h"
+#include "text/font_group.h"
 #include "input/input_process.h"
 #include "input/input_windows.h"
 #include "interface/user_interface.h"
@@ -360,8 +361,9 @@ void c_screen_4way_signin::update(void)
 			if (should_show_bitmap)
 			{
 				// We dont really have a way to determine controller_types between akebono and duke, using either is fine.
-				// LAN edition: the Duke with the Original Xbox button glyphs, the Controller S (akebono) otherwise
-				const e_controller_signin_bitmaps connected_bitmap = H2Config_button_glyphs == 0 ? _controller_signin_bitmap_duke : _controller_signin_bitmap_akebono;
+				// LAN edition: the controller the button glyphs are for: the Duke with the Xbox Duke glyphs, the Controller S
+				// (akebono) otherwise (the game has no Xbox 360 picture here)
+				const e_controller_signin_bitmaps connected_bitmap = H2Config_button_glyphs == _button_glyph_style_xbox_duke ? _controller_signin_bitmap_duke : _controller_signin_bitmap_akebono;
 				const int16 bitmap_update_idx = (int16)(gamepad_connected ? connected_bitmap : _controller_signin_bitmap_missing);
 				controller_signin_bitmap->verify_and_change_sprite(bitmap_update_idx);
 

@@ -3,18 +3,18 @@
 #include "interface/user_interface_widget_list_item.h"
 #include "interface/user_interface_widget_window.h"
 
-// LAN edition: Settings > Video > Button Glyphs (Original Xbox / Xbox 360 / Modern)
+// LAN edition: Settings > Video > Button Glyphs (Xbox Duke / Xbox S / Xbox 360 / Modern)
 
 /* constants */
 enum
 {
-	k_no_of_visible_items_for_button_glyphs = 3
+	k_no_of_visible_items_for_button_glyphs = 4
 };
 
 /* prototypes */
 
-// the controller pictures that follow the glyph style: the thumbstick settings screen's (the original Xbox's Duke with
-// the Original Xbox glyphs); on map load, and after the style changes
+// the controller pictures that follow the glyph style: the thumbstick and button settings screens' (the original Xbox's
+// Duke with the Xbox Duke and Xbox S glyphs); on map load, and after the style changes
 void button_glyphs_controller_pictures_apply_on_map_load(void);
 void button_glyphs_controller_pictures_update(void);
 

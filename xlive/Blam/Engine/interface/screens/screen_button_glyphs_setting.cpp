@@ -23,12 +23,33 @@ static const char k_button_glyphs_edit_list_name[] = "button glyphs edit list";
 static const wchar_t k_button_glyphs_header_string[] = L"Button Glyphs";
 static const wchar_t k_button_glyphs_description_string[] = L"Choose the controller button icons shown in menus and button prompts.";
 
+// the list, top to bottom: its styles and their names
+static const e_button_glyph_style k_button_glyphs_list_styles[k_button_glyph_style_count] =
+{
+	_button_glyph_style_xbox_duke,
+	_button_glyph_style_xbox_s,
+	_button_glyph_style_xbox_360,
+	_button_glyph_style_modern,
+};
 static const wchar_t* const k_button_glyphs_options_string[k_button_glyph_style_count] =
 {
-	L"Original Xbox",
+	L"Xbox Duke",
+	L"Xbox S",
 	L"Xbox 360",
 	L"Modern",
 };
+
+static int32 button_glyphs_list_index_from_style(e_button_glyph_style style)
+{
+	for (int32 index = 0; index < k_button_glyph_style_count; index++)
+	{
+		if (k_button_glyphs_list_styles[index] == style)
+		{
+			return index;
+		}
+	}
+	return 0;
+}
 
 /* private code */
 
@@ -98,7 +119,7 @@ static void thumbstick_moved_widget_add(s_bitmap_block_reference* bitmap, s_text
 	return;
 }
 
-// the button layout screen: with the Original Xbox glyphs its diagram is the Duke with leader lines (the map build puts it
+// the button layout screen: with the Xbox Duke or Xbox S glyphs its diagram is the Duke with leader lines (the map build puts it
 // in the button_config bitmap's second slot, 576x448, drawn with its top left at (-288, 64)), and each pane's labels go
 // to the Xbox's places at the ends of its lines. The labels are found by where the Xbox 360 diagram has them (the centre
 // of their bounds, and their side)
@@ -379,8 +400,10 @@ void button_glyphs_controller_pictures_apply_on_map_load(void)
 
 void button_glyphs_controller_pictures_update(void)
 {
-	// the Original Xbox glyphs: the Duke on every pane; otherwise each pane's own picture
-	const bool original_xbox = button_glyphs_get_style() == _button_glyph_style_original_xbox;
+	// the Xbox Duke and Xbox S glyphs: the Duke on every pane (the game has no Controller S pictures for these screens);
+	// otherwise each pane's own picture
+	const e_button_glyph_style style = button_glyphs_get_style();
+	const bool original_xbox = style == _button_glyph_style_xbox_duke || style == _button_glyph_style_xbox_s;
 	button_settings_diagram_update(original_xbox);
 	for (int32 index = 0; index < g_thumbstick_picture_count; index++)
 	{
@@ -448,11 +471,12 @@ void c_button_glyphs_edit_list::update_list_items(c_list_item_widget* item, int3
 void c_button_glyphs_edit_list::handle_item_pressed_event(s_event_record* const& event, datum* pitem_index)
 {
 	const int32 item_index = DATUM_INDEX_TO_ABSOLUTE_INDEX(*pitem_index);
-	if (IN_RANGE(item_index, 0, k_button_glyph_style_count - 1) && item_index != H2Config_button_glyphs)
+	if (IN_RANGE(item_index, 0, k_button_glyph_style_count - 1) && k_button_glyphs_list_styles[item_index] != H2Config_button_glyphs)
 	{
-		H2Config_button_glyphs = item_index;
+		const e_button_glyph_style style = k_button_glyphs_list_styles[item_index];
+		H2Config_button_glyphs = style;
 		SaveH2Config();
-		font_table_set_button_glyph_style((e_button_glyph_style)item_index);
+		font_table_set_button_glyph_style(style);
 		button_glyphs_controller_pictures_update();
 	}
 
@@ -494,7 +518,7 @@ void c_screen_button_glyphs_menu::initialize(c_screen_parameters* parameters)
 void c_screen_button_glyphs_menu::post_initialize()
 {
 	c_screen_with_menu::post_initialize();
-	m_button_glyphs_edit_list.set_focused_item_index(button_glyphs_get_style());
+	m_button_glyphs_edit_list.set_focused_item_index(button_glyphs_list_index_from_style(button_glyphs_get_style()));
 	return;
 }
 

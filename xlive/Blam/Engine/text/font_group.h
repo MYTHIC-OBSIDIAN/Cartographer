@@ -31,9 +31,10 @@ int32 __cdecl font_get_line_height(e_font_id font_id);
 // LAN edition: controller button glyph styles, each one a font table in maps\fonts
 enum e_button_glyph_style : int32
 {
-	_button_glyph_style_original_xbox = 0,	// font_table_xbox.txt
+	_button_glyph_style_xbox_duke = 0,		// font_table_xbox.txt (saved as 0 when it was "Original Xbox")
 	_button_glyph_style_xbox_360,			// font_table.txt
 	_button_glyph_style_modern,				// font_table_modern.txt
+	_button_glyph_style_xbox_s,				// font_table_xbox.txt (the Duke's and the Controller S's buttons are the same)
 	k_button_glyph_style_count
 };
 

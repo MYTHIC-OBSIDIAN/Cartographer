@@ -201,7 +201,7 @@ set_config_entry(CSimpleIniA* simple_ini, const char* section_key, const char* c
 e_override_texture_resolution H2Config_Override_Shadows = e_override_texture_resolution::tex_default;
 e_override_texture_resolution H2Config_Override_Water = e_override_texture_resolution::tex_default;
 e_display_split_type H2Config_split_mode = _display_split_type_none; // treating none as automatic
-int H2Config_button_glyphs = 1; // LAN edition: 0 Original Xbox, 1 Xbox 360 (font_table.txt), 2 Modern
+int H2Config_button_glyphs = 1; // LAN edition: 0 Xbox Duke, 1 Xbox 360 (font_table.txt), 2 Modern, 3 Xbox S
 
 bool H2Config_upnp_enable = true;
 bool H2Config_no_events = false;
@@ -736,7 +736,7 @@ void ReadH2Config()
 				H2Config_split_mode = (e_display_split_type)splitscreen_override;
 
 				CONFIG_GET(&ini, "button_glyphs", "1", &H2Config_button_glyphs);
-				H2Config_button_glyphs = IN_RANGE(H2Config_button_glyphs, 0, 2) ? H2Config_button_glyphs : 1;
+				H2Config_button_glyphs = IN_RANGE(H2Config_button_glyphs, 0, 3) ? H2Config_button_glyphs : 1;
 			}
 			// dedicated server only
 			else

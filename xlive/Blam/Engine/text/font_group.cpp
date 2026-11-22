@@ -25,9 +25,10 @@ int32 __cdecl font_get_line_height(e_font_id font_id)
 
 static const char* const k_font_table_names[k_button_glyph_style_count] =
 {
-	"font_table_xbox",		// Original Xbox
+	"font_table_xbox",		// Xbox Duke
 	"font_table",			// Xbox 360 (the game's own)
 	"font_table_modern",	// Modern
+	"font_table_xbox",		// Xbox S
 };
 
 static void __cdecl font_character_cache_dispose(void)
