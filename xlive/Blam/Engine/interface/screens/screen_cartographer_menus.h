@@ -297,6 +297,61 @@ public:
 	virtual const void* load_proc(void) const override;
 };
 
+// LAN edition: the Xbox's player profile options PC Halo 2 left out (Voice Output, Voice Masking, Online Status), opened
+// from Settings > Player Profile: a choice saved in the edited player profile (bytes the PC game no longer uses)
+
+#define k_maximum_profile_option_count 4
+
+struct s_profile_option_menu_definition
+{
+	e_user_interface_screen_id screen_id;	// the Xbox's screen, whose tag the PC map still has
+	uint32 profile_offset;					// in s_saved_game_player_profile
+	int32 option_count;
+	const wchar_t* options[k_maximum_profile_option_count];
+	const wchar_t* header;
+	const wchar_t* description;
+};
+
+class c_profile_option_list : public c_list_widget
+{
+protected:
+	c_list_item_widget m_list_item_widgets[k_maximum_profile_option_count];
+	c_slot2<c_profile_option_list, struct s_event_record*, int32> m_slot_2;
+	const s_profile_option_menu_definition* m_definition;
+
+	void handle_item_pressed_event(struct s_event_record* const& event, int32* pitem_index);
+public:
+	c_profile_option_list(uint16 _flags, const s_profile_option_menu_definition* definition);
+
+	// c_profile_option_list virtual functions
+
+	virtual ~c_profile_option_list() = default;
+	virtual c_list_item_widget* get_list_items() override;
+	virtual int32 get_list_items_count() override;
+	virtual void update_list_items(c_list_item_widget* item, int32 skin_index) override;
+};
+
+class c_profile_option_menu : public c_screen_with_menu
+{
+protected:
+	c_profile_option_list m_option_list;
+	const s_profile_option_menu_definition* m_definition;
+
+	static void* load_definition(c_screen_parameters* parameters, const s_profile_option_menu_definition* definition);
+public:
+	c_profile_option_menu(e_user_interface_channel_type _ui_channel, e_user_interface_render_window _window_index, uint16 _flags, const s_profile_option_menu_definition* definition);
+	static void* load_voice_output(c_screen_parameters* parameters);
+	static void* load_voice_masking(c_screen_parameters* parameters);
+	static void* load_online_status(c_screen_parameters* parameters);
+
+	// c_profile_option_menu virtual functions
+
+	virtual ~c_profile_option_menu() = default;
+	virtual void initialize(c_screen_parameters* screen_parameters) override;
+	virtual void post_initialize() override;
+	virtual const void* load_proc(void) const override;
+};
+
 // adds the Nameplate entry to the player profile edit screen and sends the chosen nameplate with the player's details
 void nameplates_apply_patches(void);
 void nameplates_apply_patches_on_map_load(void);

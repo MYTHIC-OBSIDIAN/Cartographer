@@ -358,7 +358,7 @@ static void button_settings_diagram_update(e_controller_picture picture)
 }
 
 // the profile menu's picture for Controller Settings (the edit_profile bitmap's first, the Xbox 360 controller): with
-// the Xbox S glyphs the Xbox's Controller S (bitmap 6, added by the map build)
+// the Xbox Duke or Xbox S glyphs the Xbox's Controller S (bitmap 6, added by the map build; the Xbox has no Duke one)
 #define k_edit_profile_menu_screen_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile_menu"
 #define k_edit_profile_bitmap_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile"
 enum
@@ -489,7 +489,7 @@ void button_glyphs_controller_pictures_update(void)
 	for (int32 index = 0; index < g_edit_profile_controller_picture_count; index++)
 	{
 		g_edit_profile_controller_pictures[index]->initial_sprite_frame =
-			picture == _controller_picture_xbox_s ? (int16)k_edit_profile_xbox_s_frame : (int16)k_edit_profile_controller_frame;
+			picture != _controller_picture_xbox_360 ? (int16)k_edit_profile_xbox_s_frame : (int16)k_edit_profile_controller_frame;
 	}
 
 	const bool original_xbox = picture != _controller_picture_xbox_360;

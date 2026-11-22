@@ -9,6 +9,7 @@
 #include "saved_games/cartographer_player_profile/cartographer_player_profile.h"
 #include "interface/user_interface.h"
 #include "H2MOD/Modules/Shell/Config.h"
+#include "bitmaps/bitmap_group.h"
 #include "cache/cache_files.h"
 #include "interface/user_interface_memory.h"
 #include "interface/user_interface_screen_widget_definition.h"
@@ -1221,13 +1222,200 @@ const void* c_rank_menu::load_proc(void) const
 	return c_rank_menu::load;
 }
 
-// player profile edit list (halo2.exe c_player_profile_edit_list): Nameplate and Rank added under Appearance
-// list order: 0 Appearance, 1 Nameplate, 2 Rank, 3 and 4 = the game's items 1 and 2
-#define k_profile_edit_list_nameplate_item 1
-#define k_profile_edit_list_rank_item 2
-#define k_profile_edit_list_custom_item_count 2
-#define k_profile_edit_list_last_custom_item k_profile_edit_list_rank_item
+// the Xbox's player profile options (screens whose tags the PC map kept): each a choice saved in a byte of the edited player
+// profile that the PC game doesn't use (s_saved_game_player_profile, after the subtitle setting at 0x1179)
+static const s_profile_option_menu_definition k_profile_voice_output_menu =
+{
+	_screen_pp_voice_thru_tv, 0x117A, 4,
+	{ L"Default", L"Speakers Only", L"Headset Only", L"Disabled" },
+	L"Voice Output",
+	L"Play multiplayer voice through your headset or through your system speakers.",
+};
+static const s_profile_option_menu_definition k_profile_voice_masking_menu =
+{
+	_screen_pp_choose_voice_mask, 0x117B, 2,
+	{ L"Default", L"Anonymous" },
+	L"Voice Masking",
+	L"Disguise your voice so your boss will never know it is you who smacked him down.",
+};
+static const s_profile_option_menu_definition k_profile_online_status_menu =
+{
+	_screen_pp_appear_offline, 0x117C, 2,
+	{ L"Online", L"Appear Offline" },
+	L"Online Status",
+	L"Appear Offline. When you call in sick on November 9, no one needs to know your little secret.",
+};
+
+static uint8* profile_option_get(const s_profile_option_menu_definition* definition)
+{
+	uint8* profile = (uint8*)user_interface_globals_get_edit_player_profile();
+	return profile != nullptr ? profile + definition->profile_offset : nullptr;
+}
+
+c_profile_option_list::c_profile_option_list(uint16 _flags, const s_profile_option_menu_definition* definition) :
+	c_list_widget(_flags),
+	m_slot_2(this, &c_profile_option_list::handle_item_pressed_event),
+	m_definition(definition)
+{
+	data_array* list_data = ui_list_data_new("profile option list", definition->option_count, sizeof(datum));
+	this->m_list_data = list_data;
+	data_make_valid(list_data);
+	for (int32 i = 0; i < this->m_list_data->maximum_count; i++)
+	{
+		datum_new(this->m_list_data);
+	}
+	linker_type2.link(&this->m_slot_2);
+}
+
+c_list_item_widget* c_profile_option_list::get_list_items()
+{
+	return m_list_item_widgets;
+}
+
+int32 c_profile_option_list::get_list_items_count()
+{
+	return m_definition->option_count;
+}
+
+void c_profile_option_list::update_list_items(c_list_item_widget* item, int32 skin_index)
+{
+	const datum data_index = item->get_last_data_index();
+	if (data_index == NONE)
+	{
+		return;
+	}
+	const int16 option = DATUM_INDEX_TO_ABSOLUTE_INDEX(data_index);
+	c_text_widget* text_widget = item->try_find_text_widget(_default_list_skin_text_main);
+	if (text_widget != nullptr && option >= 0 && option < m_definition->option_count)
+	{
+		text_widget->set_text(m_definition->options[option]);
+	}
+}
+
+void c_profile_option_list::handle_item_pressed_event(s_event_record* const& event, int32* pitem_index)
+{
+	const int16 option = DATUM_INDEX_TO_ABSOLUTE_INDEX(*pitem_index);
+	uint8* value = profile_option_get(m_definition);
+	if (value != nullptr && option >= 0 && option < m_definition->option_count)
+	{
+		// kept with the edited profile, saved when the player profile screen is left
+		*value = (uint8)option;
+	}
+	user_interface_back_out_from_channel(this->get_parent_channel(), this->get_parent_render_window());
+}
+
+c_profile_option_menu::c_profile_option_menu(e_user_interface_channel_type _ui_channel, e_user_interface_render_window _window_index, uint16 _flags, const s_profile_option_menu_definition* definition) :
+	c_screen_with_menu(definition->screen_id, _ui_channel, _window_index, _flags, &m_option_list),
+	m_option_list(_flags, definition),
+	m_definition(definition)
+{
+}
+
+void* c_profile_option_menu::load_definition(c_screen_parameters* parameters, const s_profile_option_menu_definition* definition)
+{
+	c_profile_option_menu* menu = nullptr;
+	void* pool = ui_pool_allocate_space(sizeof(c_profile_option_menu), 0);
+	if (pool != nullptr)
+	{
+		menu = new (pool) c_profile_option_menu(parameters->get_channel_type(), parameters->get_window_index(), parameters->get_user_flags(), definition);
+		menu->m_allocated = true;
+		user_interface_register_screen_to_channel(menu, parameters);
+	}
+	return menu;
+}
+
+void* c_profile_option_menu::load_voice_output(c_screen_parameters* parameters)
+{
+	return load_definition(parameters, &k_profile_voice_output_menu);
+}
+
+void* c_profile_option_menu::load_voice_masking(c_screen_parameters* parameters)
+{
+	return load_definition(parameters, &k_profile_voice_masking_menu);
+}
+
+void* c_profile_option_menu::load_online_status(c_screen_parameters* parameters)
+{
+	return load_definition(parameters, &k_profile_online_status_menu);
+}
+
+void c_profile_option_menu::initialize(c_screen_parameters* screen_parameters)
+{
+	c_screen_with_menu::initialize(screen_parameters);
+
+	c_text_widget* header = get_screen_header_text();
+	if (header != nullptr)
+	{
+		header->set_text(m_definition->header);
+	}
+	c_text_widget* subheader = get_screen_subheader_text();
+	if (subheader != nullptr)
+	{
+		subheader->set_text(m_definition->description);
+	}
+}
+
+void c_profile_option_menu::post_initialize()
+{
+	c_screen_with_menu::post_initialize();
+
+	const uint8* value = profile_option_get(m_definition);
+	if (value != nullptr && *value < m_definition->option_count)
+	{
+		m_option_list.set_focused_item_index(*value);
+	}
+}
+
+const void* c_profile_option_menu::load_proc(void) const
+{
+	return m_definition == &k_profile_voice_output_menu ? (const void*)c_profile_option_menu::load_voice_output
+		: m_definition == &k_profile_voice_masking_menu ? (const void*)c_profile_option_menu::load_voice_masking
+		: (const void*)c_profile_option_menu::load_online_status;
+}
+
+// player profile edit list (halo2.exe c_player_profile_edit_list): Nameplate and Rank added under Appearance, and the
+// Xbox's Voice Output, Voice Masking, Online Status and Subtitles after the game's own items. One pane per item
+enum e_profile_edit_list_item : int16
+{
+	_profile_edit_item_appearance,		// the game's item 0
+	_profile_edit_item_nameplate,
+	_profile_edit_item_rank,
+	_profile_edit_item_controller,		// the game's item 1
+	_profile_edit_item_keyboard,		// the game's item 2
+	_profile_edit_item_voice_output,
+	_profile_edit_item_voice_masking,
+	_profile_edit_item_online_status,
+	_profile_edit_item_subtitles,
+	k_profile_edit_list_data_count
+};
+#define k_profile_edit_list_game_item_count 3
 #define k_profile_edit_screen_widget_tag "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile_menu"
+
+// the game's item for a list item (NONE for the LAN edition's)
+static int16 profile_edit_list_game_item(int16 item_index)
+{
+	switch (item_index)
+	{
+	case _profile_edit_item_appearance: return 0;
+	case _profile_edit_item_controller: return 1;
+	case _profile_edit_item_keyboard: return 2;
+	default: return NONE;
+	}
+}
+
+static const wchar_t* profile_edit_list_item_name(int16 item_index)
+{
+	switch (item_index)
+	{
+	case _profile_edit_item_nameplate: return L"Nameplate";
+	case _profile_edit_item_rank: return L"Rank";
+	case _profile_edit_item_voice_output: return L"Voice Output";
+	case _profile_edit_item_voice_masking: return L"Voice Masking";
+	case _profile_edit_item_online_status: return L"Online Status";
+	case _profile_edit_item_subtitles: return L"Subtitles";
+	default: return L"";
+	}
+}
 
 // the lobby shows nameplate bitmap (user role - 1), role 0 and 1 both show the default one
 int8 nameplate_get_user_role(e_controller_index controller_index)
@@ -1240,23 +1428,20 @@ static void __fastcall profile_edit_list_update_list_items(void* list, void* edx
 {
 	int16* item_data_index = (int16*)((uint8*)item + 0x70);
 	const int16 item_index = *item_data_index;
+	const int16 game_item_index = profile_edit_list_game_item(item_index);
 
-	if (item_index == k_profile_edit_list_nameplate_item || item_index == k_profile_edit_list_rank_item)
+	if (game_item_index == NONE)
 	{
 		void* text = INVOKE_TYPE(0x211973, 0x0, void*(__thiscall*)(void*, int32), item, 0);
 		if (text != nullptr)
 		{
-			INVOKE_TYPE(0x21BAA9, 0x0, void(__thiscall*)(void*, const wchar_t*), text,
-				item_index == k_profile_edit_list_nameplate_item ? L"Nameplate" : L"Rank");
+			INVOKE_TYPE(0x21BAA9, 0x0, void(__thiscall*)(void*, const wchar_t*), text, profile_edit_list_item_name(item_index));
 		}
 		return;
 	}
 
-	// the game's own items after Nameplate and Rank are two places further down
-	if (item_index > k_profile_edit_list_last_custom_item)
-	{
-		*item_data_index = item_index - k_profile_edit_list_custom_item_count;
-	}
+	// the game's own items are further down the list than they were
+	*item_data_index = game_item_index;
 	INVOKE_TYPE(0x24C6AC, 0x0, void(__thiscall*)(void*, void*, int32), list, item, skin_index);
 	*item_data_index = item_index;
 }
@@ -1269,34 +1454,37 @@ static void __fastcall profile_edit_list_handle_item_pressed(void* list, void* e
 	}
 
 	const int16 list_item_index = DATUM_INDEX_TO_ABSOLUTE_INDEX(*item_index);
-	if (list_item_index == k_profile_edit_list_nameplate_item)
-	{
-		// same call the game uses to open the profile sub menus
-		INVOKE_TYPE(0x20C851, 0x0, void(__cdecl*)(uint32, void*), FLAG((*event)->controller), (void*)c_nameplates_menu::load);
-		return;
-	}
-
-	if (list_item_index == k_profile_edit_list_rank_item)
-	{
-		INVOKE_TYPE(0x20C851, 0x0, void(__cdecl*)(uint32, void*), FLAG((*event)->controller), (void*)c_rank_menu::load);
-		return;
-	}
-
-	if (list_item_index > k_profile_edit_list_last_custom_item)
+	const int16 game_item_index = profile_edit_list_game_item(list_item_index);
+	if (game_item_index != NONE)
 	{
 		data_array* data = *(data_array**)((uint8*)list + 0x70);
-		const int16 game_item_index = list_item_index - k_profile_edit_list_custom_item_count;
 		const uint16 identifier = *(uint16*)((uint8*)data->data + data->size * game_item_index);
 		datum game_item_datum = DATUM_INDEX_NEW(game_item_index, identifier);
 		INVOKE_TYPE(0x24CD82, 0x0, void(__thiscall*)(void*, s_event_record**, datum*), list, event, &game_item_datum);
 		return;
 	}
 
-	INVOKE_TYPE(0x24CD82, 0x0, void(__thiscall*)(void*, s_event_record**, datum*), list, event, item_index);
+	// same call the game uses to open the profile sub menus
+	void* load = nullptr;
+	switch (list_item_index)
+	{
+	case _profile_edit_item_nameplate: load = (void*)c_nameplates_menu::load; break;
+	case _profile_edit_item_rank: load = (void*)c_rank_menu::load; break;
+	case _profile_edit_item_voice_output: load = (void*)c_profile_option_menu::load_voice_output; break;
+	case _profile_edit_item_voice_masking: load = (void*)c_profile_option_menu::load_voice_masking; break;
+	case _profile_edit_item_online_status: load = (void*)c_profile_option_menu::load_online_status; break;
+	// the game's subtitles screen (c_screen_subtitle_display, still used by another settings list), which sets the
+	// edited profile's subtitles
+	case _profile_edit_item_subtitles: load = Memory::GetAddress<void*>(0x2273DC); break;
+	}
+	if (load != nullptr)
+	{
+		INVOKE_TYPE(0x20C851, 0x0, void(__cdecl*)(uint32, void*), FLAG((*event)->controller), load);
+	}
 }
 
-// the list has room for 3 item widgets (screen + 0xA60 + 0xB0), all 5 items are shown with 5 item widgets placed after the
-// screen object (which is allocated bigger for them)
+// the list has room for 3 item widgets (screen + 0xA60 + 0xB0): 5 item widgets placed after the screen object (which is
+// allocated bigger for them) show 5 items at a time, the list scrolling through the rest
 #define k_profile_edit_screen_size 0xCB8
 #define k_profile_edit_list_offset 0xA60
 #define k_profile_edit_list_item_count 5
@@ -1339,13 +1527,82 @@ static void __fastcall profile_edit_list_destructor(void* list, void* edx)
 	INVOKE_TYPE(0x23B7CA, 0x0, void(__thiscall*)(void*), list);
 }
 
+// the Xbox's panes for its items, after its picture (edit_profile bitmap: the Xbox's speakers, added by the map build, and
+// the headset, the Xbox Live figure and the television the PC map kept) and its texts (bounds: the Xbox's, at the PC
+// pictures' size and place)
+struct s_profile_edit_pane_texts
+{
+	int16 item;
+	int16 picture_frame;
+	const wchar_t* description;
+	const wchar_t* callout_1;
+	rectangle2d callout_1_bounds;
+	const wchar_t* callout_2;
+	rectangle2d callout_2_bounds;
+};
+#define k_profile_edit_binary_callout L"0001001\r\n0101010\r\n1000101\r\n0101001\r\n0001001\r\n0101010\r\n1000101\r\n0101001"
+static const s_profile_edit_pane_texts k_profile_edit_pane_texts[] =
+{
+	{
+		_profile_edit_item_voice_output, 7,
+		L"Play multiplayer voice through your headset or through your system speakers.",
+		L"People will think you are a psycho arguing with himself in the middle of your living room.", { 300, 20, 190, 330 },
+		L"", { 0, 0, 0, 0 },
+	},
+	{
+		_profile_edit_item_voice_masking, 3,
+		L"Disguise your voice in multiplayer games with an anonymous voice mask.",
+		L"The only water stuff item!!! soffish will be woken up by water and look so alive!! As bath-toy is also very fun.", { 232, -485, 108, -330 },
+		L"This soffish do not eat. Real fishes might hurt human body. soffish is 100% harmless.", { 122, -165, 32, 40 },
+	},
+	{
+		_profile_edit_item_online_status, 4,
+		L"Set your status to appear offline when you want to be left alone.",
+		L"Online\r\nOffline\r\nVoice\r\nMuted\r\nRank\r\nStatus\r\nMessage\r\nRequest\r\nInvite\r\nParty\r\nClan", { 255, -140, 20, -60 },
+		k_profile_edit_binary_callout, { 204, -52, 20, 28 },
+	},
+	{
+		_profile_edit_item_subtitles, 5,
+		L"Control whether or not subtitles are shown during cinematics.",
+		L"If toast always lands butter-side down, and cats always land on their feet, what happens if you strap toast on the back of a cat --and drop it?", { 300, 40, 160, 330 },
+		k_profile_edit_binary_callout, { 204, -52, 20, 28 },
+	},
+};
+#define k_profile_edit_speakers_frame 7
+#define k_profile_edit_appearance_picture_frame 1
+
+static const s_profile_edit_pane_texts* profile_edit_pane_texts_get(int16 pane_index)
+{
+	for (int32 index = 0; index < (int32)NUMBEROF(k_profile_edit_pane_texts); index++)
+	{
+		if (k_profile_edit_pane_texts[index].item == pane_index)
+		{
+			return &k_profile_edit_pane_texts[index];
+		}
+	}
+	return nullptr;
+}
+
 // c_screen_player_profile_edit::post_initialize_button_keys, runs on every pane switch: texts of the Nameplate pane
 static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_widget* screen, void* edx)
 {
 	INVOKE_TYPE(0x210B4E, 0x0, void(__thiscall*)(c_screen_widget*), screen);
 
 	const int16 pane_index = *(int16*)((uint8*)screen + 0x9F8);
-	if (pane_index == k_profile_edit_list_nameplate_item)
+	const s_profile_edit_pane_texts* texts = profile_edit_pane_texts_get(pane_index);
+	if (texts != nullptr)
+	{
+		const wchar_t* strings[] = { texts->description, texts->callout_1, texts->callout_2 };
+		for (int32 index = 0; index < (int32)NUMBEROF(strings); index++)
+		{
+			c_text_widget* text = screen->try_find_screen_text(index);
+			if (text != nullptr)
+			{
+				text->set_text(strings[index]);
+			}
+		}
+	}
+	else if (pane_index == _profile_edit_item_nameplate)
 	{
 		c_text_widget* description = screen->try_find_screen_text(0);
 		if (description != nullptr)
@@ -1364,7 +1621,7 @@ static void __fastcall player_profile_edit_post_initialize_button_keys(c_screen_
 			unused_callout->set_text(L"");
 		}
 	}
-	else if (pane_index == k_profile_edit_list_rank_item)
+	else if (pane_index == _profile_edit_item_rank)
 	{
 		c_text_widget* description = screen->try_find_screen_text(0);
 		if (description != nullptr)
@@ -1403,8 +1660,8 @@ static void __cdecl user_interface_controller_get_user_properties_nameplate(e_co
 
 void nameplates_apply_patches(void)
 {
-	// player profile edit list: 5 items instead of 3 (push 3 -> push 5 for the list data count)
-	WriteValue<uint8>(Memory::GetAddressRelative(0x64CE7C), k_profile_edit_list_item_count);
+	// player profile edit list: 9 items instead of 3 (push 3 -> push 9 for the list data count)
+	WriteValue<uint8>(Memory::GetAddressRelative(0x64CE7C), k_profile_edit_list_data_count);
 	WritePointer(Memory::GetAddressRelative(0x7D894C) + 24 * sizeof(void*), (void*)profile_edit_list_update_list_items);
 	WritePointer(Memory::GetAddressRelative(0x64CE75), (void*)profile_edit_list_handle_item_pressed);
 	WritePointer(Memory::GetAddressRelative(0x7D3134) + 24 * sizeof(void*), (void*)player_profile_edit_post_initialize_button_keys);
@@ -1443,17 +1700,41 @@ void nameplates_apply_patches_on_map_load(void)
 		return;
 	}
 
-	tag_injection_extend_block(&widget->panes, sizeof(s_window_pane_reference), k_profile_edit_list_custom_item_count);
-	for (int32 pane_index = widget->panes.count - 1; pane_index > k_profile_edit_list_last_custom_item; pane_index--)
+	tag_injection_extend_block(&widget->panes, sizeof(s_window_pane_reference), k_profile_edit_list_data_count - k_profile_edit_list_game_item_count);
+	*user_interface_widget_pane_get(&widget->panes, _profile_edit_item_keyboard) = *user_interface_widget_pane_get(&widget->panes, 2);
+	*user_interface_widget_pane_get(&widget->panes, _profile_edit_item_controller) = *user_interface_widget_pane_get(&widget->panes, 1);
+
+	// the Xbox's panes: copies of the Appearance pane with their own picture (in place of the helmet, picture block 4) and
+	// callouts. The speakers are only there with the map build's picture (otherwise the headset)
+	const datum edit_profile_bitmap = tag_loaded(_tag_group_bitmap, "ui\\screens\\game_shell\\settings_screen\\player_profile\\edit_profile");
+	const bool have_speakers = edit_profile_bitmap != NONE && bitmap_group_get(edit_profile_bitmap)->bitmaps.count > k_profile_edit_speakers_frame;
+	for (int32 index = 0; index < (int32)NUMBEROF(k_profile_edit_pane_texts); index++)
 	{
-		*user_interface_widget_pane_get(&widget->panes, pane_index) = *user_interface_widget_pane_get(&widget->panes, pane_index - k_profile_edit_list_custom_item_count);
+		const s_profile_edit_pane_texts* texts = &k_profile_edit_pane_texts[index];
+		s_window_pane_reference* pane = user_interface_widget_pane_get(&widget->panes, texts->item);
+		*pane = *user_interface_widget_pane_get(&widget->panes, _profile_edit_item_appearance);
+		tag_injection_extend_block(&pane->bitmap_blocks, sizeof(s_bitmap_block_reference), 0);
+		for (int32 block_index = 0; block_index < pane->bitmap_blocks.count; block_index++)
+		{
+			s_bitmap_block_reference* block = TAG_BLOCK_GET_ELEMENT(&pane->bitmap_blocks, block_index, s_bitmap_block_reference);
+			if (block->bitmap_tag.index == edit_profile_bitmap && block->initial_sprite_frame == k_profile_edit_appearance_picture_frame)
+			{
+				block->initial_sprite_frame = (texts->picture_frame == k_profile_edit_speakers_frame && !have_speakers) ? 3 : texts->picture_frame;
+			}
+		}
+		tag_injection_extend_block(&pane->text_blocks, sizeof(s_text_block_reference), 0);
+		if (pane->text_blocks.count > 2)
+		{
+			TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, 1, s_text_block_reference)->text_bounds = texts->callout_1_bounds;
+			TAG_BLOCK_GET_ELEMENT(&pane->text_blocks, 2, s_text_block_reference)->text_bounds = texts->callout_2_bounds;
+		}
 	}
 
 	// the Rank pane is a copy of the Appearance pane with its own text blocks; its picture is the Marathon symbol added to
 	// the LAN edition mainmenu.map (multiplayer49 extra bitmap 9, a 440x414 picture with the symbol in the 292x302 at the
 	// top left, appended by digsite_apply_patches_on_map_load) in place of the helmet, with one callout placed like the
 	// Nameplate logo's
-	s_window_pane_reference* rank_pane = user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_rank_item);
+	s_window_pane_reference* rank_pane = user_interface_widget_pane_get(&widget->panes, _profile_edit_item_rank);
 	*rank_pane = *user_interface_widget_pane_get(&widget->panes, 0);
 	tag_injection_extend_block(&rank_pane->text_blocks, sizeof(s_text_block_reference), 0);
 	if (rank_pane->text_blocks.count > 2)
@@ -1472,7 +1753,7 @@ void nameplates_apply_patches_on_map_load(void)
 		picture->bitmap_tag.index = rank_picture_bitmap;
 		picture->initial_sprite_frame = 9;
 	}
-	s_window_pane_reference* nameplate_pane = user_interface_widget_pane_get(&widget->panes, k_profile_edit_list_nameplate_item);
+	s_window_pane_reference* nameplate_pane = user_interface_widget_pane_get(&widget->panes, _profile_edit_item_nameplate);
 	*nameplate_pane = *user_interface_widget_pane_get(&widget->panes, 0);
 
 	// the Nameplate pane shows the Seventh Column logo added to the LAN edition mainmenu.map (mp_games bitmap 5, an unused
