@@ -96,12 +96,11 @@ enum e_controller_signin_bitmaps
 	_controller_signin_bitmap_duke,
 	// LAN edition: added by the map build (digsite)
 	_controller_signin_bitmap_xbox_360,
-	_controller_signin_bitmap_xbox_one,
 	k_number_of_controller_signin_bitmap_types
 };
 
-// LAN edition: the controller a joining player is shown with: the one the button glyphs are for (the Xbox 360 and Xbox
-// One pictures only with the map build's five pictures; the Controller S otherwise)
+// LAN edition: the controller a joining player is shown with: the one the button glyphs are for (the Xbox 360 picture
+// only with the map build's; the Controller S otherwise)
 #define k_controller_signin_bitmap_tag "ui\\screens\\game_shell\\4way_multiplayer_signin\\controller_signin"
 static e_controller_signin_bitmaps controller_signin_bitmap_for_button_glyphs(void)
 {
@@ -110,12 +109,11 @@ static e_controller_signin_bitmaps controller_signin_bitmap_for_button_glyphs(vo
 	case _button_glyph_style_xbox_duke:
 		return _controller_signin_bitmap_duke;
 	case _button_glyph_style_xbox_360:
-	case _button_glyph_style_modern:
 	{
 		const datum bitmap_index = tag_loaded(_tag_group_bitmap, k_controller_signin_bitmap_tag);
 		if (bitmap_index != NONE && bitmap_group_get(bitmap_index)->bitmaps.count >= k_number_of_controller_signin_bitmap_types)
 		{
-			return H2Config_button_glyphs == _button_glyph_style_modern ? _controller_signin_bitmap_xbox_one : _controller_signin_bitmap_xbox_360;
+			return _controller_signin_bitmap_xbox_360;
 		}
 		return _controller_signin_bitmap_akebono;
 	}

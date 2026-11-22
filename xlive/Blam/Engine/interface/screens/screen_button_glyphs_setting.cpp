@@ -29,14 +29,12 @@ static const e_button_glyph_style k_button_glyphs_list_styles[k_button_glyph_sty
 	_button_glyph_style_xbox_duke,
 	_button_glyph_style_xbox_s,
 	_button_glyph_style_xbox_360,
-	_button_glyph_style_modern,
 };
 static const wchar_t* const k_button_glyphs_options_string[k_button_glyph_style_count] =
 {
 	L"Xbox Duke",
 	L"Xbox S",
 	L"Xbox 360",
-	L"Modern",
 };
 
 static int32 button_glyphs_list_index_from_style(e_button_glyph_style style)

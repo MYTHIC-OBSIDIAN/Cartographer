@@ -27,7 +27,6 @@ static const char* const k_font_table_names[k_button_glyph_style_count] =
 {
 	"font_table_xbox",		// Xbox Duke
 	"font_table",			// Xbox 360 (the game's own)
-	"font_table_modern",	// Modern
 	"font_table_xbox",		// Xbox S
 };
 

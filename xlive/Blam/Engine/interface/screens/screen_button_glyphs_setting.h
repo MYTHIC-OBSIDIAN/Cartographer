@@ -3,12 +3,12 @@
 #include "interface/user_interface_widget_list_item.h"
 #include "interface/user_interface_widget_window.h"
 
-// LAN edition: Settings > Video > Button Glyphs (Xbox Duke / Xbox S / Xbox 360 / Modern)
+// LAN edition: Settings > Video > Button Glyphs (Xbox Duke / Xbox S / Xbox 360)
 
 /* constants */
 enum
 {
-	k_no_of_visible_items_for_button_glyphs = 4
+	k_no_of_visible_items_for_button_glyphs = 3
 };
 
 /* prototypes */

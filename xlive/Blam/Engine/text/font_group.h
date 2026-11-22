@@ -33,7 +33,6 @@ enum e_button_glyph_style : int32
 {
 	_button_glyph_style_xbox_duke = 0,		// font_table_xbox.txt (saved as 0 when it was "Original Xbox")
 	_button_glyph_style_xbox_360,			// font_table.txt
-	_button_glyph_style_modern,				// font_table_modern.txt
 	_button_glyph_style_xbox_s,				// font_table_xbox.txt (the Duke's and the Controller S's buttons are the same)
 	k_button_glyph_style_count
 };
@@ -41,7 +40,7 @@ enum e_button_glyph_style : int32
 // before the fonts are loaded: use the font table for this style
 void font_table_apply_patches(e_button_glyph_style style);
 
-// the font table for the Button Glyphs setting, without ".txt" (font_table, font_table_xbox or font_table_modern)
+// the font table for the Button Glyphs setting, without ".txt" (font_table or font_table_xbox)
 const char* font_table_get_name(void);
 
 // picks the font table without reloading (after the config is read, before the fonts are loaded)
