@@ -94,8 +94,36 @@ enum e_controller_signin_bitmaps
 	_controller_signin_bitmap_missing = 0,
 	_controller_signin_bitmap_akebono,
 	_controller_signin_bitmap_duke,
+	// LAN edition: added by the map build (digsite)
+	_controller_signin_bitmap_xbox_360,
+	_controller_signin_bitmap_xbox_one,
 	k_number_of_controller_signin_bitmap_types
 };
+
+// LAN edition: the controller a joining player is shown with: the one the button glyphs are for (the Xbox 360 and Xbox
+// One pictures only with the map build's five pictures; the Controller S otherwise)
+#define k_controller_signin_bitmap_tag "ui\\screens\\game_shell\\4way_multiplayer_signin\\controller_signin"
+static e_controller_signin_bitmaps controller_signin_bitmap_for_button_glyphs(void)
+{
+	switch (H2Config_button_glyphs)
+	{
+	case _button_glyph_style_xbox_duke:
+		return _controller_signin_bitmap_duke;
+	case _button_glyph_style_xbox_360:
+	case _button_glyph_style_modern:
+	{
+		const datum bitmap_index = tag_loaded(_tag_group_bitmap, k_controller_signin_bitmap_tag);
+		if (bitmap_index != NONE && bitmap_group_get(bitmap_index)->bitmaps.count >= k_number_of_controller_signin_bitmap_types)
+		{
+			return H2Config_button_glyphs == _button_glyph_style_modern ? _controller_signin_bitmap_xbox_one : _controller_signin_bitmap_xbox_360;
+		}
+		return _controller_signin_bitmap_akebono;
+	}
+	case _button_glyph_style_xbox_s:
+	default:
+		return _controller_signin_bitmap_akebono;
+	}
+}
 
 enum e_edit_profile_bitmaps
 {
@@ -361,9 +389,8 @@ void c_screen_4way_signin::update(void)
 			if (should_show_bitmap)
 			{
 				// We dont really have a way to determine controller_types between akebono and duke, using either is fine.
-				// LAN edition: the controller the button glyphs are for: the Duke with the Xbox Duke glyphs, the Controller S
-				// (akebono) otherwise (the game has no Xbox 360 picture here)
-				const e_controller_signin_bitmaps connected_bitmap = H2Config_button_glyphs == _button_glyph_style_xbox_duke ? _controller_signin_bitmap_duke : _controller_signin_bitmap_akebono;
+				// LAN edition: the controller the button glyphs are for
+				const e_controller_signin_bitmaps connected_bitmap = controller_signin_bitmap_for_button_glyphs();
 				const int16 bitmap_update_idx = (int16)(gamepad_connected ? connected_bitmap : _controller_signin_bitmap_missing);
 				controller_signin_bitmap->verify_and_change_sprite(bitmap_update_idx);
 

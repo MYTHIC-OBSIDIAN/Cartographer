@@ -950,6 +950,12 @@ static const s_digsite_custom_map_description* digsite_custom_map_get_descriptio
 #define k_digsite_extra_preview_table_offset 0x50
 #define k_digsite_extra_preview_table_magic 'PXGD'	// "DGXP" in the file
 #define k_digsite_extra_preview_max_count 13		// what fits in the 0x74 bytes
+#define k_digsite_signin_controller_tag "ui\\screens\\game_shell\\4way_multiplayer_signin\\controller_signin"
+#define k_digsite_signin_controller_first_extra 7	// the extra pictures' Xbox 360 and Xbox One controllers
+#define k_digsite_signin_controller_count 2
+#define k_digsite_signin_controller_stock_count 3
+#define k_digsite_signin_controller_width 174
+#define k_digsite_signin_controller_height 142
 
 void digsite_apply_patches_on_map_load(void)
 {
@@ -989,6 +995,32 @@ void digsite_apply_patches_on_map_load(void)
 		// with the runtime data cleared made the game use a null pointer (halo2.exe+0x265A18)
 		bitmap[9] = 0;	// more_flags
 		csmemset(bitmap + 0x50, 0, sizeof(bitmap_data) - 0x50);	// runtime data (zero in the map file)
+	}
+
+	// the 4-way sign-in's Xbox 360 and Xbox One controller pictures (extra pictures 7 and 8, 174x142): added to its
+	// controller_signin bitmap after its three (unknown, Controller S, Duke), see controller_signin_bitmap_for_button_glyphs
+	const datum signin_tag = tag_loaded(_tag_group_bitmap, k_digsite_signin_controller_tag);
+	if (signin_tag != NONE && count >= k_digsite_signin_controller_first_extra + k_digsite_signin_controller_count)
+	{
+		bitmap_group* signin = bitmap_group_get(signin_tag);
+		if (signin->bitmaps.count == k_digsite_signin_controller_stock_count)
+		{
+			tag_injection_extend_block(&signin->bitmaps, sizeof(bitmap_data), k_digsite_signin_controller_count);
+			const bitmap_data* stock = TAG_BLOCK_GET_ELEMENT((s_tag_block*)&signin->bitmaps, 0, bitmap_data);
+			for (uint32 i = 0; i < k_digsite_signin_controller_count; i++)
+			{
+				uint8* bitmap = (uint8*)TAG_BLOCK_GET_ELEMENT((s_tag_block*)&signin->bitmaps, k_digsite_signin_controller_stock_count + i, bitmap_data);
+				csmemcpy(bitmap, stock, sizeof(bitmap_data));
+				*(int16*)(bitmap + 0x04) = k_digsite_signin_controller_width;
+				*(int16*)(bitmap + 0x06) = k_digsite_signin_controller_height;
+				*(int16*)(bitmap + 0x10) = k_digsite_signin_controller_width / 2;	// registration point
+				*(int16*)(bitmap + 0x12) = k_digsite_signin_controller_height / 2;
+				*(uint32*)(bitmap + 0x1C) = raw[k_digsite_signin_controller_first_extra + i][0];
+				*(uint32*)(bitmap + 0x34) = raw[k_digsite_signin_controller_first_extra + i][1];
+				bitmap[9] = 0;
+				csmemset(bitmap + 0x50, 0, sizeof(bitmap_data) - 0x50);
+			}
+		}
 	}
 	return;
 }
