@@ -991,10 +991,10 @@ void digsite_apply_patches_on_map_load(void)
 
 	const uint32* table = (const uint32*)((const uint8*)group + k_digsite_extra_preview_table_offset);
 	const uint32 count = table[1];
-	const bool table_v2 = table[0] == k_digsite_extra_preview_table_magic_v2;
+	const bool table_v2 = table[0] == (uint32)k_digsite_extra_preview_table_magic_v2;
 	if ((table[0] != k_digsite_extra_preview_table_magic && !table_v2)
 		|| count == 0
-		|| count > (table_v2 ? k_digsite_extra_preview_max_count : k_digsite_extra_preview_max_count_v1))
+		|| count > (uint32)(table_v2 ? k_digsite_extra_preview_max_count : k_digsite_extra_preview_max_count_v1))
 	{
 		// mainmenu.map without extra previews
 		return;
