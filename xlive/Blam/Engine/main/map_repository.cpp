@@ -850,6 +850,7 @@ static const wchar_t* const k_digsite_custom_map_files[] =
 	L"solitude",
 	L"sunken_chamber",
 	L"arcology",
+	L"arcology_playground",
 	L"bloodgulch_test",
 	L"m1_assault",
 	L"m1_defense",
@@ -909,6 +910,8 @@ static const s_digsite_custom_map_preview k_digsite_custom_map_previews[] =
 	// bitmaps 6 and up are added to the tag when the main menu loads, see digsite_apply_patches_on_map_load
 	{ L"permafrost",       "ui\\code_global_bitmaps\\multiplayer49", 6 },
 	{ L"alphamoon",        "ui\\code_global_bitmaps\\multiplayer49", 7 },
+	// extra picture 13: the concept art of Mombasa's arcology
+	{ L"arcology_playground", "ui\\code_global_bitmaps\\multiplayer49", 19 },
 };
 
 // names and descriptions of DIGSITE map files, shown in place of the map file's own (nullptr keeps the map's own)
@@ -944,12 +947,16 @@ static const s_digsite_custom_map_description* digsite_custom_map_get_descriptio
 
 // multiplayer49 holds its previews in a block moved into the meta padding of the LAN edition mainmenu.map, which has room
 // for 6; the rest are appended here at map load. The map stores a table where the tag's own one-bitmap block was
-// (tag + 0x50): 'DGXP', count, then count x (raw data offset, raw data size), each 440x414 like bitmap 0
+// (tag + 0x50), each picture 440x414 like bitmap 0 (unless another bitmap's, see below):
+//  - 'DGXP', count, then count x (raw data offset, raw data size): 13 pictures
+//  - 'DGX2', count, then count x (raw data offset / 0x200: 3 bytes, raw data size: 3 bytes): 18 pictures
 #define k_digsite_extra_preview_tag "ui\\code_global_bitmaps\\multiplayer49"
 #define k_digsite_extra_preview_bitmaps_in_map 6
 #define k_digsite_extra_preview_table_offset 0x50
 #define k_digsite_extra_preview_table_magic 'PXGD'	// "DGXP" in the file
-#define k_digsite_extra_preview_max_count 13		// what fits in the 0x74 bytes
+#define k_digsite_extra_preview_table_magic_v2 '2XGD'	// "DGX2" in the file
+#define k_digsite_extra_preview_max_count_v1 13		// what fits in the 0x74 bytes
+#define k_digsite_extra_preview_max_count 18
 // the extra pictures that are another bitmap's (A8R8G8B8, like the bitmap's first): appended to it at map load
 struct s_digsite_extra_picture_target
 {
@@ -984,7 +991,10 @@ void digsite_apply_patches_on_map_load(void)
 
 	const uint32* table = (const uint32*)((const uint8*)group + k_digsite_extra_preview_table_offset);
 	const uint32 count = table[1];
-	if (table[0] != k_digsite_extra_preview_table_magic || count == 0 || count > k_digsite_extra_preview_max_count)
+	const bool table_v2 = table[0] == k_digsite_extra_preview_table_magic_v2;
+	if ((table[0] != k_digsite_extra_preview_table_magic && !table_v2)
+		|| count == 0
+		|| count > (table_v2 ? k_digsite_extra_preview_max_count : k_digsite_extra_preview_max_count_v1))
 	{
 		// mainmenu.map without extra previews
 		return;
@@ -992,7 +1002,20 @@ void digsite_apply_patches_on_map_load(void)
 
 	// copy the table first: extending the block doesn't move the tag, but keep it simple
 	uint32 raw[k_digsite_extra_preview_max_count][2];
-	csmemcpy(raw, &table[2], sizeof(uint32) * 2 * count);
+	for (uint32 i = 0; i < count; i++)
+	{
+		if (table_v2)
+		{
+			const uint8* entry = (const uint8*)&table[2] + 6 * i;
+			raw[i][0] = ((uint32)entry[0] | ((uint32)entry[1] << 8) | ((uint32)entry[2] << 16)) << 9;
+			raw[i][1] = (uint32)entry[3] | ((uint32)entry[4] << 8) | ((uint32)entry[5] << 16);
+		}
+		else
+		{
+			raw[i][0] = table[2 + 2 * i];
+			raw[i][1] = table[3 + 2 * i];
+		}
+	}
 
 	tag_injection_extend_block(&group->bitmaps, sizeof(bitmap_data), count);
 	const bitmap_data* first = TAG_BLOCK_GET_ELEMENT((s_tag_block*)&group->bitmaps, 0, bitmap_data);
@@ -1085,12 +1108,13 @@ static const s_digsite_list_entry k_digsite_list_order[] =
 	{ false, L"03_lockout" },         // Lockout 2003
 	{ false, L"03_midship" },         // Midship 2003
 	{ false, L"03_waterworks" },      // Waterworks 2003
+	{ false, L"earth_ark" },          // Earth Ark
 	{ false, L"bloodgulch_test" },    // Coagulation Test
 	{ false, L"arcology" },           // Arcology
+	{ false, L"arcology_playground" },// Playground (Arcology)
 	{ false, L"m1_assault" },         // M1 Assault
 	{ false, L"m1_defense" },         // M1 Defense
 	{ false, L"m1_exploration" },     // M1 Exploration
-	{ false, L"earth_ark" },          // Earth Ark
 	{ false, L"alphamoon" },          // Alpha Moon
 	{ false, L"earthcity_e3" },       // E3 2003 Demo (campaign map)
 };
