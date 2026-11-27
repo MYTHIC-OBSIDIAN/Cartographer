@@ -858,6 +858,8 @@ static const wchar_t* const k_digsite_custom_map_files[] =
 	L"earthcity_e3",
 	L"permafrost",
 	L"alphamoon",
+	L"backwoods",
+	L"06_convergence",
 	// were built-in levels (still in the mainmenu.map level list, which gives their name, description and picture)
 	L"anchor_point",
 	L"convergence",
@@ -912,6 +914,9 @@ static const s_digsite_custom_map_preview k_digsite_custom_map_previews[] =
 	{ L"alphamoon",        "ui\\code_global_bitmaps\\multiplayer49", 7 },
 	// extra picture 13: the concept art of Mombasa's arcology
 	{ L"arcology_playground", "ui\\code_global_bitmaps\\multiplayer49", 19 },
+	// extra pictures 14 and 15: screenshots of the maps
+	{ L"backwoods",        "ui\\code_global_bitmaps\\multiplayer49", 20 },
+	{ L"06_convergence",   "ui\\code_global_bitmaps\\multiplayer49", 21 },
 };
 
 // names and descriptions of DIGSITE map files, shown in place of the map file's own (nullptr keeps the map's own)
@@ -926,6 +931,8 @@ static const s_digsite_custom_map_description k_digsite_custom_map_descriptions[
 {
 	{ L"permafrost", nullptr,       L"Bundle up!" },
 	{ L"alphamoon",  L"Alpha Moon", nullptr },
+	{ L"backwoods",  L"Backwoods",  L"Private property." },
+	{ L"06_convergence", L"06 Convergence", L"It's all coming together." },
 };
 
 static void custom_map_file_get_name(const wchar_t* file_path, wchar_t* out_name, size_t out_name_count);
@@ -1081,8 +1088,10 @@ static const s_digsite_list_entry k_digsite_list_order[] =
 {
 	{ false, L"anchor_point" },       // Anchor Point
 	{ false, L"artery" },             // Artery
+	{ false, L"backwoods" },          // Backwoods
 	{ false, L"cloud_city" },         // Cloud City
 	{ false, L"convergence" },        // Convergence
+	{ false, L"06_convergence" },     // 06 Convergence
 	{ false, L"convict" },            // Convict
 	{ false, L"timberland" },         // Deforestation
 	{ false, L"evergreen" },          // Evergreen
