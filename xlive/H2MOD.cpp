@@ -719,6 +719,52 @@ static void h2mod_apply_hooks(void)
 	return;
 }
 
+// LAN edition: the original Xbox's startup animation plays before the game's intro (movie\\intro_60.wmv), when the
+// file is there. The game starts the intro with movie_play (0x43A2B7, path and flags); the Xbox's plays first with the
+// intro's flags (so it can be skipped the same way), and when it stops (movie_stop, 0x43A0E6: played to the end or
+// skipped) the intro is started
+#define k_startup_movie_path "movie\\xbox_startup_60.wmv"
+
+typedef void(__cdecl* movie_play_t)(const char* path, uint32 flags);
+static movie_play_t p_movie_play;
+typedef void(__cdecl* movie_stop_t)(void);
+static movie_stop_t p_movie_stop;
+
+static bool g_startup_movie_played = false;
+static char g_startup_next_movie_path[MAX_PATH] = "";
+static uint32 g_startup_next_movie_flags = 0;
+
+static void __cdecl movie_play_hook(const char* path, uint32 flags)
+{
+	if (!g_startup_movie_played && path != nullptr && strstr(path, "intro") != nullptr)
+	{
+		g_startup_movie_played = true;
+		if (GetFileAttributesA(k_startup_movie_path) != INVALID_FILE_ATTRIBUTES)
+		{
+			strncpy_s(g_startup_next_movie_path, path, _TRUNCATE);
+			g_startup_next_movie_flags = flags;
+			p_movie_play(k_startup_movie_path, flags);
+			return;
+		}
+	}
+	p_movie_play(path, flags);
+	return;
+}
+
+static void __cdecl movie_stop_hook(void)
+{
+	p_movie_stop();
+	if (g_startup_next_movie_path[0] != '\0')
+	{
+		char path[MAX_PATH];
+		strncpy_s(path, g_startup_next_movie_path, _TRUNCATE);
+		g_startup_next_movie_path[0] = '\0';
+		// movie_play first releases the stopped movie
+		p_movie_play(path, g_startup_next_movie_flags);
+	}
+	return;
+}
+
 static void h2mod_apply_tweaks(void)
 {
 	if (shell_is_dedicated_server())
@@ -732,6 +778,12 @@ static void h2mod_apply_tweaks(void)
 		if (!H2Config_skip_intro && intro_high_quality_flag) {
 			BYTE assmIntroHQ[] = { 0xEB };
 			WriteBytes(Memory::GetAddress(0x221C29), assmIntroHQ, sizeof(assmIntroHQ));
+		}
+
+		if (!H2Config_skip_intro)
+		{
+			DETOUR_ATTACH(p_movie_play, Memory::GetAddress<movie_play_t>(0x3A2B7), movie_play_hook);
+			DETOUR_ATTACH(p_movie_stop, Memory::GetAddress<movie_stop_t>(0x3A0E6), movie_stop_hook);
 		}
 
 		// prevent game from setting timeBeginPeriod/timeEndPeriod, when rendering loading screen
